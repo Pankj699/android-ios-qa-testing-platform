@@ -1,0 +1,32 @@
+version: '3.8'
+
+services:
+  android-pad-qa:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: android-pad-qa-server
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    network_mode: "host" # Crucial: allows direct ADB communication with Android devices on local subnet
+    environment:
+      - PORT=3000
+      - NODE_ENV=production
+      - ADB_PATH=adb
+      - JAVA_PATH=java
+      - BUNDLETOOL_PATH=/app/backend/tools/bundletool-all-1.18.3.jar
+      - UPLOAD_DIR=/app/backend/uploads
+      - LOG_DIR=/app/backend/logs
+      - DATA_DIR=/app/backend/data
+      - MAX_AAB_SIZE_MB=1024
+      - IS_INTERNAL_QA=true
+    volumes:
+      - qa-uploads:/app/backend/uploads
+      - qa-logs:/app/backend/logs
+      - qa-data:/app/backend/data
+
+volumes:
+  qa-uploads:
+  qa-logs:
+  qa-data:

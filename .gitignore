@@ -1,0 +1,64 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Environment and Secrets (Preserve .env.example)
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.crt
+
+# Production Builds and Temporary Dumps
+frontend/dist/
+dist/
+build/
+qa-device-agent/dist/
+qa-device-agent/build/
+qa-device-agent/*.spec
+scratch/
+scratch_*
+
+# Backend Runtime Persistence Data and Uploads
+backend/data/*
+!backend/data/.gitkeep
+backend/data/apks/*
+!backend/data/apks/.gitkeep
+backend/data/screenshots/*
+!backend/data/screenshots/.gitkeep
+backend/uploads/*
+!backend/uploads/.gitkeep
+
+# Logs and Debug Output
+logs/
+backend/logs/*
+!backend/logs/.gitkeep
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Python Caches and Virtual Environments
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+ENV/
+
+# System and IDE Files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+

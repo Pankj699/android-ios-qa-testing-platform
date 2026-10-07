@@ -1,0 +1,6 @@
+# QA Device Agent Phase 1 Dependencies
+# Python 3.10+ required.
+# Standard library is used for zero-friction deployment.
+# Optional dependencies for enhanced USB / Apple device introspection:
+pymobiledevice3>=4.0.0
+cryptography>=41.0.0

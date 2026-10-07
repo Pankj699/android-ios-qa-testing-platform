@@ -1,0 +1,32 @@
+================================================================================
+           PLAY ASSET DELIVERY (PAD) / ORD QA QUICK START GUIDE
+================================================================================
+
+1. START THE WEB PLATFORM:
+   - Double-click "run-qa-test.bat" OR run:
+     cd backend && npm start
+   - Open your browser at: http://localhost:3000
+
+2. PAIR AND CONNECT YOUR ANDROID DEVICE:
+   - Enable Developer Options & Wireless Debugging on Android 11+.
+   - Tap "Pair device with pairing code".
+   - In the Web UI, click "Connect Device".
+   - Enter IP address, Pairing Port, and 6-digit Code -> Click [ Pair Device ].
+   - Enter Connection Port -> Click [ Connect Device ].
+
+3. UPLOAD YOUR APPLICATION BUILD:
+   - Go to "Builds & AAB" or Dashboard.
+   - Click [ Upload Latest Build ] and drag your .aab file.
+   - The platform will extract the package ID, version, and asset packs.
+
+4. EXECUTE THE PAD TEST:
+   - Go to "Run PAD Test".
+   - Select your connected device and uploaded AAB.
+   - Choose Installation Mode: Fresh Install or Update.
+   - Click [ ▶ Run PAD Test ].
+   - Watch the live execution steps and logcat stream.
+
+5. REVIEW RESULTS:
+   - Check the PASS / FAIL banner.
+   - Click [ Download Logs ] to save full execution logs.
+================================================================================
