@@ -474,25 +474,28 @@ class UserService {
   /**
    * Controlled Initial Admin Bootstrapping
    */
-  async seedInitialAdmin() {
-    if (!config.INITIAL_ADMIN_EMAIL || !config.INITIAL_ADMIN_PASSWORD) {
-      return null;
-    }
+  async seedInitialAdmin(customPassword = null) {
+    const adminEmail = (config.INITIAL_ADMIN_EMAIL || 'admin.ob@gmail.com').toLowerCase().trim();
+    const adminPassword = customPassword || config.INITIAL_ADMIN_PASSWORD;
 
-    const adminEmail = config.INITIAL_ADMIN_EMAIL.toLowerCase().trim();
-    const existing = await this._query('SELECT id FROM users WHERE email = $1', [adminEmail]);
+    // Check if administrator account already exists
+    const existing = await this._query('SELECT id, role, status FROM users WHERE email = $1', [adminEmail]);
     if (existing.rows.length > 0) {
+      const user = existing.rows[0];
+      if (user.role !== 'ADMIN' || user.status !== 'ACTIVE') {
+        await this._query("UPDATE users SET role = 'ADMIN', status = 'ACTIVE', updated_at = NOW() WHERE id = $1", [user.id]);
+        logger.info(`[Bootstrap] Ensured existing admin account ${adminEmail} has role ADMIN and status ACTIVE.`);
+      }
+      return { id: user.id, email: adminEmail, role: 'ADMIN', status: 'ACTIVE', isExisting: true };
+    }
+
+    if (!adminPassword) {
+      logger.info(`[Bootstrap] Admin account ${adminEmail} does not exist and no password supplied; awaiting manual bootstrap.`);
       return null;
     }
 
-    // Check if any ADMIN exists
-    const anyAdmin = await this._query("SELECT id FROM users WHERE role = 'ADMIN'");
-    if (anyAdmin.rows.length > 0) {
-      return null;
-    }
-
-    logger.info(`[Bootstrap] Creating initial admin account for ${adminEmail}...`);
-    const passwordHash = await this.hashPassword(config.INITIAL_ADMIN_PASSWORD);
+    logger.info(`[Bootstrap] Creating initial administrator account for ${adminEmail}...`);
+    const passwordHash = await this.hashPassword(adminPassword);
     const result = await this._query(
       `INSERT INTO users (email, password_hash, name, role, status)
        VALUES ($1, $2, 'Platform Administrator', 'ADMIN', 'ACTIVE')
@@ -500,8 +503,250 @@ class UserService {
       [adminEmail, passwordHash]
     );
 
-    logger.info(`[Bootstrap] Initial admin created successfully: ${adminEmail} (${result.rows[0].id})`);
-    return result.rows[0];
+    logger.info(`[Bootstrap] Initial administrator account created successfully: ${adminEmail} (${result.rows[0].id})`);
+    return { ...result.rows[0], isNew: true };
+  }
+
+  /**
+   * Count active administrators in the database
+   */
+  async countActiveAdmins() {
+    const res = await this._query("SELECT COUNT(*) as count FROM users WHERE role = 'ADMIN' AND status = 'ACTIVE'");
+    return parseInt(res.rows[0]?.count || '0', 10);
+  }
+
+  /**
+   * List users with optional search, role/status filtering, and sorting
+   */
+  async listUsers({ search = '', role = '', status = '', sortBy = 'created_at', sortOrder = 'desc' } = {}) {
+    let queryText = 'SELECT id, email, name, role, status, created_at, updated_at, last_login_at FROM users WHERE 1=1';
+    const params = [];
+
+    if (search && search.trim()) {
+      params.push(`%${search.trim().toLowerCase()}%`);
+      queryText += ` AND (LOWER(name) LIKE $${params.length} OR LOWER(email) LIKE $${params.length})`;
+    }
+
+    if (role && role.trim()) {
+      params.push(role.trim().toUpperCase());
+      queryText += ` AND role = $${params.length}`;
+    }
+
+    if (status && status.trim()) {
+      params.push(status.trim().toUpperCase());
+      queryText += ` AND status = $${params.length}`;
+    }
+
+    // Safe sorting column mapping
+    const allowedSortCols = {
+      name: 'name',
+      email: 'email',
+      role: 'role',
+      status: 'status',
+      created_at: 'created_at',
+      createdAt: 'created_at',
+      last_login_at: 'last_login_at',
+      lastLoginAt: 'last_login_at',
+      updated_at: 'updated_at',
+      updatedAt: 'updated_at'
+    };
+    const col = allowedSortCols[sortBy] || 'created_at';
+    const order = (sortOrder || '').toLowerCase() === 'asc' ? 'ASC' : 'DESC';
+    queryText += ` ORDER BY ${col} ${order}`;
+
+    const res = await this._query(queryText, params);
+
+    // Compute summary metrics
+    const allUsersRes = await this._query('SELECT role, status FROM users');
+    const allRows = allUsersRes.rows;
+    const summary = {
+      total: allRows.length,
+      active: allRows.filter(u => u.status === 'ACTIVE').length,
+      inactive: allRows.filter(u => u.status !== 'ACTIVE').length,
+      administrators: allRows.filter(u => (u.role || '').toUpperCase() === 'ADMIN' && u.status === 'ACTIVE').length
+    };
+
+    return {
+      users: res.rows.map(r => ({
+        id: r.id,
+        email: r.email,
+        name: r.name,
+        role: r.role,
+        status: r.status,
+        createdAt: r.created_at,
+        updatedAt: r.updated_at,
+        lastLoginAt: r.last_login_at
+      })),
+      summary
+    };
+  }
+
+  /**
+   * Retrieve single user details by ID
+   */
+  async getUserById(id) {
+    if (!id) return null;
+    const res = await this._query(
+      'SELECT id, email, name, role, status, created_at, updated_at, last_login_at FROM users WHERE id = $1',
+      [id]
+    );
+    if (res.rows.length === 0) return null;
+    const r = res.rows[0];
+    return {
+      id: r.id,
+      email: r.email,
+      name: r.name,
+      role: r.role,
+      status: r.status,
+      createdAt: r.created_at,
+      updatedAt: r.updated_at,
+      lastLoginAt: r.last_login_at
+    };
+  }
+
+  /**
+   * Update user details (name, role, status) with admin-less prevention
+   */
+  async updateUser(id, updates = {}, requestingUser = null) {
+    const existing = await this.getUserById(id);
+    if (!existing) {
+      const err = new Error('User not found.');
+      err.statusCode = 404;
+      throw err;
+    }
+
+    const { name, role, status } = updates;
+    let newName = existing.name;
+    let newRole = existing.role;
+    let newStatus = existing.status;
+
+    if (name !== undefined) {
+      const trimmed = (name || '').trim();
+      if (!trimmed || trimmed.length < 2) {
+        const err = new Error('Name must be at least 2 characters long.');
+        err.statusCode = 400;
+        throw err;
+      }
+      newName = trimmed;
+    }
+
+    if (role !== undefined) {
+      const normalizedRole = (role || '').trim().toUpperCase();
+      if (!VALID_ROLES.includes(normalizedRole)) {
+        const err = new Error(`Invalid role '${role}'. Allowed roles: ${VALID_ROLES.join(', ')}.`);
+        err.statusCode = 400;
+        throw err;
+      }
+      newRole = normalizedRole;
+    }
+
+    if (status !== undefined) {
+      const normalizedStatus = (status || '').trim().toUpperCase();
+      if (!['ACTIVE', 'INACTIVE'].includes(normalizedStatus)) {
+        const err = new Error(`Invalid status '${status}'. Allowed statuses: ACTIVE, INACTIVE.`);
+        err.statusCode = 400;
+        throw err;
+      }
+      newStatus = normalizedStatus;
+    }
+
+    // Safety guard: Prevent admin-less system
+    const activeAdmins = await this.countActiveAdmins();
+    const isTargetActiveAdmin = existing.role === 'ADMIN' && existing.status === 'ACTIVE';
+
+    if (isTargetActiveAdmin && activeAdmins <= 1) {
+      if (newRole !== 'ADMIN') {
+        const err = new Error('Cannot remove the last active administrator. At least one active administrator must remain.');
+        err.statusCode = 409;
+        throw err;
+      }
+      if (newStatus !== 'ACTIVE') {
+        const err = new Error('Cannot deactivate the last active administrator. At least one active administrator must remain.');
+        err.statusCode = 409;
+        throw err;
+      }
+    }
+
+    await this._query(
+      `UPDATE users
+       SET name = $1, role = $2, status = $3, updated_at = NOW()
+       WHERE id = $4`,
+      [newName, newRole, newStatus, id]
+    );
+
+    // If deactivated, invalidate all user sessions immediately
+    if (newStatus === 'INACTIVE' && existing.status !== 'INACTIVE') {
+      await this.revokeAllUserSessions(id);
+    }
+
+    // If role changed, update cache so permissions apply immediately
+    if (newRole !== existing.role) {
+      for (const [k, v] of this._sessionCache.entries()) {
+        if (v.user?.id === id) {
+          v.user.role = newRole;
+        }
+      }
+    }
+
+    auditLogger.logEvent('USER_UPDATE', {
+      targetUserId: id,
+      targetUserEmail: existing.email,
+      actorUserId: requestingUser?.id || 'admin',
+      updatedFields: {
+        name: newName !== existing.name ? newName : undefined,
+        role: newRole !== existing.role ? newRole : undefined,
+        status: newStatus !== existing.status ? newStatus : undefined
+      },
+      status: 'SUCCESS'
+    });
+
+    return this.getUserById(id);
+  }
+
+  /**
+   * Admin-initiated password reset
+   */
+  async adminResetPassword(id, customPassword = null, requestingUser = null) {
+    const existing = await this.getUserById(id);
+    if (!existing) {
+      const err = new Error('User not found.');
+      err.statusCode = 404;
+      throw err;
+    }
+
+    let tempPassword = customPassword;
+    if (!tempPassword) {
+      tempPassword = crypto.randomBytes(8).toString('hex') + '!Aa1';
+    }
+
+    const passCheck = this.validatePasswordStrength(tempPassword);
+    if (!passCheck.valid) {
+      const err = new Error(passCheck.error);
+      err.statusCode = 400;
+      throw err;
+    }
+
+    const passwordHash = await this.hashPassword(tempPassword);
+    await this._query(
+      'UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2',
+      [passwordHash, id]
+    );
+
+    // Invalidate all existing sessions for this user
+    await this.revokeAllUserSessions(id);
+
+    auditLogger.logEvent('ADMIN_RESET_PASSWORD', {
+      targetUserId: id,
+      targetUserEmail: existing.email,
+      actorUserId: requestingUser?.id || 'admin',
+      status: 'SUCCESS'
+    });
+
+    return {
+      success: true,
+      message: 'Password reset successfully.',
+      temporaryPassword: tempPassword
+    };
   }
 }
 

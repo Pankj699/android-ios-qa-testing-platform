@@ -171,17 +171,143 @@ test('Browser USB Endpoint & Conflict Resolution Suite', async (t) => {
     const claim = deviceLockService.getClaim(browserUsbSerial);
     assert.strictEqual(claim, null, 'Browser USB device must never be stored in global server claims');
 
-    // 2. User B can claim and access their own device independently
+    // 2. User B can own and access their own device independently
     const serverSerialB = '192.168.1.188:5555';
-    deviceLockService.claimDevice(serverSerialB, userB);
+    deviceLockService.setOwner(serverSerialB, userB);
 
     assert.strictEqual(deviceLockService.isDeviceAccessible(serverSerialB, userB), true);
     assert.strictEqual(deviceLockService.isDeviceAccessible(serverSerialB, userA), false);
 
     // Clean up
-    deviceLockService.releaseDevice(serverSerialB, userB);
+    deviceLockService.clearOwner(serverSerialB);
+  });
+
+  await t.test('POST /api/test/prepare-browser-artifact input validation and error handling', async () => {
+    // 1. Missing buildId
+    let statusMissing = 200;
+    let dataMissing = null;
+    await testController.prepareBrowserArtifact(
+      { body: {}, user: mockUser },
+      {
+        status(c) { statusMissing = c; return this; },
+        json(d) { dataMissing = d; return this; }
+      },
+      () => {}
+    );
+    assert.strictEqual(statusMissing, 400);
+    assert.strictEqual(dataMissing.success, false);
+    assert.match(dataMissing.error, /Build ID is required/i);
+
+    // 2. Non-existent buildId
+    let statusNotFound = 200;
+    let dataNotFound = null;
+    await testController.prepareBrowserArtifact(
+      { body: { buildId: 'build_nonexistent_9999' }, user: mockUser },
+      {
+        status(c) { statusNotFound = c; return this; },
+        json(d) { dataNotFound = d; return this; }
+      },
+      () => {}
+    );
+    assert.strictEqual(statusNotFound, 404);
+    assert.strictEqual(dataNotFound.success, false);
+    assert.match(dataNotFound.error, /not found/i);
+
+    // 3. Unauthorized access (different user)
+    let statusForbidden = 200;
+    let dataForbidden = null;
+    await testController.prepareBrowserArtifact(
+      { body: { buildId: mockBuild.id }, user: { id: 'usr_stranger', role: 'tester' } },
+      {
+        status(c) { statusForbidden = c; return this; },
+        json(d) { dataForbidden = d; return this; }
+      },
+      () => {}
+    );
+    assert.strictEqual(statusForbidden, 403);
+    assert.strictEqual(dataForbidden.success, false);
+    assert.match(dataForbidden.error, /Forbidden/i);
+  });
+
+  await t.test('POST /api/test/prepare-browser-artifact successfully prepares artifact and avoids exposing internal filesystem paths', async () => {
+    const config = require('../src/config');
+    assert.strictEqual(typeof config.OUTPUT_DIR, 'string', 'config.OUTPUT_DIR must be a defined string');
+
+    // Create a temporary mock apk file
+    const tempDir = path.join(config.DATA_DIR, 'test_temp');
+    if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir, { recursive: true });
+    const tempApk = path.join(tempDir, 'sample_app.apk');
+    fs.writeFileSync(tempApk, 'MOCK_APK_BINARY_CONTENT');
+
+    const apkBuildId = 'build_mock_apk_' + Date.now();
+    const mockApkBuild = {
+      id: apkBuildId,
+      packageName: 'com.test.sampleapp',
+      version: '1.0.0',
+      fileName: 'sample_app.apk',
+      filePath: tempApk,
+      fileType: 'apk',
+      userId: mockUser.id
+    };
+    historyService.saveBuild(mockApkBuild);
+
+    let statusSuccess = 200;
+    let dataSuccess = null;
+    await testController.prepareBrowserArtifact(
+      { body: { buildId: apkBuildId }, user: mockUser },
+      {
+        status(c) { statusSuccess = c; return this; },
+        json(d) { dataSuccess = d; return this; }
+      },
+      () => {}
+    );
+
+    assert.strictEqual(statusSuccess, 200);
+    assert.strictEqual(dataSuccess.success, true);
+    assert.strictEqual(dataSuccess.filename, `${apkBuildId}_universal.apk`);
+    assert.strictEqual(dataSuccess.downloadUrl, `/api/test/artifact/${apkBuildId}_universal.apk`);
+    assert.strictEqual(typeof dataSuccess.size, 'number');
+    assert.strictEqual(dataSuccess.size > 0, true);
+    // Crucial: no backend absolute paths leaked in response
+    assert.strictEqual(dataSuccess.filePath, undefined);
+    assert.strictEqual(dataSuccess.outputPath, undefined);
+
+    // Verify GET /api/test/artifact/:filename
+    let fileSent = null;
+    let headers = {};
+    await testController.downloadArtifact(
+      { params: { filename: `${apkBuildId}_universal.apk` } },
+      {
+        setHeader(k, v) { headers[k] = v; },
+        sendFile(p) { fileSent = p; }
+      },
+      () => {}
+    );
+    assert.ok(fileSent, 'File should be sent');
+    assert.strictEqual(headers['Content-Type'], 'application/vnd.android.package-archive');
+
+    // Verify 404 for missing artifact
+    let statusMissingArtifact = 200;
+    let dataMissingArtifact = null;
+    await testController.downloadArtifact(
+      { params: { filename: 'nonexistent_artifact.apk' } },
+      {
+        status(c) { statusMissingArtifact = c; return this; },
+        json(d) { dataMissingArtifact = d; return this; }
+      },
+      () => {}
+    );
+    assert.strictEqual(statusMissingArtifact, 404);
+    assert.strictEqual(dataMissingArtifact.success, false);
+
+    // Clean up
+    historyService.deleteBuild(apkBuildId);
+    if (fs.existsSync(tempApk)) fs.unlinkSync(tempApk);
+    const generatedApk = path.join(config.OUTPUT_DIR, `${apkBuildId}_universal.apk`);
+    if (fs.existsSync(generatedApk)) fs.unlinkSync(generatedApk);
   });
 
   // Clean up mock build
   historyService.deleteBuild(buildId);
 });
+

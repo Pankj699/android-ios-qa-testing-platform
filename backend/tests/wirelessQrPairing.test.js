@@ -107,9 +107,9 @@ test('Android 11+ Wireless Debugging QR Pairing Suite', async (t) => {
     const decoratedA = deviceLockService.decorateDevice(rawDev, mockUserA);
     const decoratedB = deviceLockService.decorateDevice(rawDev, mockUserB);
 
-    assert.strictEqual(decoratedA.connectionMode, 'browser-wireless');
-    assert.strictEqual(decoratedA.isClaimedByMe, true);
-    assert.strictEqual(decoratedB.isClaimedByMe, false);
+    assert.strictEqual(decoratedA.owner.isOwner, true);
+    assert.strictEqual(decoratedB.owner.isOwner, false);
+    assert.strictEqual(decoratedA.isClaimed, false);
 
     // Clean up
     deviceLockService.releaseDevice(serialA, mockUserA);

@@ -5,6 +5,7 @@ import DeviceCard from '../components/DeviceCard';
 export default function DevicesPage({
   devices,
   selectedDevice,
+  currentUser,
   onSelectDevice,
   onMirrorDevice,
   onOpenPairModal,
@@ -13,8 +14,6 @@ export default function DevicesPage({
   onOpenUsbDiagnostics,
   onRefreshDevices,
   onDisconnectDevice,
-  onClaimDevice,
-  onReleaseDevice,
   onClearData,
   onUninstallApp,
   onLaunchApp,
@@ -134,8 +133,6 @@ export default function DevicesPage({
                 onSelect={onSelectDevice}
                 onMirror={onMirrorDevice}
                 onDisconnect={onDisconnectDevice}
-                onClaim={onClaimDevice}
-                onRelease={onReleaseDevice}
                 onRefresh={onRefreshDevices}
                 onClearData={onClearData}
                 onUninstall={onUninstallApp}

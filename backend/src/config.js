@@ -42,6 +42,7 @@ const config = {
   DATA_DIR: process.env.DATA_DIR || path.join(BACKEND_DIR, 'data'),
   TOOLS_DIR: path.join(BACKEND_DIR, 'tools'),
   APKS_OUTPUT_DIR: path.join(BACKEND_DIR, 'data', 'apks'),
+  OUTPUT_DIR: path.join(BACKEND_DIR, 'data', 'apks'),
   
   // Limits and timeouts
   MAX_AAB_SIZE_MB: parseInt(process.env.MAX_AAB_SIZE_MB || '1024', 10),
@@ -56,7 +57,7 @@ const config = {
   SESSION_SECRET: process.env.SESSION_SECRET || 'qa_platform_session_secret_key_7194823',
   SESSION_MAX_AGE_MS: parseInt(process.env.SESSION_MAX_AGE_MS || String(7 * 24 * 60 * 60 * 1000), 10), // 7 days default
   DATABASE_URL: process.env.DATABASE_URL || '',
-  INITIAL_ADMIN_EMAIL: (process.env.INITIAL_ADMIN_EMAIL || 'admin@qatools.internal').toLowerCase().trim(),
+  INITIAL_ADMIN_EMAIL: (process.env.INITIAL_ADMIN_EMAIL || 'admin.ob@gmail.com').toLowerCase().trim(),
   INITIAL_ADMIN_PASSWORD: process.env.INITIAL_ADMIN_PASSWORD || '',
   DEVICE_LOCK_TIMEOUT_MS: parseInt(process.env.DEVICE_LOCK_TIMEOUT_MS || '300000', 10), // 5 minutes default
   

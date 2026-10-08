@@ -265,12 +265,31 @@ class TestController {
         return res.status(404).json({ success: false, error: `Build with ID ${buildId} not found.` });
       }
 
+      // Check build authorization
+      if (req.user && req.user.id) {
+        const userId = req.user.id;
+        const isAdmin = (req.user.role || '').toLowerCase() === 'admin';
+        if (!isAdmin && build.userId && build.userId !== userId) {
+          return res.status(403).json({ success: false, error: 'Forbidden. You do not own this build.' });
+        }
+      }
+
       const bundletoolService = require('../services/bundletoolService');
       const filename = `${build.id}_universal.apk`;
-      const outputPath = path.join(config.OUTPUT_DIR, filename);
+      const outputDir = config.OUTPUT_DIR || config.APKS_OUTPUT_DIR;
+      if (!fs.existsSync(outputDir)) {
+        fs.mkdirSync(outputDir, { recursive: true });
+      }
+      const outputPath = path.join(outputDir, filename);
 
       if (!fs.existsSync(outputPath) || fs.statSync(outputPath).size === 0) {
-        await bundletoolService.buildUniversalApk(build.filePath, outputPath);
+        const isApk = (build.filePath && build.filePath.toLowerCase().endsWith('.apk')) || build.fileType === 'apk';
+        if (isApk) {
+          // If the uploaded build is already a standalone APK, copy it directly as the universal artifact
+          fs.copyFileSync(build.filePath, outputPath);
+        } else {
+          await bundletoolService.buildUniversalApk(build.filePath, outputPath);
+        }
       }
 
       const artifactStats = fs.statSync(outputPath);
@@ -291,7 +310,8 @@ class TestController {
   async downloadArtifact(req, res, next) {
     try {
       const filename = path.basename(req.params.filename);
-      const filePath = path.join(config.OUTPUT_DIR, filename);
+      const outputDir = config.OUTPUT_DIR || config.APKS_OUTPUT_DIR;
+      const filePath = path.join(outputDir, filename);
 
       if (!fs.existsSync(filePath)) {
         return res.status(404).json({ success: false, error: 'Artifact file not found or expired.' });

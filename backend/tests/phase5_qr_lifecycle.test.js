@@ -56,10 +56,9 @@ describe('Phase 5 — QR / Browser Wireless Connection Lifecycle Suite', () => {
       const res = await wirelessPairingService.connectDevice(userA, '192.168.0.146', '38111', { connectionMode: 'browser-wireless' });
       assert.strictEqual(res.success, true);
 
-      const claim = deviceLockService.getClaim(qrSerialA);
-      assert.ok(claim, 'Claim must exist for QR device');
-      assert.strictEqual(claim.userId, userA.id);
-      assert.strictEqual(claim.connectionMode, 'browser-wireless');
+      const owner = deviceLockService.getOwner(qrSerialA);
+      assert.ok(owner, 'Owner must exist for QR device');
+      assert.strictEqual(owner.userId, userA.id);
       assert.strictEqual(deviceLockService.isUserDevice(qrSerialA, userA), true);
       assert.strictEqual(deviceLockService.isUserDevice(qrSerialA, userB), false);
     } finally {
@@ -98,8 +97,8 @@ describe('Phase 5 — QR / Browser Wireless Connection Lifecycle Suite', () => {
   test('TEST 3: User A QR device becomes stale -> User B performs REAL successful wireless connection -> Takeover succeeds', async () => {
     // 1. User A originally connected via QR
     deviceLockService.claimDevice(qrSerialA, userA, { hardwareSerial: hwVivo, connectionMode: 'browser-wireless' });
-    assert.strictEqual(deviceLockService.getClaim(qrSerialA).userId, userA.id);
-    assert.strictEqual(deviceLockService.getClaim(hwVivo).userId, userA.id);
+    assert.strictEqual(deviceLockService.getOwner(qrSerialA).userId, userA.id);
+    assert.strictEqual(deviceLockService.getOwner(hwVivo).userId, userA.id);
 
     // 2. Wireless transport disappears, but User B connects same physical device on new port (or same port)
     const origConnect = adbService.connectDevice;
@@ -114,10 +113,10 @@ describe('Phase 5 — QR / Browser Wireless Connection Lifecycle Suite', () => {
       assert.strictEqual(res.success, true);
 
       // 3. User B must now be the verified owner
-      const claimB = deviceLockService.getClaim(hwVivo);
-      assert.ok(claimB, 'Claim must exist on hardwareSerial');
-      assert.strictEqual(claimB.userId, userB.id, 'User B must become the new owner');
-      assert.strictEqual(claimB.userName, userB.name);
+      const ownerB = deviceLockService.getOwner(hwVivo);
+      assert.ok(ownerB, 'Owner must exist on hardwareSerial');
+      assert.strictEqual(ownerB.userId, userB.id, 'User B must become the new owner');
+      assert.strictEqual(ownerB.userName, userB.name);
 
       assert.strictEqual(deviceLockService.isUserDevice(hwVivo, userB), true);
       assert.strictEqual(deviceLockService.isUserDevice(hwVivo, userA), false, 'User A must no longer have access');
@@ -157,7 +156,7 @@ describe('Phase 5 — QR / Browser Wireless Connection Lifecycle Suite', () => {
   test('TEST 5: mDNS discovery of User A device by User B does NOT transfer User A claim', async () => {
     // User A claims device
     deviceLockService.claimDevice(qrSerialA, userA, { hardwareSerial: hwVivo, connectionMode: 'browser-wireless' });
-    assert.strictEqual(deviceLockService.getClaim(hwVivo).userId, userA.id);
+    assert.strictEqual(deviceLockService.getOwner(hwVivo).userId, userA.id);
 
     // Mock adbService.getMdnsServices to advertise User A's device
     const origGetMdns = adbService.getMdnsServices;
@@ -172,8 +171,8 @@ describe('Phase 5 — QR / Browser Wireless Connection Lifecycle Suite', () => {
       assert.strictEqual(discovered[0].address, '192.168.0.146:38111');
 
       // Crucial assertion: User A must STILL be the exclusive owner!
-      const claim = deviceLockService.getClaim(hwVivo);
-      assert.strictEqual(claim.userId, userA.id, 'mDNS discovery alone MUST NEVER transfer ownership');
+      const owner = deviceLockService.getOwner(hwVivo);
+      assert.strictEqual(owner.userId, userA.id, 'mDNS discovery alone MUST NEVER transfer ownership');
       assert.strictEqual(deviceLockService.isUserDevice(hwVivo, userA), true);
       assert.strictEqual(deviceLockService.isUserDevice(hwVivo, userB), false);
     } finally {
@@ -200,9 +199,9 @@ describe('Phase 5 — QR / Browser Wireless Connection Lifecycle Suite', () => {
       assert.strictEqual(prioritized[0].serial, usbVivo, 'USB must be authoritative');
       assert.strictEqual(prioritized[0].isAuthoritative, true);
 
-      // Verify claim migrated to USB for User A
-      const claim = deviceLockService.getClaim(usbVivo);
-      assert.strictEqual(claim.userId, userA.id);
+      // Verify connection ownership migrated to USB for User A
+      const owner = deviceLockService.getOwner(usbVivo);
+      assert.strictEqual(owner.userId, userA.id);
     } finally {
       adbService.disconnectDevice = origDisconnect;
     }
@@ -254,7 +253,7 @@ describe('Phase 5 — QR / Browser Wireless Connection Lifecycle Suite', () => {
   test('TEST 8: QR session cancellation/expiration cleans temporary session without releasing established persistent claim', async () => {
     // 1. Establish persistent claim on device
     deviceLockService.claimDevice(usbVivo, userA, { hardwareSerial: hwVivo });
-    assert.strictEqual(deviceLockService.getClaim(hwVivo).userId, userA.id);
+    assert.strictEqual(deviceLockService.getOwner(hwVivo).userId, userA.id);
 
     // 2. User B starts a QR pairing session
     const sessionB = await wirelessPairingService.createPairingSession(userB);
@@ -266,9 +265,9 @@ describe('Phase 5 — QR / Browser Wireless Connection Lifecycle Suite', () => {
     assert.strictEqual(cancelled, true);
     assert.strictEqual(wirelessPairingService.sessions.has(sessionB.sessionId), false);
 
-    // 4. Critical assertion: User A persistent device claim must NOT be released!
-    const claim = deviceLockService.getClaim(hwVivo);
-    assert.ok(claim, 'Established device claim must remain intact');
-    assert.strictEqual(claim.userId, userA.id, 'Session cancellation must never release existing device claims');
+    // 4. Critical assertion: User A persistent device ownership must NOT be released!
+    const owner = deviceLockService.getOwner(hwVivo);
+    assert.ok(owner, 'Established device ownership must remain intact');
+    assert.strictEqual(owner.userId, userA.id, 'Session cancellation must never release existing device ownership');
   });
 });

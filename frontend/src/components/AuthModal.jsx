@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Key, Lock, Mail, AlertCircle, X, CheckCircle2, Shield, User, ArrowRight, ArrowLeft } from 'lucide-react';
+import { Key, Lock, Mail, AlertCircle, X, CheckCircle2, Shield, User, ArrowRight, ArrowLeft, Eye, EyeOff } from 'lucide-react';
 import { api } from '../services/api';
+
+const REMEMBERED_EMAIL_KEY = 'qa_remembered_email';
 
 export default function AuthModal({ isOpen, onClose, onLoginSuccess, initialMode = 'login', initialToken = '' }) {
   const [mode, setMode] = useState(initialMode); // 'login' | 'register' | 'forgot' | 'reset'
@@ -10,6 +12,16 @@ export default function AuthModal({ isOpen, onClose, onLoginSuccess, initialMode
   const [confirmPassword, setConfirmPassword] = useState('');
   const [resetToken, setResetToken] = useState(initialToken);
   
+  // Independent password visibility states
+  const [showLoginPassword, setShowLoginPassword] = useState(false);
+  const [showRegisterPassword, setShowRegisterPassword] = useState(false);
+  const [showRegisterConfirmPassword, setShowRegisterConfirmPassword] = useState(false);
+  const [showResetPassword, setShowResetPassword] = useState(false);
+  const [showResetConfirmPassword, setShowResetConfirmPassword] = useState(false);
+
+  // Remember Me state for Sign In
+  const [rememberMe, setRememberMe] = useState(false);
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
@@ -20,6 +32,24 @@ export default function AuthModal({ isOpen, onClose, onLoginSuccess, initialMode
       setError('');
       setSuccessMessage('');
       if (initialToken) setResetToken(initialToken);
+
+      // Check for remembered email on open
+      try {
+        const savedEmail = localStorage.getItem(REMEMBERED_EMAIL_KEY);
+        if (savedEmail) {
+          setEmail(savedEmail);
+          setRememberMe(true);
+        } else {
+          setRememberMe(false);
+        }
+      } catch (e) {}
+
+      // Reset visibility toggles to default hidden state
+      setShowLoginPassword(false);
+      setShowRegisterPassword(false);
+      setShowRegisterConfirmPassword(false);
+      setShowResetPassword(false);
+      setShowResetConfirmPassword(false);
     }
   }, [isOpen, initialMode, initialToken]);
 
@@ -34,20 +64,32 @@ export default function AuthModal({ isOpen, onClose, onLoginSuccess, initialMode
     e.preventDefault();
     resetErrors();
 
-    const normalizedEmail = email.trim();
-    if (!normalizedEmail) {
+    const form = e.currentTarget;
+    const currentEmail = (email || form.elements?.email?.value || '').trim();
+    const currentPassword = password || form.elements?.password?.value || '';
+
+    if (!currentEmail) {
       setError('Email address is required.');
       return;
     }
-    if (!password) {
+    if (!currentPassword) {
       setError('Password is required.');
       return;
     }
 
     setLoading(true);
     try {
-      const res = await api.login({ email: normalizedEmail, password });
+      const res = await api.login({ email: currentEmail, password: currentPassword });
       if (res.success && res.user) {
+        // Handle Remember Me: store only email locally (NEVER password)
+        try {
+          if (rememberMe) {
+            localStorage.setItem(REMEMBERED_EMAIL_KEY, currentEmail);
+          } else {
+            localStorage.removeItem(REMEMBERED_EMAIL_KEY);
+          }
+        } catch (e) {}
+
         if (onLoginSuccess) {
           onLoginSuccess(res.user);
         }
@@ -66,8 +108,11 @@ export default function AuthModal({ isOpen, onClose, onLoginSuccess, initialMode
     e.preventDefault();
     resetErrors();
 
-    const trimmedName = name.trim();
-    const normalizedEmail = email.trim();
+    const form = e.currentTarget;
+    const trimmedName = (name || form.elements?.name?.value || '').trim();
+    const normalizedEmail = (email || form.elements?.email?.value || '').trim();
+    const currentPassword = password || form.elements?.password?.value || '';
+    const currentConfirmPassword = confirmPassword || form.elements?.confirmPassword?.value || '';
 
     if (!trimmedName || trimmedName.length < 2) {
       setError('Please enter your full name (minimum 2 characters).');
@@ -80,17 +125,17 @@ export default function AuthModal({ isOpen, onClose, onLoginSuccess, initialMode
       return;
     }
 
-    if (!password || password.length < 8) {
+    if (!currentPassword || currentPassword.length < 8) {
       setError('Password must be at least 8 characters long.');
       return;
     }
 
-    if (password.length > 128) {
+    if (currentPassword.length > 128) {
       setError('Password cannot exceed 128 characters.');
       return;
     }
 
-    if (password !== confirmPassword) {
+    if (currentPassword !== currentConfirmPassword) {
       setError('Passwords do not match. Please re-enter your password.');
       return;
     }
@@ -100,7 +145,7 @@ export default function AuthModal({ isOpen, onClose, onLoginSuccess, initialMode
       const res = await api.register({
         name: trimmedName,
         email: normalizedEmail,
-        password
+        password: currentPassword
       });
 
       if (res.success && res.user) {
@@ -259,50 +304,81 @@ export default function AuthModal({ isOpen, onClose, onLoginSuccess, initialMode
           {mode === 'login' && (
             <form onSubmit={handleLogin} className="space-y-4">
               <div className="space-y-1.5">
-                <label className="text-xs font-medium text-[#CBD5E1]">Email Address</label>
+                <label htmlFor="login-email" className="text-xs font-medium text-[#CBD5E1]">Email Address</label>
                 <div className="relative">
-                  <Mail className="w-4 h-4 text-[#64748B] absolute left-3 top-1/2 -translate-y-1/2" />
+                  <Mail className="w-4 h-4 text-[#64748B] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                   <input
+                    id="login-email"
+                    name="email"
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="name@company.com"
                     required
-                    autoComplete="email"
+                    autoComplete="username"
                     className="w-full pl-9 pr-3 py-2 bg-[#0A0D14] border border-[#1E2638] rounded-lg text-xs text-[#FFFFFF] placeholder-[#475569] focus:outline-none focus:border-[#F59E0B]"
                   />
                 </div>
               </div>
 
               <div className="space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <label className="text-xs font-medium text-[#CBD5E1]">Password</label>
-                  <button
-                    type="button"
-                    onClick={() => { setMode('forgot'); resetErrors(); }}
-                    className="text-[11px] text-[#F59E0B] hover:underline transition-all"
-                  >
-                    Forgot Password?
-                  </button>
-                </div>
+                <label htmlFor="login-password" className="text-xs font-medium text-[#CBD5E1]">Password</label>
                 <div className="relative">
-                  <Key className="w-4 h-4 text-[#64748B] absolute left-3 top-1/2 -translate-y-1/2" />
+                  <Key className="w-4 h-4 text-[#64748B] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                   <input
-                    type="password"
+                    id="login-password"
+                    name="password"
+                    type={showLoginPassword ? 'text' : 'password'}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="Enter your password"
                     required
                     autoComplete="current-password"
-                    className="w-full pl-9 pr-3 py-2 bg-[#0A0D14] border border-[#1E2638] rounded-lg text-xs text-[#FFFFFF] placeholder-[#475569] focus:outline-none focus:border-[#F59E0B]"
+                    className="w-full pl-9 pr-10 py-2 bg-[#0A0D14] border border-[#1E2638] rounded-lg text-xs text-[#FFFFFF] placeholder-[#475569] focus:outline-none focus:border-[#F59E0B]"
                   />
+                  <button
+                    type="button"
+                    onClick={() => setShowLoginPassword((prev) => !prev)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[#64748B] hover:text-[#CBD5E1] focus:text-[#F59E0B] focus:outline-none p-1 rounded transition-colors cursor-pointer"
+                    aria-label={showLoginPassword ? 'Hide password' : 'Show password'}
+                    title={showLoginPassword ? 'Hide password' : 'Show password'}
+                    tabIndex={0}
+                  >
+                    {showLoginPassword ? (
+                      <EyeOff className="w-4 h-4" aria-hidden="true" />
+                    ) : (
+                      <Eye className="w-4 h-4" aria-hidden="true" />
+                    )}
+                  </button>
                 </div>
+              </div>
+
+              {/* Remember Me and Forgot Password Row */}
+              <div className="flex items-center justify-between pt-0.5">
+                <label htmlFor="remember-me" className="flex items-center gap-2 cursor-pointer select-none text-xs text-[#CBD5E1] hover:text-[#FFFFFF] transition-colors">
+                  <input
+                    type="checkbox"
+                    id="remember-me"
+                    name="rememberMe"
+                    checked={rememberMe}
+                    onChange={(e) => setRememberMe(e.target.checked)}
+                    className="w-3.5 h-3.5 rounded bg-[#0A0D14] border border-[#1E2638] text-[#F59E0B] focus:ring-1 focus:ring-[#F59E0B] focus:ring-offset-0 focus:outline-none accent-[#F59E0B] cursor-pointer"
+                  />
+                  <span>Remember me</span>
+                </label>
+                <button
+                  type="button"
+                  onClick={() => { setMode('forgot'); resetErrors(); }}
+                  className="text-[11px] text-[#F59E0B] hover:underline transition-all"
+                >
+                  Forgot Password?
+                </button>
               </div>
 
               <button
                 type="submit"
-                disabled={loading || !email || !password}
-                className="w-full py-2.5 rounded-lg bg-[#F59E0B] hover:bg-[#D97706] disabled:opacity-50 text-xs font-bold text-[#000000] shadow transition-all flex items-center justify-center gap-2 mt-2"
+                disabled={loading}
+                className="w-full py-2.5 rounded-lg bg-[#F59E0B] hover:bg-[#D97706] disabled:opacity-50 text-xs font-bold text-[#000000] shadow transition-all flex items-center justify-center gap-2 mt-2 cursor-pointer"
               >
                 {loading ? 'Authenticating...' : 'Sign In'}
               </button>
@@ -324,10 +400,12 @@ export default function AuthModal({ isOpen, onClose, onLoginSuccess, initialMode
           {mode === 'register' && (
             <form onSubmit={handleRegister} className="space-y-3.5">
               <div className="space-y-1">
-                <label className="text-xs font-medium text-[#CBD5E1]">Full Name</label>
+                <label htmlFor="register-name" className="text-xs font-medium text-[#CBD5E1]">Full Name</label>
                 <div className="relative">
-                  <User className="w-4 h-4 text-[#64748B] absolute left-3 top-1/2 -translate-y-1/2" />
+                  <User className="w-4 h-4 text-[#64748B] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                   <input
+                    id="register-name"
+                    name="name"
                     type="text"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
@@ -340,57 +418,91 @@ export default function AuthModal({ isOpen, onClose, onLoginSuccess, initialMode
               </div>
 
               <div className="space-y-1">
-                <label className="text-xs font-medium text-[#CBD5E1]">Email Address</label>
+                <label htmlFor="register-email" className="text-xs font-medium text-[#CBD5E1]">Email Address</label>
                 <div className="relative">
-                  <Mail className="w-4 h-4 text-[#64748B] absolute left-3 top-1/2 -translate-y-1/2" />
+                  <Mail className="w-4 h-4 text-[#64748B] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                   <input
+                    id="register-email"
+                    name="email"
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="name@company.com"
                     required
-                    autoComplete="email"
+                    autoComplete="username"
                     className="w-full pl-9 pr-3 py-2 bg-[#0A0D14] border border-[#1E2638] rounded-lg text-xs text-[#FFFFFF] placeholder-[#475569] focus:outline-none focus:border-[#F59E0B]"
                   />
                 </div>
               </div>
 
               <div className="space-y-1">
-                <label className="text-xs font-medium text-[#CBD5E1]">Password (min. 8 characters)</label>
+                <label htmlFor="register-password" className="text-xs font-medium text-[#CBD5E1]">Password (min. 8 characters)</label>
                 <div className="relative">
-                  <Key className="w-4 h-4 text-[#64748B] absolute left-3 top-1/2 -translate-y-1/2" />
+                  <Key className="w-4 h-4 text-[#64748B] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                   <input
-                    type="password"
+                    id="register-password"
+                    name="password"
+                    type={showRegisterPassword ? 'text' : 'password'}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="Create a secure password"
                     required
                     autoComplete="new-password"
-                    className="w-full pl-9 pr-3 py-2 bg-[#0A0D14] border border-[#1E2638] rounded-lg text-xs text-[#FFFFFF] placeholder-[#475569] focus:outline-none focus:border-[#F59E0B]"
+                    className="w-full pl-9 pr-10 py-2 bg-[#0A0D14] border border-[#1E2638] rounded-lg text-xs text-[#FFFFFF] placeholder-[#475569] focus:outline-none focus:border-[#F59E0B]"
                   />
+                  <button
+                    type="button"
+                    onClick={() => setShowRegisterPassword((prev) => !prev)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[#64748B] hover:text-[#CBD5E1] focus:text-[#F59E0B] focus:outline-none p-1 rounded transition-colors cursor-pointer"
+                    aria-label={showRegisterPassword ? 'Hide password' : 'Show password'}
+                    title={showRegisterPassword ? 'Hide password' : 'Show password'}
+                    tabIndex={0}
+                  >
+                    {showRegisterPassword ? (
+                      <EyeOff className="w-4 h-4" aria-hidden="true" />
+                    ) : (
+                      <Eye className="w-4 h-4" aria-hidden="true" />
+                    )}
+                  </button>
                 </div>
               </div>
 
               <div className="space-y-1">
-                <label className="text-xs font-medium text-[#CBD5E1]">Confirm Password</label>
+                <label htmlFor="register-confirm-password" className="text-xs font-medium text-[#CBD5E1]">Confirm Password</label>
                 <div className="relative">
-                  <Lock className="w-4 h-4 text-[#64748B] absolute left-3 top-1/2 -translate-y-1/2" />
+                  <Lock className="w-4 h-4 text-[#64748B] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                   <input
-                    type="password"
+                    id="register-confirm-password"
+                    name="confirmPassword"
+                    type={showRegisterConfirmPassword ? 'text' : 'password'}
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     placeholder="Confirm your password"
                     required
                     autoComplete="new-password"
-                    className="w-full pl-9 pr-3 py-2 bg-[#0A0D14] border border-[#1E2638] rounded-lg text-xs text-[#FFFFFF] placeholder-[#475569] focus:outline-none focus:border-[#F59E0B]"
+                    className="w-full pl-9 pr-10 py-2 bg-[#0A0D14] border border-[#1E2638] rounded-lg text-xs text-[#FFFFFF] placeholder-[#475569] focus:outline-none focus:border-[#F59E0B]"
                   />
+                  <button
+                    type="button"
+                    onClick={() => setShowRegisterConfirmPassword((prev) => !prev)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[#64748B] hover:text-[#CBD5E1] focus:text-[#F59E0B] focus:outline-none p-1 rounded transition-colors cursor-pointer"
+                    aria-label={showRegisterConfirmPassword ? 'Hide password' : 'Show password'}
+                    title={showRegisterConfirmPassword ? 'Hide password' : 'Show password'}
+                    tabIndex={0}
+                  >
+                    {showRegisterConfirmPassword ? (
+                      <EyeOff className="w-4 h-4" aria-hidden="true" />
+                    ) : (
+                      <Eye className="w-4 h-4" aria-hidden="true" />
+                    )}
+                  </button>
                 </div>
               </div>
 
               <button
                 type="submit"
-                disabled={loading || !name || !email || !password || !confirmPassword}
-                className="w-full py-2.5 rounded-lg bg-[#F59E0B] hover:bg-[#D97706] disabled:opacity-50 text-xs font-bold text-[#000000] shadow transition-all flex items-center justify-center gap-2 mt-2"
+                disabled={loading}
+                className="w-full py-2.5 rounded-lg bg-[#F59E0B] hover:bg-[#D97706] disabled:opacity-50 text-xs font-bold text-[#000000] shadow transition-all flex items-center justify-center gap-2 mt-2 cursor-pointer"
               >
                 {loading ? 'Creating Account...' : 'Create Account'}
               </button>
@@ -486,41 +598,73 @@ export default function AuthModal({ isOpen, onClose, onLoginSuccess, initialMode
                   </div>
 
                   <div className="space-y-1">
-                    <label className="text-xs font-medium text-[#CBD5E1]">New Password</label>
+                    <label htmlFor="reset-new-password" className="text-xs font-medium text-[#CBD5E1]">New Password</label>
                     <div className="relative">
-                      <Key className="w-4 h-4 text-[#64748B] absolute left-3 top-1/2 -translate-y-1/2" />
+                      <Key className="w-4 h-4 text-[#64748B] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                       <input
-                        type="password"
+                        id="reset-new-password"
+                        name="password"
+                        type={showResetPassword ? 'text' : 'password'}
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
                         placeholder="At least 8 characters"
                         required
                         autoComplete="new-password"
-                        className="w-full pl-9 pr-3 py-2 bg-[#0A0D14] border border-[#1E2638] rounded-lg text-xs text-[#FFFFFF] placeholder-[#475569] focus:outline-none focus:border-[#F59E0B]"
+                        className="w-full pl-9 pr-10 py-2 bg-[#0A0D14] border border-[#1E2638] rounded-lg text-xs text-[#FFFFFF] placeholder-[#475569] focus:outline-none focus:border-[#F59E0B]"
                       />
+                      <button
+                        type="button"
+                        onClick={() => setShowResetPassword((prev) => !prev)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-[#64748B] hover:text-[#CBD5E1] focus:text-[#F59E0B] focus:outline-none p-1 rounded transition-colors cursor-pointer"
+                        aria-label={showResetPassword ? 'Hide password' : 'Show password'}
+                        title={showResetPassword ? 'Hide password' : 'Show password'}
+                        tabIndex={0}
+                      >
+                        {showResetPassword ? (
+                          <EyeOff className="w-4 h-4" aria-hidden="true" />
+                        ) : (
+                          <Eye className="w-4 h-4" aria-hidden="true" />
+                        )}
+                      </button>
                     </div>
                   </div>
 
                   <div className="space-y-1">
-                    <label className="text-xs font-medium text-[#CBD5E1]">Confirm New Password</label>
+                    <label htmlFor="reset-confirm-password" className="text-xs font-medium text-[#CBD5E1]">Confirm New Password</label>
                     <div className="relative">
-                      <Lock className="w-4 h-4 text-[#64748B] absolute left-3 top-1/2 -translate-y-1/2" />
+                      <Lock className="w-4 h-4 text-[#64748B] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                       <input
-                        type="password"
+                        id="reset-confirm-password"
+                        name="confirmPassword"
+                        type={showResetConfirmPassword ? 'text' : 'password'}
                         value={confirmPassword}
                         onChange={(e) => setConfirmPassword(e.target.value)}
                         placeholder="Confirm your new password"
                         required
                         autoComplete="new-password"
-                        className="w-full pl-9 pr-3 py-2 bg-[#0A0D14] border border-[#1E2638] rounded-lg text-xs text-[#FFFFFF] placeholder-[#475569] focus:outline-none focus:border-[#F59E0B]"
+                        className="w-full pl-9 pr-10 py-2 bg-[#0A0D14] border border-[#1E2638] rounded-lg text-xs text-[#FFFFFF] placeholder-[#475569] focus:outline-none focus:border-[#F59E0B]"
                       />
+                      <button
+                        type="button"
+                        onClick={() => setShowResetConfirmPassword((prev) => !prev)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-[#64748B] hover:text-[#CBD5E1] focus:text-[#F59E0B] focus:outline-none p-1 rounded transition-colors cursor-pointer"
+                        aria-label={showResetConfirmPassword ? 'Hide password' : 'Show password'}
+                        title={showResetConfirmPassword ? 'Hide password' : 'Show password'}
+                        tabIndex={0}
+                      >
+                        {showResetConfirmPassword ? (
+                          <EyeOff className="w-4 h-4" aria-hidden="true" />
+                        ) : (
+                          <Eye className="w-4 h-4" aria-hidden="true" />
+                        )}
+                      </button>
                     </div>
                   </div>
 
                   <button
                     type="submit"
-                    disabled={loading || !resetToken || !password || !confirmPassword}
-                    className="w-full py-2.5 rounded-lg bg-[#F59E0B] hover:bg-[#D97706] disabled:opacity-50 text-xs font-bold text-[#000000] shadow transition-all flex items-center justify-center gap-2 mt-2"
+                    disabled={loading}
+                    className="w-full py-2.5 rounded-lg bg-[#F59E0B] hover:bg-[#D97706] disabled:opacity-50 text-xs font-bold text-[#000000] shadow transition-all flex items-center justify-center gap-2 mt-2 cursor-pointer"
                   >
                     {loading ? 'Resetting Password...' : 'Reset Password'}
                   </button>

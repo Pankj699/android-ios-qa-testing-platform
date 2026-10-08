@@ -377,12 +377,12 @@ describe('Phase 4 — Device Transport Lifecycle Hardening Suite', () => {
     assert.strictEqual(hwMap.get(wifiVivo), hwVivo);
   });
 
-  // TEST 13: Existing Phase 2 verified stale claim takeover semantics pass
-  test('TEST 13: Phase 2 stale claim takeover semantics preserved', () => {
+  // TEST 13: Existing Phase 2 verified connection ownership handover semantics pass
+  test('TEST 13: Phase 2 connection ownership handover semantics preserved', () => {
     deviceLockService.claimDevice(hwVivo, userA, { hardwareSerial: hwVivo });
-    assert.strictEqual(deviceLockService.getClaim(hwVivo).userId, userA.id);
+    assert.strictEqual(deviceLockService.getOwner(hwVivo).userId, userA.id);
 
-    // User B takes over with verified connection
+    // User B takes over with connection
     deviceLockService.claimDevice(hwVivo, userB, {
       hardwareSerial: hwVivo,
       forceTakeover: true,
@@ -390,7 +390,7 @@ describe('Phase 4 — Device Transport Lifecycle Hardening Suite', () => {
       allowImmediateReclaim: true
     });
 
-    assert.strictEqual(deviceLockService.getClaim(hwVivo).userId, userB.id);
+    assert.strictEqual(deviceLockService.getOwner(hwVivo).userId, userB.id);
   });
 
   // TEST 14: Existing Phase 3 USB priority semantics pass

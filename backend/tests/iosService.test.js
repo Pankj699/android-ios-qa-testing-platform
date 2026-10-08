@@ -42,32 +42,29 @@ describe('iOS Device Detection and Mirroring Suite', () => {
     assert.ok(info.osVersion.includes('iOS'));
   });
 
-  test('iOS device participates in Claim and Release lifecycle', () => {
-    // 1. Assign ownership to User A
+  test('iOS device participates in connection ownership lifecycle with claims removed', () => {
+    // 1. Assign connection ownership to User A
     deviceLockService.setOwner(sampleUdid1, mockUserA);
     assert.strictEqual(deviceLockService.isDeviceAccessible(sampleUdid1, mockUserA), true);
     assert.strictEqual(deviceLockService.isDeviceAccessible(sampleUdid1, mockUserB), false);
 
-    // 2. User A claims device
-    const claim = deviceLockService.claimDevice(sampleUdid1, mockUserA);
-    assert.strictEqual(claim.userName, mockUserA.name);
-
-    // 3. User B cannot claim device claimed by User A
-    assert.throws(() => {
-      deviceLockService.claimDevice(sampleUdid1, mockUserB);
-    }, { message: /currently claimed by/ });
-
-    // 4. User A releases device
-    deviceLockService.releaseDevice(sampleUdid1, mockUserA);
-
-    // 5. User B can now claim device
-    const claimB = deviceLockService.claimDevice(sampleUdid1, mockUserB);
-    assert.strictEqual(claimB.userName, mockUserB.name);
-
-    // 6. Admin can force release
-    deviceLockService.releaseDevice(sampleUdid1, mockAdmin, true);
+    // 2. Legacy getClaim returns null (claims deprecated)
     const status = deviceLockService.getClaim(sampleUdid1);
     assert.strictEqual(status, null);
+
+    // 3. User A clears ownership
+    deviceLockService.clearOwner(sampleUdid1);
+
+    // 4. Device is now unowned and accessible to authenticated User B
+    assert.strictEqual(deviceLockService.isDeviceAccessible(sampleUdid1, mockUserB), true);
+
+    // 5. User B takes connection ownership
+    deviceLockService.setOwner(sampleUdid1, mockUserB);
+    assert.strictEqual(deviceLockService.isDeviceAccessible(sampleUdid1, mockUserB), true);
+    assert.strictEqual(deviceLockService.isDeviceAccessible(sampleUdid1, mockUserA), false);
+
+    // 6. Cleanup
+    deviceLockService.clearOwner(sampleUdid1);
   });
 
   test('iosMirrorService reports inactive status for unmirrored device', () => {
@@ -76,8 +73,8 @@ describe('iOS Device Detection and Mirroring Suite', () => {
     assert.strictEqual(status.udid, sampleUdid1);
   });
 
-  test('iosMirrorService rejects startMirror when device claimed by another user', async () => {
-    deviceLockService.claimDevice(sampleUdid1, mockUserA);
+  test('iosMirrorService rejects startMirror when device owned by another user', async () => {
+    deviceLockService.setOwner(sampleUdid1, mockUserA);
 
     await assert.rejects(
       async () => {
@@ -85,10 +82,12 @@ describe('iOS Device Detection and Mirroring Suite', () => {
       },
       /Device is currently claimed by another user/
     );
+
+    deviceLockService.clearOwner(sampleUdid1);
   });
 
-  test('iosMirrorService rejects captureScreenshot when device claimed by another user', async () => {
-    deviceLockService.claimDevice(sampleUdid1, mockUserA);
+  test('iosMirrorService rejects captureScreenshot when device owned by another user', async () => {
+    deviceLockService.setOwner(sampleUdid1, mockUserA);
 
     await assert.rejects(
       async () => {
@@ -96,6 +95,8 @@ describe('iOS Device Detection and Mirroring Suite', () => {
       },
       /Device is currently claimed by another user/
     );
+
+    deviceLockService.clearOwner(sampleUdid1);
   });
 
   test('iosService.getDiagnostics returns system diagnostic structure', async () => {

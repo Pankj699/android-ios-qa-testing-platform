@@ -1,196 +1,139 @@
 const { test, describe, beforeEach } = require('node:test');
 const assert = require('node:assert');
 const deviceLockService = require('../src/services/deviceLockService');
+const deviceController = require('../src/controllers/deviceController');
 
-describe('Device Claim and Release Robustness Suite', () => {
+describe('Device Claim/Release Deprecation & Connection Ownership Suite', () => {
   const userA = { id: 'usr_user_a', name: 'User A', email: 'usera@example.com', role: 'tester' };
   const userB = { id: 'usr_user_b', name: 'User B', email: 'userb@example.com', role: 'tester' };
   const userC = { id: 'usr_user_c', name: 'User C', email: 'userc@example.com', role: 'tester' };
-  const admin = { id: 'usr_admin', name: 'Admin', email: 'admin@qatools.internal', role: 'admin' };
 
   const serial1 = '192.168.1.150:5555';
   const serial2 = '192.168.1.151:44321';
   const hwSerial1 = 'R52X808W8QK';
 
   beforeEach(() => {
-    deviceLockService.releaseDevice(serial1, admin, true);
-    deviceLockService.releaseDevice(serial2, admin, true);
-    deviceLockService.releaseDevice(hwSerial1, admin, true);
-  });
-
-  test('TEST 1 — Automatic Claim on Connection for Unclaimed Device', () => {
-    // User A connects unclaimed device
-    const claim = deviceLockService.claimDevice(serial1, userA, { hardwareSerial: hwSerial1 });
-    assert.strictEqual(claim.userId, userA.id);
-    assert.strictEqual(claim.userName, userA.name);
-
-    const decorated = deviceLockService.decorateDevice({ serial: serial1, state: 'device', connected: true }, userA);
-    assert.strictEqual(decorated.isClaimed, true);
-    assert.strictEqual(decorated.isClaimedByMe, true);
-    assert.strictEqual(decorated.claimedBy, 'User A');
-    assert.strictEqual(decorated.lock.isLocked, true);
-  });
-
-  test('TEST 2 — Claim Persists Without Timer Expiration', () => {
-    deviceLockService.claimDevice(serial1, userA);
-
-    // Verify lock has no automatic expiration (expiresAt is null)
-    const lock = deviceLockService.getLock(serial1);
-    assert.strictEqual(lock.expiresAt, null, 'Claim/Lock must never have automatic timer expiration');
-
-    const claim = deviceLockService.getClaim(serial1);
-    assert.strictEqual(claim.userId, userA.id);
-    assert.strictEqual(claim.userName, userA.name);
-  });
-
-  test('TEST 3 — Device Refresh preserves ownership', () => {
-    deviceLockService.claimDevice(serial1, userA);
-
-    // Simulate multiple device refresh / list decorations
-    for (let i = 0; i < 5; i++) {
-      const decorated = deviceLockService.decorateDevice({ serial: serial1, state: 'device', connected: true }, userA);
-      assert.strictEqual(decorated.isClaimed, true);
-      assert.strictEqual(decorated.isClaimedByMe, true);
-      assert.strictEqual(decorated.claimedBy, 'User A');
-    }
-  });
-
-  test('TEST 4 — Temporary ADB Disconnect preserves claim', () => {
-    deviceLockService.claimDevice(serial1, userA, { hardwareSerial: hwSerial1 });
-
-    // Simulate ADB disconnect (clears transport connection only)
     deviceLockService.clearOwner(serial1);
-
-    // Claim MUST remain User A even while disconnected
-    const claim = deviceLockService.getClaim(serial1);
-    assert.ok(claim !== null, 'Claim must not be cleared on disconnect');
-    assert.strictEqual(claim.userName, 'User A');
-
-    // Simulate reconnect
-    const reconnected = deviceLockService.decorateDevice({ serial: serial1, state: 'device', connected: true }, userA);
-    assert.strictEqual(reconnected.isClaimed, true);
-    assert.strictEqual(reconnected.isClaimedByMe, true);
-    assert.strictEqual(reconnected.claimedBy, 'User A');
+    deviceLockService.clearOwner(serial2);
+    deviceLockService.clearOwner(hwSerial1);
   });
 
-  test('TEST 5 — Second User Connection Attempt Cannot Overwrite Claim', () => {
-    deviceLockService.claimDevice(serial1, userA, { hardwareSerial: hwSerial1 });
+  test('TEST 1 — Claim and Release endpoints return HTTP 410 Gone', async () => {
+    let claimStatus = 0;
+    let claimBody = null;
+    await deviceController.claimDevice(
+      { params: { id: serial1 }, user: userA },
+      {
+        status(code) { claimStatus = code; return this; },
+        json(data) { claimBody = data; return this; }
+      },
+      () => {}
+    );
 
-    // User B attempts to set owner / connect to same device
-    deviceLockService.setOwner(serial1, userB);
+    assert.strictEqual(claimStatus, 410);
+    assert.strictEqual(claimBody.success, false);
+    assert.strictEqual(claimBody.code, 'CLAIM_RELEASE_DEPRECATED');
+    assert.ok(claimBody.error.includes('removed'));
 
-    // Claim must STILL be User A
-    const claim = deviceLockService.getClaim(serial1);
-    assert.strictEqual(claim.userId, userA.id);
-    assert.strictEqual(claim.userName, 'User A');
+    let releaseStatus = 0;
+    let releaseBody = null;
+    await deviceController.releaseDevice(
+      { params: { id: serial1 }, user: userA },
+      {
+        status(code) { releaseStatus = code; return this; },
+        json(data) { releaseBody = data; return this; }
+      },
+      () => {}
+    );
 
-    // User B cannot claim
-    assert.throws(() => {
-      deviceLockService.claimDevice(serial1, userB);
-    }, { message: /currently claimed by User A/ });
+    assert.strictEqual(releaseStatus, 410);
+    assert.strictEqual(releaseBody.success, false);
+    assert.strictEqual(releaseBody.code, 'CLAIM_RELEASE_DEPRECATED');
+    assert.ok(releaseBody.error.includes('removed'));
   });
 
-  test('TEST 6 — Second User Disconnect Does Not Affect User A Claim', () => {
-    deviceLockService.claimDevice(serial1, userA, { hardwareSerial: hwSerial1 });
+  test('TEST 2 — getClaim strictly returns null and claims are deactivated', () => {
+    // Calling legacy claim stub
+    const res = deviceLockService.claimDevice(serial1, userA);
+    assert.strictEqual(res.deprecated, true);
 
-    // User B disconnects
-    deviceLockService.clearOwner(serial1);
-
-    // User A claim remains 100% intact
+    // getClaim strictly returns null
     const claim = deviceLockService.getClaim(serial1);
-    assert.strictEqual(claim.userId, userA.id);
-    assert.strictEqual(claim.userName, 'User A');
+    assert.strictEqual(claim, null);
   });
 
-  test('TEST 7 — Explicit Release Clears Claim and Makes Device Available', () => {
-    deviceLockService.claimDevice(serial1, userA);
+  test('TEST 3 — Device decoration provides neutral compatibility fields', () => {
+    const rawDevice = { serial: serial1, state: 'device', connected: true };
+    const decorated = deviceLockService.decorateDevice(rawDevice, userA);
+
+    assert.strictEqual(decorated.isClaimed, false);
+    assert.strictEqual(decorated.isClaimedByMe, false);
+    assert.strictEqual(decorated.claimedBy, null);
+    assert.strictEqual(decorated.lock.isLocked, false);
+    assert.strictEqual(decorated.lock.isLockedByMe, false);
+    assert.strictEqual(decorated.lock.lockedBy, null);
+  });
+
+  test('TEST 4 — Connection Ownership: setOwner, getOwner, and isUserDevice', () => {
+    deviceLockService.setOwner(serial1, userA);
+
+    const owner = deviceLockService.getOwner(serial1);
+    assert.ok(owner);
+    assert.strictEqual(owner.userId, userA.id);
+    assert.strictEqual(owner.userName, userA.name);
+
     assert.strictEqual(deviceLockService.isUserDevice(serial1, userA), true);
     assert.strictEqual(deviceLockService.isUserDevice(serial1, userB), false);
-
-    // User A explicitly releases
-    deviceLockService.releaseDevice(serial1, userA);
-
-    assert.strictEqual(deviceLockService.getClaim(serial1), null);
-    // After release, both User A and User B can see the unclaimed connected device
-    assert.strictEqual(deviceLockService.isUserDevice(serial1, userA), true);
-    assert.strictEqual(deviceLockService.isUserDevice(serial1, userB), true);
-
-    const decorated = deviceLockService.decorateDevice({ serial: serial1 }, userB);
-    assert.strictEqual(decorated.isClaimed, false);
-    assert.strictEqual(decorated.claimedBy, null);
   });
 
-  test('TEST 8 — Second User Can Claim After Explicit Release', () => {
-    deviceLockService.claimDevice(serial1, userA);
-    deviceLockService.releaseDevice(serial1, userA);
+  test('TEST 5 — Connection Ownership governs isDeviceAccessible', () => {
+    deviceLockService.setOwner(serial1, userA);
 
-    // User B claims
-    const claimB = deviceLockService.claimDevice(serial1, userB);
-    assert.strictEqual(claimB.userId, userB.id);
-    assert.strictEqual(claimB.userName, 'User B');
-
-    // Now strictly visible to User B, hidden from User A and User C
-    assert.strictEqual(deviceLockService.isUserDevice(serial1, userB), true);
-    assert.strictEqual(deviceLockService.isUserDevice(serial1, userA), false);
-    assert.strictEqual(deviceLockService.isUserDevice(serial1, userC), false);
+    // User A has access
+    assert.strictEqual(deviceLockService.isDeviceAccessible(serial1, userA), true);
+    // User B is isolated and denied
+    assert.strictEqual(deviceLockService.isDeviceAccessible(serial1, userB), false);
   });
 
-  test('TEST 9 — Claim Cannot Be Stolen By Unauthorized Users', () => {
-    deviceLockService.claimDevice(serial1, userA);
+  test('TEST 6 — clearOwner releases connection ownership and frees device', () => {
+    deviceLockService.setOwner(serial1, userA);
+    assert.strictEqual(deviceLockService.isDeviceAccessible(serial1, userB), false);
 
-    assert.throws(() => {
-      deviceLockService.releaseDevice(serial1, userB);
-    }, { message: /Cannot release device/ });
+    deviceLockService.clearOwner(serial1);
+    assert.strictEqual(deviceLockService.getOwner(serial1), null);
 
-    assert.strictEqual(deviceLockService.getClaim(serial1).userId, userA.id);
+    // Unowned device is accessible to authenticated users
+    assert.strictEqual(deviceLockService.isDeviceAccessible(serial1, userB), true);
   });
 
-  test('TEST 10 — Login / Logout Persistence (Claims File Reload)', () => {
-    deviceLockService.claimDevice(serial1, userA, { hardwareSerial: hwSerial1 });
-
-    // Re-initialize service instance from persistent files on disk
-    deviceLockService.init();
-
-    const claim = deviceLockService.getClaim(serial1);
-    assert.ok(claim !== null, 'Claim must survive reload from disk');
-    assert.strictEqual(claim.userId, userA.id);
-    assert.strictEqual(claim.userName, 'User A');
-  });
-
-  test('TEST 11 — Stable Hardware Serial Reconnect Across Dynamic Port Changes', () => {
+  test('TEST 7 — Hardware serial registration preserves identity across ports', () => {
     const port1 = '192.168.0.22:43827';
     const port2 = '192.168.0.22:38911';
 
-    // User A connects on port1 with hardware serial
-    deviceLockService.claimDevice(port1, userA, { hardwareSerial: hwSerial1 });
-
-    // Port changes on reconnect to port2
+    deviceLockService.registerHardwareSerial(port1, hwSerial1);
     deviceLockService.registerHardwareSerial(port2, hwSerial1);
 
-    // Querying port2 should resolve User A's claim via stable hardware serial & IP
-    const claimOnNewPort = deviceLockService.getClaim(port2);
-    assert.ok(claimOnNewPort !== null, 'Claim must resolve on new dynamic Wi-Fi port');
-    assert.strictEqual(claimOnNewPort.userName, 'User A');
+    deviceLockService.setOwner(port1, userA);
 
-    const decorated = deviceLockService.decorateDevice({ serial: port2, state: 'device', connected: true }, userA);
-    assert.strictEqual(decorated.isClaimed, true);
-    assert.strictEqual(decorated.isClaimedByMe, true);
-    assert.strictEqual(decorated.claimedBy, 'User A');
+    // Owner resolves on hardware serial and correlated port
+    const ownerOnPort2 = deviceLockService.getOwner(port2);
+    assert.ok(ownerOnPort2);
+    assert.strictEqual(ownerOnPort2.userId, userA.id);
+
+    // Clean up
+    deviceLockService.clearOwner(port1);
+    deviceLockService.clearOwner(port2);
   });
 
-  test('TEST 12 — Multiple Devices Isolation', () => {
-    deviceLockService.claimDevice(serial1, userA);
-    deviceLockService.claimDevice(serial2, userB);
+  test('TEST 8 — Multi-Device Connection Isolation', () => {
+    deviceLockService.setOwner(serial1, userA);
+    deviceLockService.setOwner(serial2, userB);
 
-    assert.strictEqual(deviceLockService.getClaim(serial1).userId, userA.id);
-    assert.strictEqual(deviceLockService.getClaim(serial2).userId, userB.id);
+    assert.strictEqual(deviceLockService.isDeviceAccessible(serial1, userA), true);
+    assert.strictEqual(deviceLockService.isDeviceAccessible(serial1, userB), false);
 
-    // User A only sees Device 1
-    assert.strictEqual(deviceLockService.isUserDevice(serial1, userA), true);
-    assert.strictEqual(deviceLockService.isUserDevice(serial2, userA), false);
-
-    // User B only sees Device 2
-    assert.strictEqual(deviceLockService.isUserDevice(serial1, userB), false);
-    assert.strictEqual(deviceLockService.isUserDevice(serial2, userB), true);
+    assert.strictEqual(deviceLockService.isDeviceAccessible(serial2, userB), true);
+    assert.strictEqual(deviceLockService.isDeviceAccessible(serial2, userA), false);
+    assert.strictEqual(deviceLockService.isDeviceAccessible(serial2, userC), false);
   });
 });

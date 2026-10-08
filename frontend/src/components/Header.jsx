@@ -123,6 +123,11 @@ export default function Header({
               <span className="font-semibold max-w-[110px] truncate text-[#E2E8F0]">
                 {currentUser.name || currentUser.email}
               </span>
+              {currentUser.role === 'ADMIN' && (
+                <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded bg-amber-500/20 text-[#F59E0B] border border-amber-500/30">
+                  ADMIN
+                </span>
+              )}
               <ChevronDown className={`w-3.5 h-3.5 text-[#64748B] group-hover:text-[#94A3B8] transition-transform ${userMenuOpen ? 'rotate-180' : ''}`} />
             </button>
 
@@ -160,6 +165,19 @@ export default function Header({
 
                 {/* Dropdown Options */}
                 <div className="p-2 space-y-1">
+                  {currentUser.role === 'ADMIN' && (
+                    <button
+                      onClick={() => {
+                        setUserMenuOpen(false);
+                        if (onNavigate) onNavigate('admin-users');
+                      }}
+                      className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-semibold text-[#F59E0B] hover:text-[#FBBF24] hover:bg-[#F59E0B]/10 transition-colors text-left"
+                    >
+                      <ShieldCheck className="w-4 h-4 text-[#F59E0B]" />
+                      <span>User Management</span>
+                    </button>
+                  )}
+
                   <button
                     onClick={() => {
                       setUserMenuOpen(false);
@@ -171,9 +189,6 @@ export default function Header({
                     <span>View Profile</span>
                   </button>
 
-                  <div className="px-3 py-2 text-[10px] text-[#64748B] bg-[#0A0D14] rounded-lg border border-[#1E2638]/50 my-1">
-                    Device claims remain preserved on sign out. Explicit release is required to free claimed devices.
-                  </div>
 
                   <button
                     onClick={() => {

@@ -22,6 +22,7 @@ const adbRoutes = require('./routes/adbRoutes');
 const systemRoutes = require('./routes/systemRoutes');
 const wirelessRoutes = require('./routes/wirelessRoutes');
 const agentRoutes = require('./routes/agentRoutes');
+const adminRoutes = require('./routes/adminRoutes');
 const bundletoolService = require('./services/bundletoolService');
 
 const healthRoutes = require('./routes/healthRoutes');
@@ -51,6 +52,7 @@ app.use('/api', adbRoutes);
 app.use('/api', systemRoutes);
 app.use('/api', wirelessRoutes);
 app.use('/api/agent', agentRoutes);
+app.use('/api', adminRoutes);
 
 // Serve Frontend build in production if present
 const frontendDist = path.join(__dirname, '../../frontend/dist');

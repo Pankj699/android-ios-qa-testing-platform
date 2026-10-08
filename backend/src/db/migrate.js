@@ -77,6 +77,11 @@ async function runMigrations(customPool = null) {
     }
   }
 
+  // Restore persisted authentication data if using file-backed pg-mem
+  if (!customPool && typeof db.restoreFromDisk === 'function') {
+    await db.restoreFromDisk();
+  }
+
   return { success: true, count: MIGRATIONS.length };
 }
 

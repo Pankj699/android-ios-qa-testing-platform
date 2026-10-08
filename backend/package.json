@@ -7,6 +7,7 @@
   "scripts": {
     "start": "node src/index.js",
     "dev": "nodemon src/index.js",
+    "bootstrap:admin": "node src/scripts/bootstrapAdmin.js",
     "test": "node --test --test-concurrency=1 tests/**/*.test.js"
   },
   "dependencies": {

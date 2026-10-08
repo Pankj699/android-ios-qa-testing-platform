@@ -97,11 +97,11 @@ describe('Phase 3 — USB Priority & Wireless/USB Transport Deduplication Suite'
 
       await adbService.deduplicateAndPrioritizeTransports(rawDevices);
 
-      // Claim must now be bound to USB serial for User A
-      const usbClaim = deviceLockService.getClaim(usbVivo);
-      assert.ok(usbClaim, 'USB serial must have active claim');
-      assert.strictEqual(usbClaim.userId, userA.id);
-      assert.strictEqual(usbClaim.userName, userA.name);
+      // Connection ownership must now be bound to USB serial for User A
+      const usbOwner = deviceLockService.getOwner(usbVivo);
+      assert.ok(usbOwner, 'USB serial must have active ownership');
+      assert.strictEqual(usbOwner.userId, userA.id);
+      assert.strictEqual(usbOwner.userName, userA.name);
       assert.strictEqual(deviceLockService.isUserDevice(usbVivo, userA), true);
     } finally {
       adbService.disconnectDevice = origDisconnect;
@@ -125,11 +125,6 @@ describe('Phase 3 — USB Priority & Wireless/USB Transport Deduplication Suite'
       // User B must NOT be able to access the device
       assert.strictEqual(deviceLockService.isUserDevice(usbVivo, userB), false);
       assert.strictEqual(deviceLockService.isDeviceAccessible(usbVivo, userB), false);
-
-      // User B claim attempt must fail
-      assert.throws(() => {
-        deviceLockService.claimDevice(usbVivo, userB);
-      }, /currently claimed by Tester A/);
     } finally {
       adbService.disconnectDevice = origDisconnect;
     }
@@ -152,8 +147,8 @@ describe('Phase 3 — USB Priority & Wireless/USB Transport Deduplication Suite'
 
       assert.strictEqual(decorated.length, 1);
       assert.strictEqual(decorated[0].serial, usbVivo);
-      assert.strictEqual(decorated[0].isClaimed, true);
-      assert.strictEqual(decorated[0].isClaimedByMe, true);
+      assert.strictEqual(decorated[0].isClaimed, false);
+      assert.strictEqual(decorated[0].owner.isOwner, true);
       assert.strictEqual(decorated[0].isWireless, false);
     } finally {
       adbService.disconnectDevice = origDisconnect;
@@ -161,7 +156,7 @@ describe('Phase 3 — USB Priority & Wireless/USB Transport Deduplication Suite'
   });
 
   test('TEST 6 — USB connected first + Wireless connected later -> USB priority maintained, redundant wireless disconnected', async () => {
-    // User A claims USB directly
+    // User A connects USB directly
     deviceLockService.claimDevice(usbVivo, userA, { hardwareSerial: hwVivo });
 
     let disconnectedSerial = null;
@@ -184,8 +179,8 @@ describe('Phase 3 — USB Priority & Wireless/USB Transport Deduplication Suite'
       assert.strictEqual(prioritized.length, 1);
       assert.strictEqual(prioritized[0].serial, usbVivo);
 
-      const claim = deviceLockService.getClaim(usbVivo);
-      assert.strictEqual(claim.userId, userA.id);
+      const owner = deviceLockService.getOwner(usbVivo);
+      assert.strictEqual(owner.userId, userA.id);
     } finally {
       adbService.disconnectDevice = origDisconnect;
     }
@@ -353,11 +348,11 @@ describe('Phase 3 — USB Priority & Wireless/USB Transport Deduplication Suite'
       const devices = [];
       await adbService.checkFallbackRecovery(devices);
 
-      // Verify claim migrated back to wireless serial
-      const claim = deviceLockService.getClaim(wifiVivo);
-      assert.ok(claim, 'Wireless transport must retain claim');
-      assert.strictEqual(claim.userId, userA.id);
-      assert.strictEqual(claim.userName, userA.name);
+      // Verify connection ownership migrated back to wireless serial
+      const owner = deviceLockService.getOwner(wifiVivo);
+      assert.ok(owner, 'Wireless transport must retain ownership');
+      assert.strictEqual(owner.userId, userA.id);
+      assert.strictEqual(owner.userName, userA.name);
       assert.strictEqual(deviceLockService.isUserDevice(wifiVivo, userA), true);
     } finally {
       adbService.execute = origExecute;
@@ -398,13 +393,14 @@ describe('Phase 3 — USB Priority & Wireless/USB Transport Deduplication Suite'
     assert.strictEqual(prioritized.some(d => d.serial === wifiPixel), true);
   });
 
-  test('TEST 15 — Device release clears claim across both USB and wireless transport keys', () => {
+  test('TEST 15 — Device release clears connection ownership across both USB and wireless transport keys', () => {
     deviceLockService.claimDevice(usbVivo, userA, { hardwareSerial: hwVivo });
-    assert.ok(deviceLockService.getClaim(usbVivo));
-    assert.ok(deviceLockService.getClaim(wifiVivo));
+    assert.strictEqual(deviceLockService.isUserDevice(usbVivo, userA), true);
+    assert.strictEqual(deviceLockService.isUserDevice(wifiVivo, userA), true);
 
     deviceLockService.releaseDevice(usbVivo, userA);
 
+    assert.strictEqual(deviceLockService.getOwner(usbVivo), null);
     assert.strictEqual(deviceLockService.getClaim(usbVivo), null);
     assert.strictEqual(deviceLockService.getClaim(wifiVivo), null);
     assert.strictEqual(deviceLockService.getClaim(hwVivo), null);

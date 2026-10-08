@@ -24,6 +24,10 @@ describe('QA Device Agent - Phase 5 Multi-User Isolation & Validation Suite', ()
   beforeEach(() => {
     aliceSent = [];
     bobSent = [];
+    deviceLockService.clearOwner(iphoneA);
+    deviceLockService.clearOwner(iphoneB);
+    deviceLockService.claims.delete(iphoneA);
+    deviceLockService.claims.delete(iphoneB);
 
     aliceWs = {
       readyState: 1,
@@ -89,6 +93,8 @@ describe('QA Device Agent - Phase 5 Multi-User Isolation & Validation Suite', ()
     agentMirrorService.handleAgentDisconnect(agentBobId);
     deviceLockService.claims.delete(iphoneA);
     deviceLockService.claims.delete(iphoneB);
+    deviceLockService.clearOwner(iphoneA);
+    deviceLockService.clearOwner(iphoneB);
   });
 
   test('Area 1 & 2: User & Agent Ownership Isolation', () => {

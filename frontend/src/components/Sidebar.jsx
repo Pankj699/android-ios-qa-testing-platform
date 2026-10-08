@@ -10,7 +10,8 @@ import {
   Activity,
   BookOpen,
   Compass,
-  Settings
+  Settings,
+  ShieldCheck
 } from 'lucide-react';
 
 const NAV_ITEMS = [
@@ -25,7 +26,9 @@ const NAV_ITEMS = [
   { id: 'diagnostics', label: 'System Diagnostics', icon: Activity }
 ];
 
-export default function Sidebar({ currentTab, setTab, runningTestCount = 0, onOpenTourModal }) {
+export default function Sidebar({ currentTab, setTab, runningTestCount = 0, onOpenTourModal, currentUser }) {
+  const isAdmin = currentUser?.role === 'ADMIN';
+
   return (
     <aside className="w-64 bg-[#0D111A] border-r border-[#1E2638] flex flex-col justify-between shrink-0">
       <div className="p-4 space-y-1">
@@ -62,6 +65,28 @@ export default function Sidebar({ currentTab, setTab, runningTestCount = 0, onOp
               </button>
             );
           })}
+
+          {isAdmin && (
+            <div className="pt-3 mt-3 border-t border-[#1E2638]">
+              <div className="px-3 py-1.5 text-[10px] font-semibold text-[#F59E0B] uppercase tracking-wider font-mono flex items-center gap-1.5">
+                <ShieldCheck className="w-3 h-3" />
+                <span>Administration</span>
+              </div>
+              <button
+                onClick={() => setTab('admin-users')}
+                className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-lg text-xs font-semibold transition-all mt-1 ${
+                  currentTab === 'admin-users'
+                    ? 'bg-[#F59E0B] text-[#000000] shadow-sm'
+                    : 'text-[#94A3B8] hover:bg-[#131924] hover:text-[#FFFFFF]'
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <ShieldCheck className={`w-4 h-4 ${currentTab === 'admin-users' ? 'text-[#000000]' : 'text-[#F59E0B]'}`} />
+                  <span>User Management</span>
+                </div>
+              </button>
+            </div>
+          )}
         </nav>
       </div>
 

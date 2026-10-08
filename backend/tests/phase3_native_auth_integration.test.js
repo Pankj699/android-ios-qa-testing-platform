@@ -245,18 +245,18 @@ describe('Phase 3 — Native Authentication ↔ Authorization Integration Suite'
     const serial = `DEV_OWNED_A_${Date.now()}`;
     deviceLockService.claimDevice(serial, regA.body.user);
 
-    // User B attempts to release User A device
+    // User B attempts to release User A device -> 410 Gone (claim/release removed)
     const relRes = await makeRequest({
       method: 'POST',
       path: `/api/device/${serial}/release`,
       headers: { cookie: `qa_session=${cookieB}` },
       body: {}
     });
-    assert.strictEqual(relRes.status, 403);
-    assert.match(relRes.body.error, /Cannot release device/i);
+    assert.strictEqual(relRes.status, 410);
+    assert.strictEqual(relRes.body.code, 'CLAIM_RELEASE_DEPRECATED');
 
     // Clean up with owner
-    deviceLockService.releaseDevice(serial, regA.body.user);
+    deviceLockService.clearOwner(serial);
   });
 
   // --- 6. User B cannot run tests against User A claimed device ---
@@ -384,13 +384,8 @@ describe('Phase 3 — Native Authentication ↔ Authorization Integration Suite'
     const userA = regA.body.user;
 
     const serial = `DEV_PERSIST_${Date.now()}`;
-    // User A claims device
-    const claimRes = await makeRequest({
-      method: 'POST',
-      path: `/api/device/${serial}/claim`,
-      headers: { cookie: `qa_session=${cookieA}` }
-    });
-    assert.strictEqual(claimRes.status, 200);
+    // User A sets connection ownership
+    deviceLockService.setOwner(serial, userA);
 
     // User A logs out
     const logoutRes = await makeRequest({
@@ -400,10 +395,10 @@ describe('Phase 3 — Native Authentication ↔ Authorization Integration Suite'
     });
     assert.strictEqual(logoutRes.status, 200);
 
-    // Check device claim still exists in deviceLockService
-    const claimAfterLogout = deviceLockService.getClaim(serial);
-    assert.ok(claimAfterLogout, 'Device claim MUST persist across user logout');
-    assert.strictEqual(claimAfterLogout.userId, userA.id);
+    // Check device connection ownership still persists in deviceLockService
+    const ownerAfterLogout = deviceLockService.getOwner(serial);
+    assert.ok(ownerAfterLogout, 'Device connection ownership MUST persist across user logout');
+    assert.strictEqual(ownerAfterLogout.userId, userA.id);
 
     // User B registers/logs in
     const regB = await makeRequest({
@@ -413,21 +408,15 @@ describe('Phase 3 — Native Authentication ↔ Authorization Integration Suite'
     });
     const cookieB = extractCookie(regB.headers, 'qa_session');
 
-    // User B cannot claim or access User A device
-    const claimAttemptB = await makeRequest({
-      method: 'POST',
-      path: `/api/device/${serial}/claim`,
-      headers: { cookie: `qa_session=${cookieB}` }
-    });
-    assert.strictEqual(claimAttemptB.status, 409);
-    assert.match(claimAttemptB.body.error, /currently claimed by/i);
+    // User B cannot access User A device
+    assert.strictEqual(deviceLockService.isDeviceAccessible(serial, regB.body.user), false);
 
     // Clean up
-    deviceLockService.releaseDevice(serial, userA);
+    deviceLockService.clearOwner(serial);
   });
 
-  // --- 11. Explicit device release remains the only normal claim-release operation ---
-  test('11. Explicit device release remains the only normal claim-release operation', async () => {
+  // --- 11. Explicit device release remains deprecated (HTTP 410) ---
+  test('11. Explicit device release endpoint returns HTTP 410 Gone', async () => {
     const email = `explicit_rel_${Date.now()}@qatools.test`;
     const reg = await makeRequest({
       method: 'POST',
@@ -438,17 +427,19 @@ describe('Phase 3 — Native Authentication ↔ Authorization Integration Suite'
     const user = reg.body.user;
 
     const serial = `DEV_EXPLICIT_REL_${Date.now()}`;
-    deviceLockService.claimDevice(serial, user);
-    assert.ok(deviceLockService.getClaim(serial));
+    deviceLockService.setOwner(serial, user);
 
-    // Owner explicitly releases
+    // Owner requests release -> 410 Gone (claims removed)
     const relRes = await makeRequest({
       method: 'POST',
       path: `/api/device/${serial}/release`,
       headers: { cookie: `qa_session=${cookie}` }
     });
-    assert.strictEqual(relRes.status, 200);
-    assert.strictEqual(deviceLockService.getClaim(serial), null, 'Device claim should be cleared on explicit release');
+    assert.strictEqual(relRes.status, 410);
+    assert.strictEqual(relRes.body.code, 'CLAIM_RELEASE_DEPRECATED');
+    assert.strictEqual(deviceLockService.getClaim(serial), null);
+
+    deviceLockService.clearOwner(serial);
   });
 
   // --- 12 & 13. Password reset invalidates all previous sessions ---
@@ -576,8 +567,10 @@ describe('Phase 3 — Native Authentication ↔ Authorization Integration Suite'
       headers: { cookie: `qa_session=${adminCookie}` },
       body: { force: true }
     });
-    assert.strictEqual(forceRel.status, 200);
+    assert.strictEqual(forceRel.status, 410);
+    assert.strictEqual(forceRel.body.code, 'CLAIM_RELEASE_DEPRECATED');
     assert.strictEqual(deviceLockService.getClaim(targetSerial), null);
+    deviceLockService.clearOwner(targetSerial);
   });
 
   // --- 17-20. All 5 role contracts remain intact ---
@@ -642,19 +635,14 @@ describe('Phase 3 — Native Authentication ↔ Authorization Integration Suite'
     const cookieA1 = extractCookie(regRes.headers, 'qa_session');
     const userA = regRes.body.user;
 
-    // Step 2: Claim device
+    // Step 2: Set connection ownership for User A
     const serial = `DEV_LIFECYCLE_CONTRACT_${Date.now()}`;
-    const claimRes = await makeRequest({
-      method: 'POST',
-      path: `/api/device/${serial}/claim`,
-      headers: { cookie: `qa_session=${cookieA1}` }
-    });
-    assert.strictEqual(claimRes.status, 200);
+    deviceLockService.setOwner(serial, userA);
 
-    // Step 3: Verify ownership
-    const claim1 = deviceLockService.getClaim(serial);
-    assert.ok(claim1);
-    assert.strictEqual(claim1.userId, userA.id);
+    // Step 3: Verify connection ownership
+    const owner1 = deviceLockService.getOwner(serial);
+    assert.ok(owner1);
+    assert.strictEqual(owner1.userId, userA.id);
 
     // Step 4: Logout
     const logoutRes = await makeRequest({
@@ -664,10 +652,10 @@ describe('Phase 3 — Native Authentication ↔ Authorization Integration Suite'
     });
     assert.strictEqual(logoutRes.status, 200);
 
-    // Step 5: Verify device claim STILL exists
-    const claimAfterLogout = deviceLockService.getClaim(serial);
-    assert.ok(claimAfterLogout, 'Claim MUST NOT be deleted or released on user logout');
-    assert.strictEqual(claimAfterLogout.userId, userA.id);
+    // Step 5: Verify device connection ownership STILL exists
+    const ownerAfterLogout = deviceLockService.getOwner(serial);
+    assert.ok(ownerAfterLogout, 'Connection ownership MUST NOT be cleared on user logout');
+    assert.strictEqual(ownerAfterLogout.userId, userA.id);
 
     // Step 6: Login again
     const loginRes = await makeRequest({
@@ -678,18 +666,18 @@ describe('Phase 3 — Native Authentication ↔ Authorization Integration Suite'
     assert.strictEqual(loginRes.status, 200);
     const cookieA2 = extractCookie(loginRes.headers, 'qa_session');
 
-    // Step 7: Verify User A can still see and access their claim
+    // Step 7: Verify User A can still access their device
     const infoRes = await makeRequest({
       method: 'GET',
       path: `/api/device/${serial}/info`,
       headers: { cookie: `qa_session=${cookieA2}` }
     });
-    assert.notStrictEqual(infoRes.status, 403, 'User A should not be blocked from their claimed device');
+    assert.notStrictEqual(infoRes.status, 403, 'User A should not be blocked from their owned device');
 
     const canAccess = deviceLockService.isDeviceAccessible(serial, loginRes.body.user);
     assert.strictEqual(canAccess, true);
 
     // Clean up
-    deviceLockService.releaseDevice(serial, userA);
+    deviceLockService.clearOwner(serial);
   });
 });

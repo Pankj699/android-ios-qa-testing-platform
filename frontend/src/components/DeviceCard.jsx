@@ -11,8 +11,6 @@ export default function DeviceCard({
   onClearData,
   onUninstall,
   onLaunchApp,
-  onClaim,
-  onRelease,
   loadingAction
 }) {
   if (!device) return null;
@@ -20,11 +18,6 @@ export default function DeviceCard({
   const isAgentUsb = device.connectionMode === 'agent-usb' || !!device.agentId;
   const isBrowserUsb = device.connectionMode === 'browser-usb' || device.serial?.startsWith('browser_usb_');
   const isBrowserWireless = device.connectionMode === 'browser-wireless';
-  const isPrivateDevice = isAgentUsb || isBrowserUsb || isBrowserWireless;
-  const isClaimed = !isPrivateDevice && (device.isClaimed ?? device.lock?.isLocked);
-  const isClaimedByMe = !isPrivateDevice && (device.isClaimedByMe ?? device.lock?.isLockedByMe);
-  const claimedBy = !isPrivateDevice ? (device.claimedBy ?? device.lock?.lockedBy) : null;
-  const isLockedByOther = !isPrivateDevice && isClaimed && !isClaimedByMe;
 
   return (
     <div className={`p-5 rounded-xl border transition-all ${
@@ -73,16 +66,6 @@ export default function DeviceCard({
               {device.platform === 'ios' && (
                 <span className="inline-flex items-center text-[10px] font-semibold px-2 py-0.5 rounded-full bg-sky-500/10 text-sky-400 border border-sky-500/20">
                   iOS
-                </span>
-              )}
-              {isClaimedByMe && (
-                <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-500/10 text-[#F59E0B] border border-amber-500/20">
-                  <Lock className="w-2.5 h-2.5" /> Claimed by You
-                </span>
-              )}
-              {isLockedByOther && (
-                <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-rose-500/10 text-rose-400 border border-rose-500/20">
-                  <Lock className="w-2.5 h-2.5" /> Claimed by {claimedBy}
                 </span>
               )}
             </h3>
@@ -151,16 +134,11 @@ export default function DeviceCard({
           {!isSelected && onSelect && (
             <button
               onClick={() => onSelect(device)}
-              disabled={isLockedByOther}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors flex items-center gap-1.5 ${
-                isLockedByOther 
-                  ? 'bg-[#1E2638] text-[#64748B] cursor-not-allowed' 
-                  : 'bg-[#F59E0B] hover:bg-[#D97706] text-[#000000] shadow'
-              }`}
-              title={isLockedByOther ? `Device is currently claimed by ${claimedBy}` : 'Select Device'}
+              className="px-3 py-1.5 rounded-lg text-xs font-bold transition-colors flex items-center gap-1.5 bg-[#F59E0B] hover:bg-[#D97706] text-[#000000] shadow"
+              title="Select Device"
             >
               <CheckCircle2 className="w-3.5 h-3.5" />
-              <span>{isLockedByOther ? 'In Use' : 'Select Device'}</span>
+              <span>Select Device</span>
             </button>
           )}
 
@@ -168,36 +146,12 @@ export default function DeviceCard({
           {onMirror && (
             <button
               onClick={() => onMirror(device)}
-              disabled={isLockedByOther}
               className="px-3 py-1.5 rounded-lg bg-[#261D10] hover:bg-[#3D2C15] disabled:opacity-50 border border-[#78350F] text-xs font-semibold text-[#F59E0B] hover:text-[#FBBF24] transition-colors flex items-center gap-1.5 shadow-sm"
               title="Open Low-Latency Screen Mirror"
             >
               <Tv className="w-3.5 h-3.5 text-[#F59E0B]" />
               <span>Screen Mirror</span>
             </button>
-          )}
-
-          {/* Claim / Release button (Server ADB devices only) */}
-          {!isPrivateDevice && onClaim && onRelease && (
-            isClaimedByMe ? (
-              <button
-                onClick={() => onRelease(device.serial)}
-                className="px-2.5 py-1.5 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-xs text-[#F59E0B] border border-amber-500/30 transition-colors flex items-center gap-1 font-semibold"
-                title="Release Claim"
-              >
-                <Unlock className="w-3 h-3" />
-                <span>Release</span>
-              </button>
-            ) : !isClaimed && (
-              <button
-                onClick={() => onClaim(device.serial)}
-                className="px-2.5 py-1.5 rounded-lg bg-[#1E2638] hover:bg-[#263248] text-xs text-[#CBD5E1] hover:text-[#FFFFFF] border border-[#334155] transition-colors flex items-center gap-1"
-                title="Claim device for your test session"
-              >
-                <Lock className="w-3 h-3 text-[#F59E0B]" />
-                <span>Claim</span>
-              </button>
-            )
           )}
 
           {onRefresh && (
@@ -216,8 +170,7 @@ export default function DeviceCard({
           {device.platform !== 'ios' && onClearData && (
             <button
               onClick={() => onClearData(device.serial)}
-              disabled={isLockedByOther}
-              className="px-2.5 py-1.5 rounded-lg bg-[#1E2638] hover:bg-[#263248] disabled:opacity-50 text-xs text-[#CBD5E1] hover:text-[#FFFFFF] transition-colors flex items-center gap-1 border border-[#334155]"
+              className="px-2.5 py-1.5 rounded-lg bg-[#1E2638] hover:bg-[#263248] text-xs text-[#CBD5E1] hover:text-[#FFFFFF] transition-colors flex items-center gap-1 border border-[#334155]"
               title="Clear App Data"
             >
               <Eraser className="w-3 h-3 text-[#F59E0B]" />
@@ -228,8 +181,7 @@ export default function DeviceCard({
           {device.platform !== 'ios' && onLaunchApp && (
             <button
               onClick={() => onLaunchApp(device.serial)}
-              disabled={isLockedByOther}
-              className="px-2.5 py-1.5 rounded-lg bg-[#1E2638] hover:bg-[#263248] disabled:opacity-50 text-xs text-[#CBD5E1] hover:text-[#FFFFFF] transition-colors flex items-center gap-1 border border-[#334155]"
+              className="px-2.5 py-1.5 rounded-lg bg-[#1E2638] hover:bg-[#263248] text-xs text-[#CBD5E1] hover:text-[#FFFFFF] transition-colors flex items-center gap-1 border border-[#334155]"
               title="Launch App"
             >
               <Play className="w-3 h-3 text-emerald-400" />
@@ -240,8 +192,7 @@ export default function DeviceCard({
           {onDisconnect && (
             <button
               onClick={() => onDisconnect(device.serial)}
-              disabled={isLockedByOther}
-              className="p-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 disabled:opacity-50 text-rose-400 border border-rose-500/20 transition-colors"
+              className="p-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 transition-colors"
               title="Disconnect Device"
             >
               <Unlink className="w-3.5 h-3.5" />

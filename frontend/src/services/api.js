@@ -197,6 +197,27 @@ export const api = {
   listAgents: () => request('/agent/list'),
   unpairAgent: (agentId) => request(`/agent/${encodeURIComponent(agentId)}/unpair`, { method: 'POST' }),
 
+  // Admin User Management
+  adminGetUsers: (params = {}) => {
+    const qs = new URLSearchParams();
+    if (params.search) qs.append('search', params.search);
+    if (params.role) qs.append('role', params.role);
+    if (params.status) qs.append('status', params.status);
+    if (params.sortBy) qs.append('sortBy', params.sortBy);
+    if (params.sortOrder) qs.append('sortOrder', params.sortOrder);
+    const query = qs.toString() ? `?${qs.toString()}` : '';
+    return request(`/admin/users${query}`);
+  },
+  adminGetUser: (id) => request(`/admin/users/${encodeURIComponent(id)}`),
+  adminUpdateUser: (id, updates) => request(`/admin/users/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    body: updates
+  }),
+  adminResetPassword: (id, temporaryPassword = null) => request(`/admin/users/${encodeURIComponent(id)}/reset-password`, {
+    method: 'POST',
+    body: temporaryPassword ? { temporaryPassword } : {}
+  }),
+
   // System
   getDiagnostics: () => request('/system/diagnostics'),
   getEnv: () => request('/system/env')

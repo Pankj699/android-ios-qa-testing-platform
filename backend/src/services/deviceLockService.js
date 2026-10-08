@@ -6,13 +6,12 @@ const logger = require('../utils/logger');
 class DeviceLockService {
   constructor() {
     this.ownershipFile = path.join(config.DATA_DIR, 'devices_ownership.json');
-    this.claimsFile = path.join(config.DATA_DIR, 'devices_claims.json');
     this.hardwareMapFile = path.join(config.DATA_DIR, 'devices_hardware_map.json');
 
-    this.locks = new Map(); // serial/ip/hwId -> { userId, userName, userEmail, lockedAt, testId }
+    this.locks = new Map(); // serial/ip/hwId -> active test execution lock
     this.ownership = new Map(); // serial/ip/hwId -> { userId, userName, userEmail, connectedAt }
-    this.claims = new Map(); // serial/ip/hwId -> { userId, userName, userEmail, claimedAt, hardwareSerial }
-    this.hardwareMap = new Map(); // serial/ip -> hardwareSerial and hardwareSerial -> Set(serials/ips)
+    this.hardwareMap = new Map(); // serial/ip -> hardwareSerial
+    this.claims = new Map(); // Deprecated legacy container
     this._takeoverLocks = new Set();
     this._recentTakeovers = new Map();
 
@@ -39,20 +38,6 @@ class DeviceLockService {
         this._persistOwnership();
       }
 
-      // Load claim mappings
-      if (fs.existsSync(this.claimsFile)) {
-        const raw = fs.readFileSync(this.claimsFile, 'utf8');
-        const data = JSON.parse(raw);
-        if (typeof data === 'object' && data !== null) {
-          for (const [key, val] of Object.entries(data)) {
-            this.claims.set(key, val);
-          }
-          logger.info(`[DeviceLock] Loaded ${this.claims.size} persisted device claim mappings.`);
-        }
-      } else {
-        this._persistClaims();
-      }
-
       // Load hardware mappings
       if (fs.existsSync(this.hardwareMapFile)) {
         const raw = fs.readFileSync(this.hardwareMapFile, 'utf8');
@@ -64,7 +49,7 @@ class DeviceLockService {
         }
       }
     } catch (err) {
-      logger.error(`[DeviceLock] Failed to initialize device ownership/claims store: ${err.message}`);
+      logger.error(`[DeviceLock] Failed to initialize device ownership store: ${err.message}`);
     }
   }
 
@@ -77,18 +62,6 @@ class DeviceLockService {
       fs.writeFileSync(this.ownershipFile, JSON.stringify(obj, null, 2), 'utf8');
     } catch (err) {
       logger.error(`[DeviceLock] Failed to persist device ownership: ${err.message}`);
-    }
-  }
-
-  _persistClaims() {
-    try {
-      const obj = {};
-      for (const [k, v] of this.claims.entries()) {
-        obj[k] = v;
-      }
-      fs.writeFileSync(this.claimsFile, JSON.stringify(obj, null, 2), 'utf8');
-    } catch (err) {
-      logger.error(`[DeviceLock] Failed to persist device claims: ${err.message}`);
     }
   }
 
@@ -113,35 +86,23 @@ class DeviceLockService {
     if (serial.includes(':')) {
       this.hardwareMap.set(serial.split(':')[0], hardwareSerial);
     }
-    this._persistHardwareMap();
-
-    // If there is already a claim on the hardware serial, map it to this current connection serial
-    const hwClaim = this.claims.get(hardwareSerial);
-    if (hwClaim) {
-      this.claims.set(serial, hwClaim);
-      if (serial.includes(':')) {
-        this.claims.set(serial.split(':')[0], hwClaim);
-      }
-      this._persistClaims();
+    const owner = this.ownership.get(serial) || (serial.includes(':') ? this.ownership.get(serial.split(':')[0]) : null);
+    if (owner && !this.ownership.has(hardwareSerial)) {
+      this.ownership.set(hardwareSerial, owner);
     }
+    this._persistHardwareMap();
   }
 
   /**
    * Set device owner (e.g. when connected/paired by user).
-   * Note: NEVER overwrites an existing claim held by another user.
    */
   setOwner(serial, user) {
     if (!serial || !user) return;
 
-    // Check if claimed by another user first
-    const existingClaim = this.getClaim(serial);
-    const userId = user.id;
-    const userEmail = (user.email || '').toLowerCase();
-    const isMatchUser = (c) => c.userId === userId || (userEmail && c.userEmail === userEmail);
-
-    if (existingClaim && !isMatchUser(existingClaim)) {
-      logger.warn(`[DeviceLock] Ignoring setOwner for ${serial}: device is currently claimed by ${existingClaim.userName}.`);
-      return;
+    const oldOwner = this.getOwner(serial);
+    const hwSerial = this.hardwareMap.get(serial);
+    if (oldOwner && oldOwner.userId !== user.id) {
+      this._cleanupDeviceResources(serial, hwSerial, oldOwner);
     }
 
     const ownerData = {
@@ -159,7 +120,6 @@ class DeviceLockService {
       }
     }
 
-    const hwSerial = this.hardwareMap.get(serial);
     if (hwSerial) {
       this.ownership.set(hwSerial, ownerData);
     }
@@ -190,46 +150,34 @@ class DeviceLockService {
   }
 
   /**
-   * Get active claim for device across stable identifiers (exact serial, bare IP, hardware serial).
+   * Legacy Claim retrieval — permanently deprecated; always returns null.
    */
   getClaim(serial) {
-    if (!serial) return null;
-    if (this.claims.has(serial)) {
-      return this.claims.get(serial);
-    }
-    if (serial.includes(':')) {
-      const bareIp = serial.split(':')[0];
-      if (this.claims.has(bareIp)) {
-        return this.claims.get(bareIp);
-      }
-    }
-    const hwSerial = this.hardwareMap.get(serial);
-    if (hwSerial && this.claims.has(hwSerial)) {
-      return this.claims.get(hwSerial);
-    }
     return null;
   }
 
   /**
    * Clear transient connection ownership (e.g. on adb disconnect).
-   * CRITICAL: MUST NEVER delete active claims. Claimed state is independent of connection state.
    */
   clearOwner(serial) {
     if (!serial) return;
-    // Only delete ownership if NOT claimed
-    if (!this.getClaim(serial)) {
-      this.ownership.delete(serial);
-      if (serial.includes(':')) {
-        const bareIp = serial.split(':')[0];
-        this.ownership.delete(bareIp);
-      }
-      const hwSerial = this.hardwareMap.get(serial);
-      if (hwSerial) {
-        this.ownership.delete(hwSerial);
-      }
-      this._persistOwnership();
-      logger.info(`[DeviceLock] Unclaimed device ${serial} connection ownership cleared.`);
+    this.ownership.delete(serial);
+    if (serial.includes(':')) {
+      const bareIp = serial.split(':')[0];
+      this.ownership.delete(bareIp);
     }
+    const hwSerial = this.hardwareMap.get(serial);
+    if (hwSerial) {
+      this.ownership.delete(hwSerial);
+    }
+    try {
+      const adbService = require('./adbService');
+      if (adbService && adbService.clearFallback) {
+        adbService.clearFallback(hwSerial || serial);
+      }
+    } catch (e) {}
+    this._persistOwnership();
+    logger.info(`[DeviceLock] Device ${serial} connection ownership cleared.`);
   }
 
   /**
@@ -299,326 +247,102 @@ class DeviceLockService {
   }
 
   /**
-   * Claim device for user. Atomically checks if already claimed by someone else.
-   * Claims NEVER expire automatically; they remain until explicit release or verified takeover.
-   * Takeover is strictly restricted to options.forceTakeover === true with options.verifiedConnection === true.
+   * Legacy Claim Device — Deprecated shim mapping to connection ownership.
    */
   claimDevice(serial, user, options = {}) {
-    if (!serial) throw new Error('Device serial is required to claim device.');
-    if (!user) throw new Error('User authentication required to claim device.');
+    logger.debug(`[DeviceLock] claimDevice called for ${serial} (maps to connection ownership).`);
+    if (!serial) throw new Error('Device serial is required.');
+    if (!user) throw new Error('User authentication required.');
 
     const userId = user.id;
-    const userName = user.name || 'QA Tester';
     const userEmail = (user.email || '').toLowerCase();
+    const existingOwner = this.getOwner(serial) || this.getClaim(serial);
 
-    const hardwareSerial = options.hardwareSerial || this.hardwareMap.get(serial) || (serial.includes(':') ? this.hardwareMap.get(serial.split(':')[0]) : null) || null;
-    const existingClaim = this.getClaim(serial) || (hardwareSerial ? this.claims.get(hardwareSerial) : null);
-    const isMatchUser = (c) => c && (c.userId === userId || (userEmail && c.userEmail === userEmail));
-    const lockKey = hardwareSerial || serial;
+    const isMatchUser = (o) => o && (o.userId === userId || (userEmail && (o.userEmail || '').toLowerCase() === userEmail));
 
-    // Check takeover validation
-    if (options.forceTakeover) {
-      if (!options.verifiedConnection) {
-        throw new Error('Claim takeover requires a verified active device connection.');
-      }
-
-      // Concurrency protection: prevent race condition if another takeover is in progress or device was taken over just now
-      if (existingClaim && !isMatchUser(existingClaim)) {
-        if (this._takeoverLocks.has(lockKey)) {
-          throw new Error(`Device ${serial} is currently being claimed by another user.`);
-        }
-        const lastTakeover = this._recentTakeovers.get(lockKey) || 0;
-        if (Date.now() - lastTakeover < 2000 && !options.allowImmediateReclaim) {
-          throw new Error(`Device ${serial} was just claimed by ${existingClaim.userName}.`);
-        }
-      }
-    } else {
-      // Standard claim path
-      if (!this.isDeviceAccessible(serial, user)) {
-        throw new Error(`Device ${serial} is currently claimed by ${existingClaim ? existingClaim.userName : 'another user'}.`);
-      }
-      if (existingClaim && !isMatchUser(existingClaim)) {
-        throw new Error(`Device ${serial} is currently claimed by ${existingClaim.userName}.`);
-      }
+    if (existingOwner && !isMatchUser(existingOwner) && !options.forceTakeover) {
+      throw new Error(`Device ${serial} is already claimed or owned by another user (${existingOwner.userName || 'another user'}).`);
     }
 
-    const isTakeover = options.forceTakeover && existingClaim && !isMatchUser(existingClaim);
-    if (isTakeover) {
-      this._takeoverLocks.add(lockKey);
-      this._recentTakeovers.set(lockKey, Date.now());
-      this._cleanupDeviceResources(serial, hardwareSerial, existingClaim);
-
-      // Clean up previous serial key if port rotated
-      if (existingClaim.serial && existingClaim.serial !== serial) {
-        this.claims.delete(existingClaim.serial);
-        this.ownership.delete(existingClaim.serial);
-        this.locks.delete(existingClaim.serial);
-      }
+    if (options.hardwareSerial) {
+      this.registerHardwareSerial(serial, options.hardwareSerial);
     }
+    this.setOwner(serial, user);
 
-    // Preserve memory backups for rollback if disk persistence fails
-    const prevClaimSerial = this.claims.get(serial);
-    const prevClaimHw = hardwareSerial ? this.claims.get(hardwareSerial) : null;
-    const prevOwnerSerial = this.ownership.get(serial);
-    const prevOwnerHw = hardwareSerial ? this.ownership.get(hardwareSerial) : null;
-    const prevLockSerial = this.locks.get(serial);
-    const prevLockHw = hardwareSerial ? this.locks.get(hardwareSerial) : null;
-
-    const connectionMode = options.connectionMode || (serial.startsWith('browser_usb_') ? 'browser-usb' : (serial.includes(':') ? 'server-adb' : 'server-adb'));
-
-    const claimData = {
+    return {
       serial,
-      userId,
-      userName,
-      userEmail,
-      claimedAt: (isMatchUser(existingClaim) && existingClaim?.claimedAt && !isTakeover) ? existingClaim.claimedAt : new Date().toISOString(),
-      hardwareSerial,
-      connectionMode: options.connectionMode || existingClaim?.connectionMode || connectionMode
+      userId: user.id,
+      userName: user.name || 'QA Tester',
+      deprecated: true
     };
-
-    this.claims.set(serial, claimData);
-    this.ownership.set(serial, {
-      userId,
-      userName,
-      userEmail,
-      connectedAt: claimData.claimedAt
-    });
-
-    if (serial.includes(':')) {
-      const bareIp = serial.split(':')[0];
-      if (bareIp) {
-        this.claims.set(bareIp, claimData);
-        this.ownership.set(bareIp, this.ownership.get(serial));
-      }
-    }
-
-    if (hardwareSerial) {
-      this.claims.set(hardwareSerial, claimData);
-      this.ownership.set(hardwareSerial, this.ownership.get(serial));
-      this.hardwareMap.set(serial, hardwareSerial);
-      if (serial.includes(':')) {
-        this.hardwareMap.set(serial.split(':')[0], hardwareSerial);
-      }
-    }
-
-    const lock = {
-      serial,
-      userId,
-      userName,
-      userEmail,
-      lockedAt: claimData.claimedAt,
-      expiresAt: null,
-      testId: options.testId || null
-    };
-
-    this.locks.set(serial, lock);
-    if (serial.includes(':')) {
-      const bareIp = serial.split(':')[0];
-      if (bareIp) this.locks.set(bareIp, lock);
-    }
-    if (hardwareSerial) {
-      this.locks.set(hardwareSerial, lock);
-    }
-
-    try {
-      this._persistClaims();
-      this._persistOwnership();
-      if (hardwareSerial) {
-        this._persistHardwareMap();
-      }
-    } catch (err) {
-      // Rollback memory state on persistence failure
-      if (prevClaimSerial) this.claims.set(serial, prevClaimSerial); else this.claims.delete(serial);
-      if (hardwareSerial && prevClaimHw) this.claims.set(hardwareSerial, prevClaimHw); else if (hardwareSerial) this.claims.delete(hardwareSerial);
-      if (prevOwnerSerial) this.ownership.set(serial, prevOwnerSerial); else this.ownership.delete(serial);
-      if (hardwareSerial && prevOwnerHw) this.ownership.set(hardwareSerial, prevOwnerHw); else if (hardwareSerial) this.ownership.delete(hardwareSerial);
-      if (prevLockSerial) this.locks.set(serial, prevLockSerial); else this.locks.delete(serial);
-      if (hardwareSerial && prevLockHw) this.locks.set(hardwareSerial, prevLockHw); else if (hardwareSerial) this.locks.delete(hardwareSerial);
-      throw new Error(`Failed to persist claim: ${err.message}`);
-    } finally {
-      if (isTakeover) {
-        this._takeoverLocks.delete(lockKey);
-      }
-    }
-
-    if (isTakeover) {
-      logger.info(`[DeviceLock] Device ${serial} (${hardwareSerial || 'no hw'}) claim successfully transferred from ${existingClaim.userName} (${existingClaim.userId}) to ${userName} (${userId}).`);
-    } else {
-      logger.info(`[DeviceLock] Device ${serial} successfully claimed by ${userName} (${userId}).`);
-    }
-
-    return claimData;
   }
 
   /**
-   * Helper to transfer claim on verified connection.
+   * Get claim for device serial (compatibility container).
+   */
+  getClaim(serial) {
+    if (!serial) return null;
+    if (this.claims.has(serial)) {
+      return this.claims.get(serial);
+    }
+    if (serial.includes(':')) {
+      const bareIp = serial.split(':')[0];
+      if (this.claims.has(bareIp)) {
+        return this.claims.get(bareIp);
+      }
+    }
+    const hwSerial = this.hardwareMap.get(serial);
+    if (hwSerial && this.claims.has(hwSerial)) {
+      return this.claims.get(hwSerial);
+    }
+    return null;
+  }
+
+  /**
+   * Legacy Transfer Claim — Deprecated.
    */
   transferClaim(serial, user, options = {}) {
-    return this.claimDevice(serial, user, {
-      ...options,
-      forceTakeover: true
-    });
+    return this.claimDevice(serial, user, options);
   }
 
   /**
-   * Migrate an active claim and ownership from one transport (e.g. wireless)
-   * to another transport (e.g. USB) for the same physical device.
-   * Ensures uninterrupted ownership and preserves multi-user access control.
+   * Legacy Migrate Claim — Deprecated.
    */
   migrateClaim(fromSerial, toSerial, hardwareSerial) {
-    if (!toSerial) return null;
-    if (fromSerial === toSerial) return this.getClaim(toSerial);
-
-    const hwSerial = hardwareSerial || this.hardwareMap.get(fromSerial) || this.hardwareMap.get(toSerial) || null;
-    const existingClaim = this.getClaim(fromSerial) || (hwSerial ? this.claims.get(hwSerial) : null);
-
-    if (!existingClaim) {
-      // If device is unclaimed, also migrate any pending connection owner info
-      const existingOwner = this.getOwner(fromSerial) || (hwSerial ? this.ownership.get(hwSerial) : null);
-      if (existingOwner) {
-        this.ownership.set(toSerial, { ...existingOwner });
-        if (hwSerial) this.ownership.set(hwSerial, { ...existingOwner });
-        this._persistOwnership();
-      }
-      return null;
+    if (hardwareSerial) {
+      this.registerHardwareSerial(toSerial, hardwareSerial);
     }
-
-    const migratedClaim = {
-      ...existingClaim,
-      serial: toSerial,
-      hardwareSerial: hwSerial || existingClaim.hardwareSerial || null,
-      connectionMode: toSerial.startsWith('browser_usb_') ? 'browser-usb' : (toSerial.includes(':') ? 'server-adb' : 'usb'),
-      migratedFrom: fromSerial,
-      migratedAt: new Date().toISOString()
-    };
-
-    this.claims.set(toSerial, migratedClaim);
-    if (hwSerial) {
-      this.claims.set(hwSerial, migratedClaim);
-      this.hardwareMap.set(toSerial, hwSerial);
-      if (fromSerial) this.hardwareMap.set(fromSerial, hwSerial);
+    const owner = this.getOwner(fromSerial);
+    if (owner) {
+      this.setOwner(toSerial, { id: owner.userId, name: owner.userName, email: owner.userEmail });
     }
-
-    const ownerData = {
-      userId: existingClaim.userId,
-      userName: existingClaim.userName,
-      userEmail: existingClaim.userEmail,
-      connectedAt: existingClaim.claimedAt
-    };
-    this.ownership.set(toSerial, ownerData);
-    if (hwSerial) this.ownership.set(hwSerial, ownerData);
-
-    const existingLock = this.getLock(fromSerial) || (hwSerial ? this.locks.get(hwSerial) : null);
-    if (existingLock) {
-      const migratedLock = {
-        ...existingLock,
-        serial: toSerial
-      };
-      this.locks.set(toSerial, migratedLock);
-      if (hwSerial) this.locks.set(hwSerial, migratedLock);
-    }
-
-    // Clean up fromSerial keys if different
-    if (fromSerial && fromSerial !== toSerial) {
-      this.claims.delete(fromSerial);
-      this.ownership.delete(fromSerial);
-      this.locks.delete(fromSerial);
-      if (fromSerial.includes(':')) {
-        const bareIp = fromSerial.split(':')[0];
-        this.claims.delete(bareIp);
-        this.ownership.delete(bareIp);
-        this.locks.delete(bareIp);
-      }
-    }
-
-    this._persistClaims();
-    this._persistOwnership();
-    if (hwSerial) this._persistHardwareMap();
-
-    logger.info(`[DeviceLock] Claim migrated from ${fromSerial} to ${toSerial} (hardware: ${hwSerial}) for user ${existingClaim.userName}.`);
-    return migratedClaim;
+    return null;
   }
+
   /**
-   * Release claim on device.
-   * Clears claim, locks, and ownership restriction ONLY when explicitly triggered.
+   * Legacy Release Device — Deprecated.
    */
   releaseDevice(serial, user, force = false) {
-    if (!serial) return true;
-    const existingClaim = this.getClaim(serial);
-    const existingOwner = this.getOwner(serial);
-
-    const userId = user?.id;
-    const userEmail = (user?.email || '').toLowerCase();
-
-    if (existingClaim) {
-      const isClaimOwner = existingClaim.userId === userId || (userEmail && existingClaim.userEmail === userEmail);
-      if (!force && !isClaimOwner) {
-        throw new Error(`Cannot release device ${serial}: claim is held by ${existingClaim.userName}.`);
+    logger.debug(`[DeviceLock] releaseDevice called for ${serial} (maps to connection ownership cleanup).`);
+    if (serial) {
+      this.clearOwner(serial);
+      this.claims.delete(serial);
+      if (serial.includes(':')) {
+        this.claims.delete(serial.split(':')[0]);
       }
-    } else if (existingOwner) {
-      const isOwner = existingOwner.userId === userId || (userEmail && existingOwner.userEmail === userEmail);
-      if (!force && !isOwner) {
-        throw new Error(`Cannot release device ${serial}: owned by ${existingOwner.userName}.`);
+      const hwSerial = this.hardwareMap.get(serial);
+      if (hwSerial) {
+        this.claims.delete(hwSerial);
       }
     }
-
-    const hwSerial = this.hardwareMap.get(serial);
-
-    this.claims.delete(serial);
-    this.ownership.delete(serial);
-    this.locks.delete(serial);
-
-    if (serial.includes(':')) {
-      const bareIp = serial.split(':')[0];
-      if (bareIp) {
-        this.claims.delete(bareIp);
-        this.ownership.delete(bareIp);
-        this.locks.delete(bareIp);
-      }
-    }
-
-    if (hwSerial) {
-      this.claims.delete(hwSerial);
-      this.ownership.delete(hwSerial);
-      this.locks.delete(hwSerial);
-      this._recentTakeovers.delete(hwSerial);
-    }
-    this._recentTakeovers.delete(serial);
-
-    // Clean up any mapped transports associated with this physical hardwareSerial
-    const targetHw = hwSerial || serial;
-    for (const [k, v] of this.hardwareMap.entries()) {
-      if (v === targetHw || v === serial || k === targetHw) {
-        this.claims.delete(k);
-        this.ownership.delete(k);
-        this.locks.delete(k);
-      }
-    }
-
-    // Clear stored wireless fallback so unplugging USB later does not resurrect an old stale wireless connection
-    try {
-      const adbService = require('./adbService');
-      if (adbService && typeof adbService.clearFallback === 'function') {
-        adbService.clearFallback(targetHw);
-        if (serial !== targetHw) {
-          adbService.clearFallback(serial);
-        }
-      }
-    } catch (e) {
-      logger.debug(`[DeviceLock] Fallback clearing notice: ${e.message}`);
-    }
-
-    this._persistClaims();
-    this._persistOwnership();
-    logger.info(`[DeviceLock] Device ${serial} explicitly released and made available to all users.`);
     return true;
   }
 
   /**
    * Check if user has visibility to device:
-   * 1. If claimed: ONLY the user holding the claim can see it.
-   * 2. If unclaimed with owner (connected user): ONLY the connected user can see it initially.
-   * 3. If unclaimed and released: ALL signed-in users can see it and claim it.
+   * 1. If device is connected through Agent, verify Agent ownership.
+   * 2. If device has a connected owner, verify owner match.
+   * 3. Unowned connected devices are visible to authenticated users.
    */
   isUserDevice(serial, user) {
     if (!user || !serial) return false;
@@ -633,19 +357,13 @@ class DeviceLockService {
       }
     } catch (e) {}
 
-    // 1. If claimed, strictly visible to claim holder only
-    const claim = this.getClaim(serial);
-    if (claim) {
-      return Boolean(claim.userId === userId || (userEmail && claim.userEmail === userEmail));
-    }
-
-    // 2. If unclaimed but has specific connector/owner
+    // Check connection owner
     const owner = this.getOwner(serial);
     if (owner) {
       return Boolean(owner.userId === userId || (userEmail && owner.userEmail === userEmail));
     }
 
-    // 3. Unclaimed and released -> visible to all authenticated users
+    // Unowned -> visible to all authenticated users
     return true;
   }
 
@@ -658,43 +376,40 @@ class DeviceLockService {
   }
 
   /**
-   * Decorate device object with claim, lock & ownership status for frontend
+   * Decorate device object with neutral compatibility fields and connection ownership status
    */
   decorateDevice(device, user) {
     if (!device) return device;
     const serial = device.id || device.serial;
     const isAgentUsb = device.connectionMode === 'agent-usb' || !!device.agentId;
-    const claim = isAgentUsb ? null : this.getClaim(serial);
     const owner = isAgentUsb ? null : this.getOwner(serial);
 
-    const isClaimed = !!claim;
-    const isClaimedByMe = isAgentUsb || (isClaimed && (claim.userId === user?.id || (user?.email && claim.userEmail === (user?.email || '').toLowerCase())));
-    const claimedBy = claim ? claim.userName : null;
-    const isOwner = isAgentUsb || (!claim && owner && (owner.userId === user?.id || (user?.email && owner.userEmail === (user?.email || '').toLowerCase())));
+    const isOwner = isAgentUsb || (owner && (owner.userId === user?.id || (user?.email && owner.userEmail === (user?.email || '').toLowerCase())));
 
+    // Neutral compatibility fields per specification (claims removed)
     const lockInfo = {
-      isLocked: isClaimed,
-      isLockedByMe: isClaimedByMe,
-      lockedBy: claimedBy,
-      lockedByEmail: claim ? claim.userEmail : null,
-      lockedAt: claim ? claim.claimedAt : null,
+      isLocked: false,
+      isLockedByMe: false,
+      lockedBy: null,
+      lockedByEmail: null,
+      lockedAt: null,
       expiresInSeconds: 0,
       testId: null
     };
 
     const ownerInfo = {
-      isOwner: isClaimedByMe || isOwner,
-      ownerName: isAgentUsb ? (device.userName || 'You') : (claim ? claim.userName : (owner ? owner.userName : null))
+      isOwner: Boolean(isOwner),
+      ownerName: isAgentUsb ? (device.userName || 'You') : (owner ? owner.userName : null)
     };
 
-    const connectionMode = device.connectionMode || claim?.connectionMode || (serial.startsWith('browser_usb_') ? 'browser-usb' : 'server-adb');
+    const connectionMode = device.connectionMode || (serial.startsWith('browser_usb_') ? 'browser-usb' : 'server-adb');
 
     return {
       ...device,
       connectionMode,
-      isClaimed,
-      isClaimedByMe,
-      claimedBy,
+      isClaimed: false,
+      isClaimedByMe: false,
+      claimedBy: null,
       lock: lockInfo,
       owner: ownerInfo
     };

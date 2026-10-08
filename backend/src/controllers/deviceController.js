@@ -52,11 +52,8 @@ class DeviceController {
 
       const result = await adbService.pairDevice(ip, port, code);
       if (result.success && req.user) {
-        const existingClaim = deviceLockService.getClaim(`${ip}:${port}`) || deviceLockService.getClaim(ip);
-        if (!existingClaim) {
-          deviceLockService.setOwner(`${ip}:${port}`, req.user);
-          deviceLockService.setOwner(ip, req.user);
-        }
+        deviceLockService.setOwner(`${ip}:${port}`, req.user);
+        deviceLockService.setOwner(ip, req.user);
         broadcastEvent('DEVICES_UPDATED');
       }
       res.json(result);
@@ -80,9 +77,6 @@ class DeviceController {
         const serial = result.serial || `${ip}:${port}`;
         const hardwareSerial = result.device?.hardwareSerial || deviceLockService.hardwareMap.get(serial) || deviceLockService.hardwareMap.get(ip) || null;
 
-        // Check if device is already claimed
-        const existingClaim = deviceLockService.getClaim(serial) || deviceLockService.getClaim(ip) || (hardwareSerial ? deviceLockService.getClaim(hardwareSerial) : null);
-        
         // Transport Priority: Check if physical device is already connected via authoritative USB
         if (hardwareSerial) {
           const rawAndroidDevices = await adbService.listDevices({ connectedOnly: true }).catch(() => []);
@@ -103,17 +97,7 @@ class DeviceController {
             // Disconnect redundant wireless transport
             await adbService.disconnectDevice(serial).catch(() => {});
 
-            // Ensure claim is bound to USB
-            if (existingClaim) {
-              const userId = req.user.id;
-              const userEmail = (req.user.email || '').toLowerCase();
-              const isMine = existingClaim.userId === userId || (userEmail && existingClaim.userEmail === userEmail);
-              if (isMine) {
-                deviceLockService.migrateClaim(serial, existingUsb.serial, hardwareSerial);
-              }
-            } else {
-              deviceLockService.claimDevice(existingUsb.serial, req.user, { hardwareSerial });
-            }
+            deviceLockService.setOwner(existingUsb.serial, req.user);
 
             broadcastEvent('DEVICES_UPDATED');
             return res.json({
@@ -127,28 +111,7 @@ class DeviceController {
           }
         }
 
-        if (existingClaim) {
-          const userId = req.user.id;
-          const userEmail = (req.user.email || '').toLowerCase();
-          const isMine = existingClaim.userId === userId || (userEmail && existingClaim.userEmail === userEmail);
-          
-          if (isMine) {
-            // Re-bind current user's claim to new serial/port
-            deviceLockService.claimDevice(serial, req.user, { hardwareSerial });
-          } else {
-            // Real successful connection by another user -> Atomically transfer claim A -> B!
-            logger.info(`[ConnectDevice] Device ${serial} (${hardwareSerial || ip}) successfully connected by ${req.user.name}. Transferring stale claim from ${existingClaim.userName}.`);
-            deviceLockService.claimDevice(serial, req.user, {
-              hardwareSerial,
-              forceTakeover: true,
-              verifiedConnection: true
-            });
-          }
-        } else {
-          // Unclaimed device successfully connected -> AUTOMATICALLY CLAIM IT for the connecting user!
-          deviceLockService.claimDevice(serial, req.user, { hardwareSerial });
-        }
-
+        deviceLockService.setOwner(serial, req.user);
         broadcastEvent('DEVICES_UPDATED');
       }
       res.json(result);
@@ -236,26 +199,19 @@ class DeviceController {
   }
 
   async claimDevice(req, res, next) {
-    try {
-      const serial = req.params.id;
-      const claim = deviceLockService.claimDevice(serial, req.user);
-      broadcastEvent('DEVICES_UPDATED');
-      res.json({ success: true, message: `Device ${serial} successfully claimed.`, claim });
-    } catch (err) {
-      res.status(409).json({ success: false, error: err.message });
-    }
+    res.status(410).json({
+      success: false,
+      error: 'Device claim functionality has been removed from this platform.',
+      code: 'CLAIM_RELEASE_DEPRECATED'
+    });
   }
 
   async releaseDevice(req, res, next) {
-    try {
-      const serial = req.params.id;
-      const force = req.body.force === true && (req.user?.role || '').toLowerCase() === 'admin';
-      deviceLockService.releaseDevice(serial, req.user, force);
-      broadcastEvent('DEVICES_UPDATED');
-      res.json({ success: true, message: `Device ${serial} successfully released.` });
-    } catch (err) {
-      res.status(403).json({ success: false, error: err.message });
-    }
+    res.status(410).json({
+      success: false,
+      error: 'Device release functionality has been removed from this platform.',
+      code: 'CLAIM_RELEASE_DEPRECATED'
+    });
   }
 
   // --- Screen Mirroring & Screenshot Endpoints ---

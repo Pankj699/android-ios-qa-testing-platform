@@ -18,6 +18,7 @@ import TestHistoryPage from './pages/TestHistoryPage';
 import AdbOperationsPage from './pages/AdbOperationsPage';
 import SopPage from './pages/SopPage';
 import DiagnosticsPage from './pages/DiagnosticsPage';
+import AdminUsersPage from './pages/AdminUsersPage';
 
 import { api } from './services/api';
 import { socketService } from './services/socket';
@@ -273,25 +274,7 @@ export default function App() {
     }
   };
 
-  const handleClaimDevice = async (serial) => {
-    if (serial && serial.startsWith('browser_usb_')) return;
-    try {
-      await api.claimDevice(serial);
-      fetchData();
-    } catch (err) {
-      alert(`Claim failed: ${err.message}`);
-    }
-  };
 
-  const handleReleaseDevice = async (serial) => {
-    if (serial && serial.startsWith('browser_usb_')) return;
-    try {
-      await api.releaseDevice(serial);
-      fetchData();
-    } catch (err) {
-      alert(`Release failed: ${err.message}`);
-    }
-  };
 
   const handleMirrorDevice = (device) => {
     guardAction(() => {
@@ -342,6 +325,7 @@ export default function App() {
         setTab={setCurrentTab}
         runningTestCount={summaryStats?.running || 0}
         onOpenTourModal={() => setTourModalOpen(true)}
+        currentUser={currentUser}
       />
 
       {/* Main Content Area */}
@@ -411,6 +395,7 @@ export default function App() {
               <DevicesPage
                 devices={combinedDevices}
                 selectedDevice={selectedDevice}
+                currentUser={currentUser}
                 onSelectDevice={setSelectedDevice}
                 onMirrorDevice={handleMirrorDevice}
                 onOpenPairModal={() => guardAction(() => setPairModalOpen(true))}
@@ -421,8 +406,6 @@ export default function App() {
                 }}
                 onRefreshDevices={fetchData}
                 onDisconnectDevice={handleDisconnectDevice}
-                onClaimDevice={handleClaimDevice}
-                onReleaseDevice={handleReleaseDevice}
                 loading={loading}
               />
             )}
@@ -493,6 +476,18 @@ export default function App() {
                 onRefresh={fetchData}
                 loading={loading}
               />
+            )}
+
+            {currentTab === 'admin-users' && (
+              currentUser?.role === 'ADMIN' ? (
+                <AdminUsersPage currentUser={currentUser} />
+              ) : (
+                <div className="p-8 text-center text-slate-400">
+                  <ShieldAlert className="w-12 h-12 text-rose-500 mx-auto mb-3" />
+                  <h3 className="text-base font-bold text-white">Access Forbidden</h3>
+                  <p className="text-xs text-slate-400 mt-1">Administrator privileges are required to access User Management.</p>
+                </div>
+              )
             )}
           </ErrorBoundary>
         </main>

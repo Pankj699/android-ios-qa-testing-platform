@@ -449,4 +449,56 @@ describe('Native Standalone Authentication Foundation Suite (Phase 1)', () => {
     assert.strictEqual(adminLogin.status, 200);
     assert.strictEqual(adminLogin.body.user.role, 'ADMIN');
   });
+
+  test('17. Persistent Authentication Storage across Backend Restarts', async () => {
+    const fs = require('fs');
+    const path = require('path');
+    const tempStorageFile = path.join(config.DATA_DIR, 'test_persistence_suite_' + Date.now() + '.json');
+
+    // Register a user specifically for restart test
+    const restartUserEmail = 'restart_tester_' + Date.now() + '@qatools.internal';
+    const restartUserPass = 'P@ssword123Restart!';
+    const regRes = await makeRequest({
+      method: 'POST',
+      path: '/api/auth/register',
+      body: {
+        name: 'Restart Tester',
+        email: restartUserEmail,
+        password: restartUserPass
+      }
+    });
+    assert.strictEqual(regRes.status, 201);
+    const userId = regRes.body.user.id;
+
+    // Explicitly persist to test storage file
+    db.saveToDisk(tempStorageFile);
+    assert.ok(fs.existsSync(tempStorageFile), 'Storage file must be written');
+
+    const fileContent = JSON.parse(fs.readFileSync(tempStorageFile, 'utf8'));
+    assert.ok(Array.isArray(fileContent.users), 'Must have users array');
+    const foundInFile = fileContent.users.find(u => u.id === userId);
+    assert.ok(foundInFile, 'Registered user must exist in persistent snapshot');
+
+    // Simulate backend restart by closing current pool and creating a brand new in-memory pool
+    await db.closePool();
+    const freshPool = db.getPool();
+
+    // Re-run migrations on fresh pool
+    await runMigrations();
+
+    // Restore data from test storage file
+    await db.restoreFromDisk(tempStorageFile);
+
+    // Verify user is found and password authentication succeeds on fresh database
+    const authRes = await userService.authenticate(restartUserEmail, restartUserPass);
+    assert.ok(authRes, 'Authentication must succeed after backend restart');
+    assert.strictEqual(authRes.id, userId);
+    assert.strictEqual(authRes.email, restartUserEmail);
+
+    // Clean up temporary test file
+    if (fs.existsSync(tempStorageFile)) {
+      fs.unlinkSync(tempStorageFile);
+    }
+  });
 });
+

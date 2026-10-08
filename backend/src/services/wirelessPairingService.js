@@ -244,22 +244,11 @@ class WirelessPairingService {
             const serial = connectResult.serial || `${connectService.ip}:${connectService.port}`;
             const hwSerial = connectResult.device?.hardwareSerial || null;
 
-            // Check if device is claimed by another user for verified takeover
-            const existingClaim = deviceLockService.getClaim(serial) || (hwSerial ? deviceLockService.claims.get(hwSerial) : null);
-            const isMatchUser = (c) => c && (c.userId === session.user.id || ((session.user.email || '').toLowerCase() && c.userEmail === (session.user.email || '').toLowerCase()));
-            const isTakeover = existingClaim && !isMatchUser(existingClaim);
-
-            if (isTakeover) {
-              logger.info(`[WirelessPairing] Device ${serial} (${hwSerial || connectService.ip}) successfully connected via QR by ${session.user.username || session.user.id}. Transferring stale claim from ${existingClaim.userName}.`);
+            // Assign connection ownership for browser-wireless device
+            if (hwSerial) {
+              deviceLockService.registerHardwareSerial(serial, hwSerial);
             }
-
-            // Automatically claim/assign private ownership for browser-wireless device (supports verified takeover)
-            deviceLockService.claimDevice(serial, session.user, {
-              hardwareSerial: hwSerial,
-              connectionMode: 'browser-wireless',
-              forceTakeover: isTakeover,
-              verifiedConnection: true
-            });
+            deviceLockService.setOwner(serial, session.user);
 
             const deviceInfo = {
               ...(connectResult.device || {}),
@@ -322,20 +311,10 @@ class WirelessPairingService {
       const serial = connectResult.serial || `${ip}:${connectPort}`;
       const hwSerial = connectResult.device?.hardwareSerial || null;
       const connectionMode = options.connectionMode || 'browser-wireless';
-      const existingClaim = deviceLockService.getClaim(serial) || (hwSerial ? deviceLockService.claims.get(hwSerial) : null);
-      const isMatchUser = (c) => c && (c.userId === user.id || ((user.email || '').toLowerCase() && c.userEmail === (user.email || '').toLowerCase()));
-      const isTakeover = existingClaim && !isMatchUser(existingClaim);
-
-      if (isTakeover) {
-        logger.info(`[WirelessPairing] Device ${serial} (${hwSerial || ip}) successfully connected by ${user.name || user.id}. Transferring stale claim from ${existingClaim.userName}.`);
+      if (hwSerial) {
+        deviceLockService.registerHardwareSerial(serial, hwSerial);
       }
-
-      deviceLockService.claimDevice(serial, user, {
-        hardwareSerial: hwSerial,
-        connectionMode,
-        forceTakeover: isTakeover,
-        verifiedConnection: true
-      });
+      deviceLockService.setOwner(serial, user);
 
       broadcastEvent('DEVICES_UPDATED');
     }
