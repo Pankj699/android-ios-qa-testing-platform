@@ -15,6 +15,7 @@ Traditionally, mobile QA engineers had to juggle terminal scripts, manual ADB pa
 - **Connection Ownership & Multi-User Isolation**: Devices connected by a user are isolated to that user and system administrators, with physical hardware identity mapping across rotating Wi-Fi ports.
 - **Play Asset Delivery (PAD) Pipeline**: Automatically parses AABs, generates `--local-testing` APK sets, installs apps, launches targets, monitors asset pack downloads (0% → 100%), and validates pass/fail criteria.
 - **Live Screen Mirroring**: Low-latency H.264 video streaming with touch/swipe controls and keyboard input.
+- **Google Drive Integration & Video Publishing**: Connect Google Drive via OAuth 2.0, browse folders, stream screen recordings to private Drive destinations, and publish with 1 click to automatically generate and copy shareable links.
 - **API & HTTP Inspector**: Integrated network traffic interception with request/response inspection, filtering, and mock rules.
 - **Native Authentication & User Management**: Secure server-side sessions, password reset, Remember Me, independent password visibility toggles, and an administrative user management dashboard.
 - **Clean Deprecation of Legacy Claim/Release**: Obsolete device claim/release endpoints return HTTP 410 Gone; access is governed strictly by connection ownership.
@@ -32,6 +33,7 @@ Traditionally, mobile QA engineers had to juggle terminal scripts, manual ADB pa
 │  - Live Screen Mirroring (H.264 / JMuxer / WebSockets)                  │
 │  - Drag & Drop AAB/APK Upload & Asset Pack Inspector                    │
 │  - Real-time PAD Execution Console & Logcat Streamer                    │
+│  - Google Drive Explorer & Recording Publishing Modal                   │
 │  - API / HTTP Traffic Inspector & Mock Rules                            │
 │  - Admin User Management Dashboard & Native Auth Modals                 │
 └────────────────────────────────────┬────────────────────────────────────┘
@@ -40,6 +42,7 @@ Traditionally, mobile QA engineers had to juggle terminal scripts, manual ADB pa
 │                    Backend Server (Node.js / Express)                   │
 │  - Authentication & Session Service (bcrypt, persistent pg-mem / pg)     │
 │  - RBAC Middleware (ADMIN, EDITOR, TESTER, DEVELOPER, VIEWER)           │
+│  - Google Drive OAuth 2.0, AES-256-GCM Tokens & Video Publishing       │
 │  - Admin Management API & Audit Logger                                  │
 │  - Device Connection Ownership & Hardware Mapping Service               │
 │  - Wireless Debugging & AOSP QR Pairing Engine                          │
@@ -142,7 +145,7 @@ Device isolation is managed by **Connection Ownership**:
 
 ---
 
-## 4. Installation & Setup
+## 7. Installation & Setup
 
 ### Clone and Install Dependencies
 ```bash
@@ -156,7 +159,7 @@ npm run install:all
 
 ---
 
-## 5. ADB Setup
+## 8. ADB Setup
 
 Ensure Android Debug Bridge (ADB) is installed on the host machine:
 - **Windows**: Install [Android SDK Platform-Tools](https://developer.android.com/tools/releases/platform-tools) and add `C:\platform-tools` to your system `PATH`.
@@ -168,7 +171,7 @@ Ensure Android Debug Bridge (ADB) is installed on the host machine:
 
 ---
 
-## 6. Bundletool Setup
+## 9. Bundletool Setup
 
 The platform uses `bundletool-all-1.18.3.jar` for local testing APK generation.
 - Place `bundletool-all-1.18.3.jar` in `backend/tools/` (the platform will also auto-download it on first run if missing).
@@ -179,7 +182,7 @@ The platform uses `bundletool-all-1.18.3.jar` for local testing APK generation.
 
 ---
 
-## 7. Java Setup
+## 10. Java Setup
 
 A Java JDK (11 or higher) is required by Bundletool.
 - **Windows**: Install Eclipse Temurin / Oracle JDK / OpenJDK.
@@ -190,12 +193,12 @@ A Java JDK (11 or higher) is required by Bundletool.
 
 ---
 
-## 8. Environment Variables
+## 11. Environment Variables
 
 Create a `.env` file in the root or `backend/` directory (see `.env.example`):
 
 ```env
-PORT=3000
+PORT=8080
 NODE_ENV=production
 ADB_PATH=adb
 JAVA_PATH=java
@@ -204,15 +207,22 @@ UPLOAD_DIR=./backend/uploads
 LOG_DIR=./backend/logs
 DATA_DIR=./backend/data
 MAX_AAB_SIZE_MB=1024
+MAX_RECORDING_SIZE_MB=500
 TEST_TIMEOUT_MS=600000
 ADB_TIMEOUT_MS=30000
 CORS_ORIGIN=*
 IS_INTERNAL_QA=true
+
+# Google Drive OAuth & Encryption (Optional / Phase 1+)
+GOOGLE_CLIENT_ID=your-google-client-id.apps.googleusercontent.com
+GOOGLE_CLIENT_SECRET=your-google-client-secret
+GOOGLE_REDIRECT_URI=https://192.168.0.163.nip.io:8080/api/drive/callback
+GOOGLE_TOKEN_ENCRYPTION_KEY=your_64_hex_chars_or_32_byte_secret_key
 ```
 
 ---
 
-## 9. Running Locally
+## 12. Running Locally
 
 ### Option A: One-Click Windows Batch Launcher
 Double-click `run-qa-test.bat` in the project root.
@@ -225,18 +235,18 @@ npm run build:frontend
 # Start production server
 npm start
 ```
-Then open your browser at **`http://localhost:3000`**.
+Then open your browser at **`https://localhost:8080`** or your LAN IP.
 
 ### Option C: Development Mode (Hot Reload)
 ```bash
 npm run dev
 ```
-- Backend runs on `http://localhost:3000`
+- Backend runs on `https://localhost:8080` (or `http://localhost:8080`)
 - Frontend Vite dev server runs on `http://localhost:5173`
 
 ---
 
-## 10. Pairing Android Device (Wireless Debugging)
+## 13. Pairing Android Device (Wireless Debugging)
 
 1. On your Android device:
    - Navigate to **Settings → System → Developer Options → Wireless Debugging**.
@@ -256,7 +266,7 @@ npm run dev
 
 ---
 
-## 11. Uploading AAB
+## 14. Uploading AAB
 
 1. Open **Builds & AAB** or click **Upload Latest Build** on the Dashboard.
 2. Drag & drop your `.aab` file or browse your computer.
@@ -269,7 +279,7 @@ npm run dev
 
 ---
 
-## 12. Running PAD Test
+## 15. Running PAD Test
 
 1. Navigate to **Run PAD Test**.
 2. Select your target **Connected Device** and **Uploaded AAB Build**.
@@ -292,7 +302,7 @@ npm run dev
 
 ---
 
-## 13. Screen Mirroring & Remote Interaction
+## 16. Screen Mirroring & Remote Interaction
 
 - **Low-Latency Streaming**: Video stream rendered via JMuxer (H.264 video feed over WebSocket).
 - **Interactive Remote Touch**: Click, drag, swipe, and long-press inputs translated to physical device coordinates.
@@ -301,7 +311,42 @@ npm run dev
 
 ---
 
-## 14. API & HTTP Traffic Inspector
+## 17. Google Drive Integration & Recording Publishing
+
+The platform provides a first-class Google Drive integration enabling QA teams to store test recordings in the cloud, organize videos in custom Drive folders, and generate shareable links with a single click.
+
+### Connecting Google Drive
+- **OAuth 2.0 PKCE Flow**: Connect your Google account directly from the **Google Drive** sidebar page or from within the **Screen Mirroring** modal.
+- **Central Multi-PC Callback Support**: Configured with wildcard DNS (`*.nip.io` / `*.sslip.io`) over HTTPS, allowing multiple QA engineers on different workstations across the local network to authenticate against the centralized server without loopback/localhost redirection failures.
+- **Per-User Token Isolation & Encryption**: Each user connects their own independent Google Drive account. Access and refresh tokens are encrypted at rest using AES-256-GCM (`google_drive_tokens` database table) and isolated per user session.
+- **Storage Telemetry**: Real-time display of connected Google account identity, total storage quota, and consumed Drive capacity.
+
+### Drive Folder Explorer & Destination Selection
+- **Nested Folder Browsing**: Explore **My Drive** root and nested subfolders with interactive breadcrumbs (`My Drive > QA Recordings > Smoke Tests`).
+- **Create Folders**: Create new test folders directly from the web interface without leaving the platform.
+- **Default Upload Folder**: Configure and persist a user-specific default upload folder.
+- **Upload Destination Picker**: Change the target upload folder on-the-fly when previewing screen recordings.
+
+### Screen Recording & Automatic Shareable Link Publishing
+Testers can capture screen recordings during live device mirroring sessions and manage their publication:
+
+1. **Record & Preview**: Stop recording to open the **Screen Recording Preview** modal with inline video playback, device telemetry, and file size details.
+2. **Private-by-Default Upload**: Click **Upload to Drive**. The video streams into the selected destination folder. By default, the uploaded file remains **strictly private** to the connected Google account (`google_drive_share_link` is `NULL`).
+3. **Publish Link (1-Click Sharing)**:
+   - Click **[ Publish Link ]** in the preview modal.
+   - The backend validates file existence and verifies user sharing permissions.
+   - **Permission Deduplication**: Checks existing permissions (`permissions.list`) to prevent duplicate sharing entries on repeated clicks (idempotent).
+   - Applies the least-permissive public view permission (`role: 'reader'`, `type: 'anyone'`).
+   - Generates the shareable Google Drive URL.
+   - **Automatic Clipboard Copy**: Automatically copies the generated shareable URL to the operating system clipboard using `navigator.clipboard` (with fallback).
+   - Displays a success confirmation: `"Shareable link copied to clipboard!"` along with `"Anyone with link can view"` transparency notice.
+4. **Post-Publish Controls**:
+   - **Copy Link**: Re-copy the shareable link to the clipboard at any time with instant `"Copied!"` feedback.
+   - **Open Link**: Open the recording directly in Google Drive in a new browser tab.
+
+---
+
+## 18. API & HTTP Traffic Inspector
 
 - **Network Interception**: Integrated HTTP proxy capture for app network calls.
 - **Request/Response Inspection**: View status codes, latency, request/response headers, and JSON bodies.
@@ -309,7 +354,7 @@ npm run dev
 
 ---
 
-## 15. Testing & Verification
+## 19. Testing & Verification
 
 The platform maintains an automated test suite across all critical systems:
 
@@ -318,8 +363,19 @@ The platform maintains an automated test suite across all critical systems:
 cd backend
 npm test
 ```
-- **19 Full Test Suites (299 tests)**: Covers Native Auth, Transport Lifecycle, USB Priority, QR Pairing Lifecycle, Stale Handover, Multi-User Isolation, Device Claim Deprecation, and Security Hardening. **Status: 100% PASS**.
-- **Admin Management Suite** (`tests/adminUserManagement.test.js`, 26 tests): Covers RBAC authorization, user CRUD, admin password resets, deactivation, and safeguard rules. **Status: 100% PASS**.
+- **Google Drive Integration Suites** (99 tests across 6 suites):
+  - `tests/googleDrivePublishLink.test.js` (12 tests): Link publishing, permission deduplication, access validation, and private-by-default uploads.
+  - `tests/googleDrivePhase1.test.js`: OAuth 2.0 configuration, token encryption, and state verification.
+  - `tests/googleDrivePhase2.test.js`: Central redirect callbacks, replay prevention, and popup flow.
+  - `tests/googleDrivePhase3A.test.js`: Folder operations, destination selection, and upload streaming.
+  - `tests/googleDrivePhase3B.test.js`: Folder hierarchy navigation and breadcrumbs.
+  - `tests/googleDriveRouterMount.test.js`: Router mounting and public callback route accessibility.
+  **Status: 100% PASS**.
+- **Admin Management & User History Suites**:
+  - `tests/adminUserManagement.test.js` (26 tests): RBAC authorization, user CRUD, admin password resets, and safeguards.
+  - `tests/adminDeviceManagement.test.js`: Device ownership assignment and physical device management.
+  - `tests/userHistoryIsolation.test.js`: Multi-user test history isolation.
+- **Core Platform Suites** (200+ tests): Covers Native Auth, Transport Lifecycle, USB Priority, QR Pairing Lifecycle, Stale Handover, and Security Hardening. **Status: 100% PASS**.
 
 ### Frontend Production Build
 ```bash
@@ -330,8 +386,10 @@ Builds cleanly with zero errors via Vite.
 
 ---
 
-## 16. Security Considerations
+## 20. Security Considerations
 
+- **AES-256-GCM Token Encryption**: Google Drive OAuth tokens are encrypted at rest with AES-256-GCM using authenticated encryption tags and random 12-byte initialization vectors.
+- **Private-by-Default Storage**: Uploaded test recordings remain private by default; public read links are only generated upon explicit user publication.
 - **No Remote Shell Execution**: Arbitrary shell commands are rejected; all ADB operations use strict allowlists and argument validation.
 - **Token Sanitization**: System audit logs automatically scrub sensitive credentials, passwords, JWTs, and agent tokens before persisting.
 - **Brute-Force & Header Protection**: Express middleware uses `helmet` headers, CORS protection, and rate limiting.
@@ -340,7 +398,7 @@ Builds cleanly with zero errors via Vite.
 
 ---
 
-## 17. Current Limitations
+## 21. Current Limitations
 
 - **WebUSB Chromium Requirement**: The WebUSB feature requires a Chromium-based browser (Chrome, Edge, Opera, Brave).
 - **iOS Device Agent Companion**: iOS device interaction requires the lightweight companion agent (`qa-device-agent`) running on the host machine connected to the iOS hardware.
@@ -348,6 +406,6 @@ Builds cleanly with zero errors via Vite.
 
 ---
 
-## 18. License
+## 22. License
 
 MIT License. Built for Mobile QA and Release Engineering Teams.
