@@ -1,6 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Smartphone, ShieldCheck, Activity, Cpu, Wifi, Compass, BookOpen, User, Lock, LogOut, LogIn, ChevronDown, CheckCircle, X, Mail, Shield } from 'lucide-react';
 import { DISPLAY_VERSION } from '../config/version';
+import { formatDeviceDisplayName } from '../utils/deviceFormatter';
+import DeviceThumbnail from './DeviceThumbnail';
 
 export default function Header({
   currentUser,
@@ -39,21 +41,31 @@ export default function Header({
     };
   }, [userMenuOpen]);
 
+  const getUserInitials = (user) => {
+    if (!user) return 'QA';
+    if (user.name) {
+      const parts = user.name.trim().split(/\s+/);
+      if (parts.length >= 2) return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
+      return parts[0].slice(0, 2).toUpperCase();
+    }
+    return (user.email || 'U').slice(0, 2).toUpperCase();
+  };
+
   return (
-    <header className="h-16 bg-[#0D111A] border-b border-[#1E2638] px-6 flex items-center justify-between sticky top-0 z-30 shadow-sm">
+    <header className="h-14 bg-[#090C12] border-b border-[#161B26] px-6 flex items-center justify-between sticky top-0 z-30 shadow-sm select-none">
       {/* Brand */}
       <div className="flex items-center gap-3">
-        <div className="w-9 h-9 rounded-lg bg-[#261D10] border border-[#78350F] flex items-center justify-center text-[#F59E0B] font-bold">
-          <Activity className="w-5 h-5" />
+        <div className="w-8 h-8 rounded-lg bg-[#19150F] border border-[#78350F]/70 flex items-center justify-center text-[#F59E0B] font-bold shadow-inner shrink-0">
+          <Activity className="w-4 h-4 text-[#F59E0B]" />
         </div>
         <div>
-          <h1 className="font-bold text-[#FFFFFF] text-sm tracking-wide flex items-center gap-2">
-            Android PAD / ORD Testing Platform
-            <span className="text-[10px] uppercase font-mono px-1.5 py-0.5 rounded bg-[#261D10] text-[#F59E0B] border border-[#78350F] font-bold">
+          <h1 className="font-bold text-[#FFFFFF] text-xs sm:text-sm tracking-wide flex items-center gap-2">
+            Android PAD / ORD Testing
+            <span className="text-[10px] uppercase font-mono px-1.5 py-0.5 rounded bg-[#241A0E] text-[#F59E0B] border border-[#78350F] font-bold">
               {currentDisplayVersion}
             </span>
           </h1>
-          <p className="text-xs text-[#94A3B8]">Play Asset Delivery & On-Demand Resources Automation</p>
+          <p className="text-[11px] text-[#64748B] hidden md:block">Play Asset Delivery & On-Demand Resources Automation</p>
         </div>
       </div>
 
@@ -62,47 +74,34 @@ export default function Header({
         {/* App Tour Button */}
         <button
           onClick={onOpenTourModal}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#261D10] hover:bg-[#3D2C15] border border-[#78350F] text-xs text-[#F59E0B] hover:text-[#FBBF24] transition-all shadow-sm font-semibold"
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#131109] hover:bg-[#20180B] border border-[#78350F]/60 text-xs text-[#F59E0B] hover:text-[#FBBF24] transition-all shadow-xs font-semibold"
           title="Start Interactive Platform Tour"
         >
           <Compass className="w-3.5 h-3.5 text-[#F59E0B]" />
           <span>App Tour</span>
         </button>
 
-        {/* SOP Guide Button */}
-        <button
-          onClick={() => onNavigate && onNavigate('sop')}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#131924] hover:bg-[#1E2638] border border-[#1E2638] text-xs text-[#94A3B8] hover:text-[#FFFFFF] transition-all shadow-sm font-medium"
-          title="Open Standard Operating Procedure (SOP) Guide"
-        >
-          <BookOpen className="w-3.5 h-3.5 text-[#64748B]" />
-          <span>SOP Guide</span>
-        </button>
-
-        {/* System Diagnostics status pill */}
-        <div className="hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#131924] border border-[#1E2638] text-xs">
-          <span className={`w-2 h-2 rounded-full ${allToolsReady ? 'bg-[#10B981] animate-pulse' : 'bg-[#F59E0B]'}`}></span>
-          <span className="text-[#94A3B8] font-mono text-[11px]">
-            {allToolsReady ? 'Host Tools Ready' : 'Tools Check Required'}
-          </span>
-        </div>
-
         {/* Selected Device pill */}
         {isAuthenticated && selectedDevice ? (
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#131924] border border-[#1E2638] text-xs text-[#CBD5E1]">
-            <Smartphone className="w-3.5 h-3.5 text-[#F59E0B]" />
-            <span className="font-semibold max-w-[120px] truncate text-[#FFFFFF]">{selectedDevice.model || selectedDevice.name || selectedDevice.serial}</span>
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#10141D] border border-[#1A202E] text-xs text-[#CBD5E1] shadow-xs">
+            <span className="w-2 h-2 rounded-full bg-[#10B981] animate-pulse shrink-0"></span>
+            <DeviceThumbnail device={selectedDevice} size="xs" />
+            <span
+              className="font-semibold max-w-[200px] truncate text-[#FFFFFF]"
+              title={formatDeviceDisplayName(selectedDevice)}
+            >
+              {formatDeviceDisplayName(selectedDevice)}
+            </span>
             {selectedDevice.lock?.isLocked && (
               <span title={`Claimed by ${selectedDevice.lock.lockedBy}`}>
                 <Lock className="w-3 h-3 text-[#F59E0B]" />
               </span>
             )}
-            <span className="w-1.5 h-1.5 rounded-full bg-[#10B981]"></span>
           </div>
         ) : isAuthenticated ? (
           <button
             onClick={onOpenPairModal}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#131924] hover:bg-[#1E2638] border border-[#1E2638] text-xs text-[#94A3B8] hover:text-[#FFFFFF] transition-colors font-medium"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#10141D] hover:bg-[#161B26] border border-[#1A202E] text-xs text-[#94A3B8] hover:text-[#FFFFFF] transition-colors font-medium shadow-xs"
           >
             <Wifi className="w-3.5 h-3.5 text-[#64748B]" />
             <span>Connect Device</span>
@@ -111,20 +110,20 @@ export default function Header({
 
         {/* Authenticated User Status with Dropdown Menu */}
         {isAuthenticated && currentUser ? (
-          <div className="relative pl-1 border-l border-[#1E2638]" ref={menuRef}>
+          <div className="relative pl-1 border-l border-[#1A202E]" ref={menuRef}>
             <button
               onClick={() => setUserMenuOpen((prev) => !prev)}
-              className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#131924] hover:bg-[#1A2234] border border-[#1E2638] hover:border-[#2A344A] text-xs text-[#CBD5E1] transition-all group shadow-sm"
+              className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#10141D] hover:bg-[#161B26] border border-[#1A202E] hover:border-[#283247] text-xs text-[#CBD5E1] transition-all group shadow-xs cursor-pointer"
               title={`Logged in as ${currentUser.name || currentUser.email}`}
             >
-              <div className="w-5 h-5 rounded-full bg-[#F59E0B]/20 text-[#F59E0B] flex items-center justify-center font-bold text-[10px] border border-[#F59E0B]/30">
-                {currentUser.name ? currentUser.name.charAt(0).toUpperCase() : 'U'}
+              <div className="w-5 h-5 rounded-full bg-[#24190E] text-[#F59E0B] flex items-center justify-center font-bold text-[10px] border border-[#78350F]/70">
+                {getUserInitials(currentUser)}
               </div>
-              <span className="font-semibold max-w-[110px] truncate text-[#E2E8F0]">
+              <span className="font-semibold max-w-[120px] truncate text-[#E2E8F0]">
                 {currentUser.name || currentUser.email}
               </span>
               {currentUser.role === 'ADMIN' && (
-                <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded bg-amber-500/20 text-[#F59E0B] border border-amber-500/30">
+                <span className="text-[9px] font-mono font-bold px-1.5 py-0.2 rounded bg-amber-500/20 text-[#F59E0B] border border-amber-500/30">
                   ADMIN
                 </span>
               )}

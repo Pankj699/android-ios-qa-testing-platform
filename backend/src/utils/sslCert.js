@@ -33,10 +33,12 @@ async function getOrCreateCertificate(dataDir) {
     }
   }
 
-  // Generate new certificate with SAN for all local IPs and localhost
+  // Generate new certificate with SAN for all local IPs, localhost, and wildcard hostnames
   const allIps = getAllLocalIps();
   const altNames = [
     { type: 2, value: 'localhost' },
+    ...allIps.map((ip) => ({ type: 2, value: `${ip}.nip.io` })),
+    ...allIps.map((ip) => ({ type: 2, value: `${ip.replace(/\./g, '-')}.sslip.io` })),
     ...allIps.map((ip) => ({ type: 7, ip }))
   ];
 

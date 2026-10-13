@@ -13,12 +13,27 @@ class TestRunnerService {
   constructor() {
     this.activeTests = new Map(); // testId -> { process, logcatProc, status, abortController }
     this.subscribers = new Map(); // testId -> Set of ws client callbacks
+    this.globalBroadcastCallback = null;
 
     // Register active test checker callback on adbService without circular dependency
     if (adbService && typeof adbService.setActiveTestChecker === 'function') {
       adbService.setActiveTestChecker((serial, hardwareSerial) => {
         return this.isTestActiveForDevice(serial, hardwareSerial);
       });
+    }
+  }
+
+  setGlobalBroadcastCallback(cb) {
+    this.globalBroadcastCallback = cb;
+  }
+
+  notifyGlobalFinished(testRecord) {
+    if (this.globalBroadcastCallback && testRecord) {
+      try {
+        this.globalBroadcastCallback('TEST_FINISHED', { testId: testRecord.id, test: testRecord });
+      } catch (e) {
+        logger.debug(`[TestRunner] Global broadcast error: ${e.message}`);
+      }
     }
   }
 
@@ -146,6 +161,7 @@ class TestRunnerService {
 
     historyService.saveTest(testRecord);
     this.broadcast(testId, { type: 'TEST_FINISHED', testId, test: testRecord });
+    this.notifyGlobalFinished(testRecord);
     this.activeTests.delete(testId);
 
     // Terminal State: Execute deferred wireless cleanup if pending
@@ -515,6 +531,7 @@ class TestRunnerService {
 
       historyService.saveTest(testRecord);
       this.broadcast(testId, { type: 'TEST_FINISHED', testId, test: testRecord });
+      this.notifyGlobalFinished(testRecord);
       this.activeTests.delete(testId);
 
       // Terminal State: Execute deferred wireless cleanup if pending
@@ -581,10 +598,11 @@ class TestRunnerService {
       }
 
       const deviceInfo = await adbService.getDeviceInfo(deviceSerial);
-      active.testData.deviceName = deviceInfo.name;
+      const displayLabel = deviceInfo.displayName || (deviceInfo.androidVersion ? `${deviceInfo.name} (${deviceInfo.androidVersion})` : deviceInfo.name);
+      active.testData.deviceName = displayLabel;
       active.testData.androidVersion = deviceInfo.androidVersion;
-      this.emitLog(testId, `✓ Connected: ${deviceInfo.name} (${deviceInfo.androidVersion})`);
-      this.updateStep(testId, 'check_device', 'PASSED', `${deviceInfo.name} (${deviceInfo.androidVersion})`);
+      this.emitLog(testId, `✓ Connected: ${displayLabel}`);
+      this.updateStep(testId, 'check_device', 'PASSED', displayLabel);
 
       if (active.isCancelled) return;
 
@@ -779,6 +797,7 @@ class TestRunnerService {
 
       historyService.saveTest(finalRecord);
       this.broadcast(testId, { type: 'TEST_FINISHED', testId, test: finalRecord });
+      this.notifyGlobalFinished(finalRecord);
       this.activeTests.delete(testId);
 
       // Terminal State: Execute deferred wireless cleanup if pending

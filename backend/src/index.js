@@ -1,6 +1,7 @@
 const express = require('express');
 const http = require('http');
 const https = require('https');
+const net = require('net');
 const path = require('path');
 const cors = require('cors');
 const helmet = require('helmet');
@@ -23,6 +24,9 @@ const systemRoutes = require('./routes/systemRoutes');
 const wirelessRoutes = require('./routes/wirelessRoutes');
 const agentRoutes = require('./routes/agentRoutes');
 const adminRoutes = require('./routes/adminRoutes');
+const deviceImageRoutes = require('./routes/deviceImageRoutes');
+const driveRoutes = require('./routes/driveRoutes');
+const recordingRoutes = require('./routes/recordingRoutes');
 const bundletoolService = require('./services/bundletoolService');
 
 const healthRoutes = require('./routes/healthRoutes');
@@ -31,7 +35,8 @@ const app = express();
 
 // Security & Parsing Middlewares
 app.use(helmet({
-  contentSecurityPolicy: false // allow dev/inline styles and scripts
+  contentSecurityPolicy: false, // allow dev/inline styles and scripts
+  crossOriginOpenerPolicy: { policy: 'same-origin-allow-popups' }
 }));
 app.use(cors({ origin: config.CORS_ORIGIN, credentials: true }));
 app.use(express.json());
@@ -53,6 +58,9 @@ app.use('/api', systemRoutes);
 app.use('/api', wirelessRoutes);
 app.use('/api/agent', agentRoutes);
 app.use('/api', adminRoutes);
+app.use('/api/devices/image', deviceImageRoutes);
+app.use('/api/drive', driveRoutes);
+app.use('/api', recordingRoutes);
 
 // Serve Frontend build in production if present
 const frontendDist = path.join(__dirname, '../../frontend/dist');
@@ -93,6 +101,8 @@ const HOST = '0.0.0.0';
 const localIp = getLocalIp();
 
 let server;
+let httpServerInstance = null;
+let httpsServerInstance = null;
 let isHttps = false;
 
 async function startServer() {
@@ -109,39 +119,80 @@ async function startServer() {
   if (config.USE_HTTPS) {
     try {
       const ssl = await getOrCreateCertificate(config.DATA_DIR);
-      server = https.createServer({
+      const httpServer = http.createServer(app);
+      const httpsServer = https.createServer({
         key: ssl.key,
         cert: ssl.cert
       }, app);
+
+      httpServerInstance = httpServer;
+      httpsServerInstance = httpsServer;
       isHttps = true;
 
-      // Gracefully handle plaintext HTTP requests on the HTTPS port by sending an HTTP 302 redirect
-      server.on('clientError', (err, socket) => {
-        if (err.code === 'ERR_SSL_HTTP_REQUEST' || (err.message && err.message.toLowerCase().includes('http request'))) {
-          socket.end(`HTTP/1.1 302 Found\r\nLocation: https://${localIp}:${config.PORT}/\r\nConnection: close\r\n\r\n`);
-          return;
-        }
-        socket.destroy(err);
+      // Initialize WebSocket server on both HTTPS and HTTP listeners
+      setupWebSocket(httpsServer, httpServer);
+
+      // Dual-protocol TCP multiplexer: detects TLS ClientHello (0x16) vs plaintext HTTP
+      const tcpServer = net.createServer((socket) => {
+        socket.on('error', (err) => {
+          if (['ECONNRESET', 'EPIPE', 'ETIMEDOUT'].includes(err.code)) return;
+          logger.debug(`[TCP Multiplexer] Socket error: ${err.message}`);
+        });
+
+        // 15-second idle handshake timeout to prevent connection leaks
+        const handshakeTimer = setTimeout(() => {
+          if (!socket.destroyed) {
+            socket.destroy();
+          }
+        }, 15000);
+
+        socket.once('data', (buffer) => {
+          clearTimeout(handshakeTimer);
+          socket.pause();
+          socket.unshift(buffer);
+
+          // 0x16 indicates TLS handshake record byte (ClientHello)
+          if (buffer[0] === 0x16) {
+            httpsServer.emit('connection', socket);
+          } else {
+            // Plaintext HTTP request (e.g. Google OAuth redirect callback)
+            httpServer.emit('connection', socket);
+          }
+
+          process.nextTick(() => {
+            if (!socket.destroyed) {
+              socket.resume();
+            }
+          });
+        });
       });
+
+      tcpServer.closeAllConnections = () => {
+        try { httpServer.closeAllConnections?.(); } catch (_) {}
+        try { httpsServer.closeAllConnections?.(); } catch (_) {}
+      };
+
+      server = tcpServer;
     } catch (err) {
       logger.error(`Failed to initialize HTTPS: ${err.message}. Falling back to HTTP.`);
       server = http.createServer(app);
+      httpServerInstance = server;
       isHttps = false;
+      setupWebSocket(server);
     }
   } else {
     server = http.createServer(app);
+    httpServerInstance = server;
     isHttps = false;
+    setupWebSocket(server);
   }
-
-  // Initialize WebSocket server
-  setupWebSocket(server);
 
   server.listen(config.PORT, HOST, async () => {
     const proto = isHttps ? 'https' : 'http';
     const wsProto = isHttps ? 'wss' : 'ws';
     logger.info(`=======================================================`);
     logger.info(` Android PAD / ORD QA Testing Platform Running (${proto.toUpperCase()}) `);
-    logger.info(` Localhost:  ${proto}://localhost:${config.PORT}        `);
+    logger.info(` Localhost:  ${proto}://localhost:${config.PORT} (Dual HTTP & HTTPS active) `);
     logger.info(` Network IP: ${proto}://${localIp}:${config.PORT}       `);
     logger.info(` WebSocket:  ${wsProto}://${localIp}:${config.PORT}/ws    `);
     logger.info(` WebUSB:     Secure Context Active (${proto.toUpperCase()}) `);
@@ -160,6 +211,47 @@ async function startServer() {
   });
 }
 
+let isRecycling = false;
+
+async function recycleServer() {
+  if (isRecycling) return;
+  isRecycling = true;
+  logger.info('[Server] Gracefully recycling HTTP listener and services...');
+
+  if (server) {
+    await new Promise((resolve) => {
+      if (typeof server.closeAllConnections === 'function') {
+        server.closeAllConnections();
+      }
+      server.close(() => {
+        logger.info('[Server] HTTP listener closed successfully.');
+        resolve();
+      });
+      setTimeout(resolve, 1500);
+    });
+  }
+
+  if (httpServerInstance && httpServerInstance !== server) {
+    try { httpServerInstance.closeAllConnections?.(); httpServerInstance.close?.(); } catch (_) {}
+  }
+  if (httpsServerInstance) {
+    try { httpsServerInstance.closeAllConnections?.(); httpsServerInstance.close?.(); } catch (_) {}
+  }
+
+  // Socket release delay to prevent EADDRINUSE
+  await new Promise(r => setTimeout(r, 600));
+
+  // Reload configurations
+  try {
+    const deviceImageService = require('./services/deviceImageService');
+    deviceImageService.reload();
+  } catch (_) {}
+
+  isRecycling = false;
+  await startServer();
+  logger.info('[Server] HTTP listener and services successfully recycled.');
+}
+
 startServer();
 
-module.exports = { app, get server() { return server; }, isHttps };
+module.exports = { app, get server() { return server; }, isHttps, recycleServer };

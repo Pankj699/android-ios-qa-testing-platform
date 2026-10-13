@@ -2,6 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const config = require('../config');
 const logger = require('../utils/logger');
+const { formatDeviceDisplayName } = require('../utils/deviceFormatter');
 
 class DeviceLockService {
   constructor() {
@@ -406,6 +407,7 @@ class DeviceLockService {
 
     return {
       ...device,
+      displayName: device.displayName || formatDeviceDisplayName(device),
       connectionMode,
       isClaimed: false,
       isClaimedByMe: false,

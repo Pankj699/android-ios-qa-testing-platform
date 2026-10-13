@@ -21,9 +21,13 @@ import {
   ShieldCheck,
   AlertCircle,
   Tv,
-  Usb
+  Usb,
+  Upload,
+  ChevronDown,
+  Check
 } from 'lucide-react';
-import StepTracker from '../components/StepTracker';
+import { formatDeviceDisplayName, formatDeviceOsVersion, formatDeviceSelectorLabel } from '../utils/deviceFormatter';
+import DeviceThumbnail from '../components/DeviceThumbnail';
 import ProgressBar from '../components/ProgressBar';
 import LiveLogViewer from '../components/LiveLogViewer';
 import TestResultToast from '../components/TestResultToast';
@@ -306,8 +310,8 @@ export default function RunTestPage({
 
       // Step 2: Validate Target Device
       updateStep('check_device', 'RUNNING');
-      pushLog(`[INFO] Validating target USB device: ${selectedDevice.name} (${selectedDevice.serial})`);
-      pushLog(`[INFO] OS: ${selectedDevice.androidVersion || 'Android'}, Battery: ${selectedDevice.battery || 'N/A'}`);
+      pushLog(`[INFO] Validating target USB device: ${formatDeviceDisplayName(selectedDevice)} (${selectedDevice.serial})`);
+      pushLog(`[INFO] OS: ${formatDeviceOsVersion(selectedDevice) || 'Android'}, Battery: ${selectedDevice.battery || 'N/A'}`);
       await new Promise((r) => setTimeout(r, 200));
       updateStep('check_device', 'PASSED', '200ms');
 
@@ -423,7 +427,7 @@ export default function RunTestPage({
         packageName: selectedBuild.packageName,
         version: selectedBuild.version,
         deviceSerial: selectedDevice.serial,
-        deviceName: selectedDevice.name || selectedDevice.model,
+        deviceName: formatDeviceDisplayName(selectedDevice),
         installMode,
         launchApp,
         steps: steps.map((s) => (s.id === 'verify_result' ? { ...s, status: 'PASSED' } : s)),
@@ -668,175 +672,200 @@ export default function RunTestPage({
   return (
     <div className="space-y-6 fade-in">
       {/* Page Header */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-4 border-b border-[#1E2638]">
-        <div>
-          <h2 className="text-xl font-bold text-[#FFFFFF] flex items-center gap-2.5">
-            <PlayCircle className="w-5 h-5 text-[#F59E0B]" />
-            Play Asset Delivery (PAD) & ORD Test Console
-          </h2>
-          <p className="text-xs text-[#94A3B8] mt-1">
-            Execute end-to-end Bundletool mock testing, APK generation, installation, and real-time AssetPackHelper logcat verification.
-          </p>
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-5">
+        <div className="flex items-center gap-3.5">
+          <div className="w-9 h-9 rounded-full bg-[#F59E0B] flex items-center justify-center text-black font-bold shadow-md shadow-[#F59E0B]/20 shrink-0">
+            <Play className="w-4 h-4 fill-current ml-0.5 text-black" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold text-white tracking-tight flex items-center gap-2">
+              Play Asset Delivery Console
+            </h1>
+            <p className="text-xs text-[#94A3B8] font-normal mt-1 leading-relaxed max-w-3xl">
+              Execute end-to-end Bundletool mock testing, APK generation, installation, and real-time AssetPackHelper logcat verification.
+            </p>
+          </div>
         </div>
 
         {isRunning && (
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#261D10] border border-[#78350F] text-xs font-bold text-[#F59E0B] animate-pulse">
-            <Loader2 className="w-4 h-4 animate-spin" />
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#16130C] border border-[#F59E0B]/40 text-xs font-bold text-[#F59E0B] animate-pulse">
+            <Loader2 className="w-4 h-4 animate-spin text-[#F59E0B]" />
             <span>Test Pipeline in Progress...</span>
           </div>
         )}
       </div>
 
       {/* Target Device & Build / App Selection Card */}
-      <div className="p-5 rounded-xl bg-[#131924] border border-[#1E2638] shadow-sm space-y-4">
+      <div className="p-6 lg:p-7 rounded-2xl bg-[#10131B] border border-[#1C2230] shadow-xl space-y-6">
         {/* Application Source Toggle: Uploaded Build vs Installed App */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[#1E2638]">
-          <div className="flex items-center gap-1 p-1 bg-[#0A0D14] rounded-lg border border-[#1E2638]">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-1.5">
             <button
               type="button"
               onClick={() => setAppSource('uploaded')}
               disabled={isRunning}
-              className={`px-3 py-1.5 rounded-md text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-2 transition-all cursor-pointer ${
                 appSource === 'uploaded'
-                  ? 'bg-[#F59E0B] text-black shadow-sm'
-                  : 'text-[#94A3B8] hover:text-[#FFFFFF]'
+                  ? 'bg-[#181D26] border border-[#283244] text-white shadow-xs'
+                  : 'text-[#94A3B8] hover:text-white border border-transparent'
               }`}
             >
-              <Package className="w-3.5 h-3.5" />
+              <Package className="w-3.5 h-3.5 text-slate-300" />
               <span>Uploaded Build (AAB/APK)</span>
             </button>
             <button
               type="button"
               onClick={() => setAppSource('installed')}
               disabled={isRunning}
-              className={`px-3 py-1.5 rounded-md text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-2 transition-all cursor-pointer ${
                 appSource === 'installed'
-                  ? 'bg-[#F59E0B] text-black shadow-sm'
-                  : 'text-[#94A3B8] hover:text-[#FFFFFF]'
+                  ? 'bg-[#181D26] border border-[#283244] text-white shadow-xs'
+                  : 'text-[#94A3B8] hover:text-white border border-transparent'
               }`}
             >
-              <Layers className="w-3.5 h-3.5" />
+              <Smartphone className="w-3.5 h-3.5 text-slate-400" />
               <span>Installed App on Device</span>
             </button>
           </div>
-          <span className="text-[11px] text-[#94A3B8]">
+          <span className="text-xs text-[#64748B]">
             {appSource === 'uploaded'
               ? 'Install & verify package from uploaded artifacts'
               : 'Direct live QA & network inspection of pre-installed apps without re-installing'}
           </span>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* Device Selector */}
-          <div className="space-y-1.5">
+        {/* Top 2 Columns: Target Android Device and Target AAB Build */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
+          {/* Target Android Device */}
+          <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <label className="text-xs font-medium text-[#CBD5E1] flex items-center gap-1.5">
+              <label className="text-xs font-semibold text-[#CBD5E1] flex items-center gap-1.5">
                 <Smartphone className="w-3.5 h-3.5 text-[#F59E0B]" />
                 Target Android Device
               </label>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center text-xs">
                 <button
                   type="button"
                   onClick={() => setMirrorModalOpen(true)}
                   disabled={!effectiveSelectedDevice}
-                  className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-[#261D10] hover:bg-[#3D2C15] disabled:opacity-40 disabled:cursor-not-allowed border border-[#78350F] text-[#F59E0B] text-[11px] font-semibold transition-all shadow-xs cursor-pointer"
+                  className="text-[#F59E0B] hover:underline font-medium cursor-pointer disabled:opacity-40"
                   title="Open live screen mirror for the selected device"
                 >
-                  <Tv className="w-3 h-3 text-[#F59E0B]" />
-                  <span>Screen Mirror</span>
+                  Screen Mirror
                 </button>
-                {onConnectBrowserUsb && (
-                  <button
-                    type="button"
-                    onClick={onConnectBrowserUsb}
-                    className="text-purple-400 hover:text-purple-300 text-[11px] font-semibold flex items-center gap-1 cursor-pointer"
-                    title="Connect Android device via USB"
-                  >
-                    <Usb className="w-3 h-3" />
-                    <span>+ Connect USB</span>
-                  </button>
-                )}
-                {onOpenUsbDiagnostics && (
-                  <button
-                    type="button"
-                    onClick={onOpenUsbDiagnostics}
-                    className="text-[10px] text-slate-400 hover:text-purple-300 underline font-mono"
-                    title="Open WebUSB & Secure Context Diagnostics"
-                  >
-                    [Diag]
-                  </button>
-                )}
+                <span className="text-slate-600 mx-2">|</span>
+                <button
+                  type="button"
+                  onClick={onConnectBrowserUsb}
+                  className="text-[#94A3B8] hover:text-white font-medium cursor-pointer"
+                  title="Connect Android device via USB"
+                >
+                  + Connect USB
+                </button>
+                <span className="text-slate-600 mx-2">|</span>
                 <button
                   type="button"
                   onClick={onOpenPairModal}
-                  className="text-[#F59E0B] hover:text-[#FBBF24] text-[11px] underline"
+                  className="text-[#F59E0B] hover:text-[#FBBF24] hover:underline font-medium cursor-pointer"
+                  title="Pair Android device via Wi-Fi"
                 >
                   + Pair (Wi-Fi)
                 </button>
               </div>
             </div>
-            <select
-              value={effectiveSelectedDevice?.serial || ''}
-              onChange={(e) => {
-                const found = androidDevices.find((d) => d.serial === e.target.value);
-                if (found) setSelectedDevice(found);
-              }}
-              disabled={isRunning}
-              className="w-full px-3 py-2.5 rounded-lg bg-[#0A0D14] border border-[#1E2638] text-xs text-[#FFFFFF] focus:outline-none focus:border-[#F59E0B] font-mono"
-            >
-              {androidDevices.length === 0 && <option value="" className="bg-[#131924]">No connected Android devices (Pair first)</option>}
-              {androidDevices.map((d) => (
-                <option key={d.serial} value={d.serial} className="bg-[#131924]">
-                  {d.name || d.model || 'Device'} ({d.serial}) - {d.androidVersion || 'Android'}
-                </option>
-              ))}
-            </select>
-          </div>
 
-          {/* Build or Installed App Selector */}
-          {appSource === 'uploaded' ? (
-            <div className="space-y-1.5">
-              <label className="block text-xs font-medium text-[#CBD5E1] flex items-center justify-between">
-                <span className="flex items-center gap-1.5">
-                  <Package className="w-3.5 h-3.5 text-[#F59E0B]" />
-                  Target AAB Build
+            <div className="relative">
+              <div className="w-full px-3.5 py-2.5 rounded-lg bg-[#080B10] border border-[#1C2230] text-xs text-[#E2E8F0] flex items-center justify-between">
+                <span className="font-semibold text-white truncate font-mono">
+                  {effectiveSelectedDevice
+                    ? `${formatDeviceDisplayName(effectiveSelectedDevice)} (${formatDeviceOsVersion(effectiveSelectedDevice)}) [${effectiveSelectedDevice.serial}]`
+                    : 'No connected Android devices (Pair first)'}
                 </span>
-                <button
-                  onClick={onOpenUploadModal}
-                  className="text-[#F59E0B] hover:text-[#FBBF24] text-[11px] underline"
-                >
-                  + Upload AAB
-                </button>
-              </label>
+                <ChevronDown className="w-4 h-4 text-[#64748B] shrink-0 ml-2" />
+              </div>
               <select
-                value={selectedBuild?.id || ''}
+                value={effectiveSelectedDevice?.serial || ''}
                 onChange={(e) => {
-                  const found = builds.find((b) => b.id === e.target.value);
-                  if (found) setSelectedBuild(found);
+                  const found = androidDevices.find((d) => d.serial === e.target.value);
+                  if (found) setSelectedDevice(found);
                 }}
                 disabled={isRunning}
-                className="w-full px-3 py-2.5 rounded-lg bg-[#0A0D14] border border-[#1E2638] text-xs text-[#FFFFFF] focus:outline-none focus:border-[#F59E0B] font-mono"
+                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
               >
-                {builds.length === 0 && <option value="" className="bg-[#131924]">No uploaded builds (Upload first)</option>}
-                {builds.map((b) => {
-                  const isApk = b.fileType === 'apk' || b.fileName?.endsWith('.apk');
-                  return (
-                    <option key={b.id} value={b.id} className="bg-[#131924]">
-                      [{isApk ? 'APK' : 'AAB'}] {b.fileName || b.applicationName} — {b.packageName} (v{b.versionName}){!isApk ? ` [${b.assetPacks?.length || 0} packs]` : ''}
-                    </option>
-                  );
-                })}
+                {androidDevices.length === 0 && <option value="" className="bg-[#10131B]">No connected Android devices (Pair first)</option>}
+                {androidDevices.map((d) => (
+                  <option key={d.serial} value={d.serial} className="bg-[#10131B]">
+                    {formatDeviceSelectorLabel(d)}
+                  </option>
+                ))}
               </select>
             </div>
-          ) : (
-            <div className="space-y-1.5">
+          </div>
+
+          {/* Target AAB Build */}
+          {appSource === 'uploaded' ? (
+            <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <label className="text-xs font-medium text-[#CBD5E1] flex items-center gap-1.5">
+                <label className="text-xs font-semibold text-[#CBD5E1] flex items-center gap-1.5">
+                  <Package className="w-3.5 h-3.5 text-[#F59E0B]" />
+                  Target AAB Build
+                </label>
+                <button
+                  type="button"
+                  onClick={onOpenUploadModal}
+                  className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-transparent hover:bg-[#161B26] border border-[#2B3446] text-xs font-medium text-[#CBD5E1] hover:text-white transition-all cursor-pointer"
+                >
+                  <Upload className="w-3.5 h-3.5 text-[#94A3B8]" />
+                  <span>Upload AAB</span>
+                </button>
+              </div>
+
+              <div className="relative">
+                <div className="w-full px-3 py-2 rounded-lg bg-[#080B10] border border-[#1C2230] text-xs text-[#E2E8F0] flex items-center justify-between">
+                  <div className="flex items-center gap-2 truncate">
+                    {selectedBuild && (
+                      <span className="px-1.5 py-0.5 rounded bg-[#161B26] border border-[#283244] text-[10px] font-bold font-mono text-[#94A3B8] tracking-wider shrink-0">
+                        {(selectedBuild.fileType === 'apk' || selectedBuild.fileName?.endsWith('.apk')) ? 'APK' : 'AAB'}
+                      </span>
+                    )}
+                    <span className="font-semibold text-white truncate font-mono">
+                      {selectedBuild
+                        ? `${selectedBuild.fileName || selectedBuild.applicationName}`
+                        : 'No uploaded builds (Upload first)'}
+                    </span>
+                  </div>
+                  <ChevronDown className="w-4 h-4 text-[#64748B] shrink-0 ml-2" />
+                </div>
+                <select
+                  value={selectedBuild?.id || ''}
+                  onChange={(e) => {
+                    const found = builds.find((b) => b.id === e.target.value);
+                    if (found) setSelectedBuild(found);
+                  }}
+                  disabled={isRunning}
+                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                >
+                  {builds.length === 0 && <option value="" className="bg-[#10131B]">No uploaded builds (Upload first)</option>}
+                  {builds.map((b) => {
+                    const isApk = b.fileType === 'apk' || b.fileName?.endsWith('.apk');
+                    return (
+                      <option key={b.id} value={b.id} className="bg-[#10131B]">
+                        [{isApk ? 'APK' : 'AAB'}] {b.fileName || b.applicationName} — {b.packageName} (v{b.versionName}){!isApk ? ` [${b.assetPacks?.length || 0} packs]` : ''}
+                      </option>
+                    );
+                  })}
+                </select>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-semibold text-[#CBD5E1] flex items-center gap-1.5">
                   <Layers className="w-3.5 h-3.5 text-[#F59E0B]" />
                   Target Installed Application
                 </label>
                 <div className="flex items-center gap-2">
-                  <label className="text-[11px] text-[#94A3B8] flex items-center gap-1 cursor-pointer">
+                  <label className="text-xs text-[#94A3B8] flex items-center gap-1 cursor-pointer">
                     <input
                       type="checkbox"
                       checked={includeSystemApps}
@@ -850,7 +879,7 @@ export default function RunTestPage({
                     type="button"
                     onClick={fetchInstalledApps}
                     disabled={isRunning || loadingInstalledApps || !effectiveSelectedDevice}
-                    className="text-[#F59E0B] hover:text-[#FBBF24] text-[11px] flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                    className="text-[#F59E0B] hover:text-[#FBBF24] text-xs flex items-center gap-1 cursor-pointer disabled:opacity-50"
                     title="Refresh installed applications list"
                   >
                     <RefreshCw className={`w-3 h-3 ${loadingInstalledApps ? 'animate-spin' : ''}`} />
@@ -858,22 +887,32 @@ export default function RunTestPage({
                   </button>
                 </div>
               </div>
-              <select
-                value={selectedInstalledApp}
-                onChange={(e) => setSelectedInstalledApp(e.target.value)}
-                disabled={isRunning || loadingInstalledApps}
-                className="w-full px-3 py-2.5 rounded-lg bg-[#0A0D14] border border-[#1E2638] text-xs text-[#FFFFFF] focus:outline-none focus:border-[#F59E0B] font-mono"
-              >
-                {loadingInstalledApps && <option value="" className="bg-[#131924]">Loading installed packages from device...</option>}
-                {!loadingInstalledApps && installedApps.length === 0 && (
-                  <option value="" className="bg-[#131924]">No applications found on device</option>
-                )}
-                {!loadingInstalledApps && installedApps.map((app) => (
-                  <option key={app.packageName} value={app.packageName} className="bg-[#131924]">
-                    {app.label ? `${app.label} (${app.packageName})` : app.packageName}
-                  </option>
-                ))}
-              </select>
+              <div className="relative">
+                <div className="w-full px-3.5 py-2.5 rounded-lg bg-[#080B10] border border-[#1C2230] text-xs text-[#E2E8F0] flex items-center justify-between">
+                  <span className="font-semibold text-white truncate font-mono">
+                    {loadingInstalledApps
+                      ? 'Loading installed packages from device...'
+                      : selectedInstalledApp || (installedApps.length === 0 ? 'No applications found on device' : 'Select installed application')}
+                  </span>
+                  <ChevronDown className="w-4 h-4 text-[#64748B] shrink-0 ml-2" />
+                </div>
+                <select
+                  value={selectedInstalledApp}
+                  onChange={(e) => setSelectedInstalledApp(e.target.value)}
+                  disabled={isRunning || loadingInstalledApps}
+                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                >
+                  {loadingInstalledApps && <option value="" className="bg-[#10131B]">Loading installed packages from device...</option>}
+                  {!loadingInstalledApps && installedApps.length === 0 && (
+                    <option value="" className="bg-[#10131B]">No applications found on device</option>
+                  )}
+                  {!loadingInstalledApps && installedApps.map((app) => (
+                    <option key={app.packageName} value={app.packageName} className="bg-[#10131B]">
+                      {app.label ? `${app.label} (${app.packageName})` : app.packageName}
+                    </option>
+                  ))}
+                </select>
+              </div>
               {installedAppsError && (
                 <p className="text-[11px] text-rose-400">{installedAppsError}</p>
               )}
@@ -881,148 +920,130 @@ export default function RunTestPage({
           )}
         </div>
 
-        {/* Installation & Execution Options */}
-        <div className="pt-3 border-t border-[#1E2638] space-y-3">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {appSource === 'uploaded' ? (
-              <>
-                {/* Installation Mode */}
-                <div className="space-y-1.5">
-                  <span className="text-xs font-medium text-[#CBD5E1] block">Installation Mode:</span>
-                  <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-                    <label className="flex items-center gap-2 text-xs text-[#CBD5E1] cursor-pointer">
-                      <input
-                        type="radio"
-                        name="installMode"
-                        value="fresh"
-                        checked={installMode === 'fresh'}
-                        onChange={() => setInstallMode('fresh')}
-                        disabled={isRunning}
-                        className="accent-[#F59E0B]"
-                      />
-                      <span>Fresh Install (Clean previous)</span>
-                    </label>
-
-                    <label className="flex items-center gap-2 text-xs text-[#CBD5E1] cursor-pointer">
-                      <input
-                        type="radio"
-                        name="installMode"
-                        value="update"
-                        checked={installMode === 'update'}
-                        onChange={() => setInstallMode('update')}
-                        disabled={isRunning}
-                        className="accent-[#F59E0B]"
-                      />
-                      <span>Update (Preserve Data)</span>
-                    </label>
+        {/* Lower 2 Columns: Installation Mode & Post-Install Action */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start pt-2">
+          {/* Left: Installation Mode */}
+          {appSource === 'uploaded' ? (
+            <div className="space-y-3">
+              <span className="text-xs font-semibold text-[#CBD5E1] block">Installation Mode</span>
+              <div className="flex flex-col sm:flex-row sm:items-center gap-5">
+                <label
+                  onClick={() => !isRunning && setInstallMode('fresh')}
+                  className="flex items-center gap-2.5 text-xs cursor-pointer select-none"
+                >
+                  <div className={`w-4 h-4 rounded-full border flex items-center justify-center transition-all ${
+                    installMode === 'fresh'
+                      ? 'border-[#F59E0B] bg-transparent'
+                      : 'border-[#2D3748] bg-transparent'
+                  }`}>
+                    {installMode === 'fresh' && (
+                      <div className="w-2 h-2 rounded-full bg-[#F59E0B]" />
+                    )}
                   </div>
-                </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className={installMode === 'fresh' ? 'text-[#F59E0B] font-semibold' : 'text-[#CBD5E1]'}>
+                      Fresh Install
+                    </span>
+                    <span className="text-[#64748B]">(Clean previous)</span>
+                  </div>
+                </label>
 
-                {/* Launch App after Install Toggle */}
-                <div className="space-y-1.5">
-                  <span className="text-xs font-medium text-[#CBD5E1] block">Post-Install Action:</span>
-                  <label className="flex items-center gap-2.5 text-xs text-[#CBD5E1] cursor-pointer p-2 rounded-lg bg-[#0A0D14] border border-[#1E2638] hover:border-[#334155] transition-colors">
-                    <input
-                      type="checkbox"
-                      checked={launchApp}
-                      onChange={(e) => setLaunchApp(e.target.checked)}
-                      disabled={isRunning}
-                      className="w-4 h-4 rounded accent-[#F59E0B]"
-                    />
-                    <div>
-                      <span className="font-bold text-[#FFFFFF]">
-                        {launchApp ? 'Launch app automatically after install' : 'Do not launch app (Install only)'}
-                      </span>
-                      <p className="text-[11px] text-[#94A3B8]">
-                        {launchApp ? 'Automatically launches app and monitors PAD logcat.' : 'Installs APKs on device without launching.'}
-                      </p>
-                    </div>
-                  </label>
-                </div>
-              </>
-            ) : (
-              <>
-                {/* Launch / Re-launch Toggle for Installed App */}
-                <div className="space-y-1.5">
-                  <span className="text-xs font-medium text-[#CBD5E1] block">Monitoring Startup Action:</span>
-                  <label className="flex items-center gap-2.5 text-xs text-[#CBD5E1] cursor-pointer p-2 rounded-lg bg-[#0A0D14] border border-[#1E2638] hover:border-[#334155] transition-colors">
-                    <input
-                      type="checkbox"
-                      checked={launchApp}
-                      onChange={(e) => setLaunchApp(e.target.checked)}
-                      disabled={isRunning}
-                      className="w-4 h-4 rounded accent-[#F59E0B]"
-                    />
-                    <div>
-                      <span className="font-bold text-[#FFFFFF]">
-                        {launchApp ? 'Launch / Bring App to Foreground' : 'Attach to Running App Process (No Restart)'}
-                      </span>
-                      <p className="text-[11px] text-[#94A3B8]">
-                        {launchApp
-                          ? 'Issues an ADB monkey/activity launch to start or bring the app forward.'
-                          : 'Waits for or immediately attaches to current app PID without relaunching.'}
-                      </p>
-                    </div>
-                  </label>
-                </div>
-              </>
-            )}
-
-            {/* Execution Speed & Monitoring Window */}
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-medium text-[#CBD5E1] block">Verification Window:</span>
-                <span className="text-[10px] uppercase font-mono px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-bold">
-                  Fast Optimized
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                {[
-                  { sec: 12, label: '12s (Fast QA)' },
-                  { sec: 20, label: '20s (Standard)' },
-                  { sec: 45, label: '45s (Extended)' }
-                ].map((item) => (
-                  <button
-                    key={item.sec}
-                    type="button"
-                    onClick={() => setMonitoringTimeoutSec(item.sec)}
-                    disabled={isRunning}
-                    className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-semibold transition-all ${
-                      monitoringTimeoutSec === item.sec
-                        ? 'bg-[#F59E0B] text-[#000000] shadow-sm'
-                        : 'bg-[#0A0D14] hover:bg-[#1E2638] text-[#94A3B8] border border-[#1E2638]'
-                    }`}
-                  >
-                    {item.label}
-                  </button>
-                ))}
+                <label
+                  onClick={() => !isRunning && setInstallMode('update')}
+                  className="flex items-center gap-2.5 text-xs cursor-pointer select-none"
+                >
+                  <div className={`w-4 h-4 rounded-full border flex items-center justify-center transition-all ${
+                    installMode === 'update'
+                      ? 'border-[#F59E0B] bg-transparent'
+                      : 'border-[#2D3748] bg-transparent'
+                  }`}>
+                    {installMode === 'update' && (
+                      <div className="w-2 h-2 rounded-full bg-[#F59E0B]" />
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className={installMode === 'update' ? 'text-[#F59E0B] font-semibold' : 'text-[#CBD5E1]'}>
+                      Update
+                    </span>
+                    <span className="text-[#64748B]">(Preserve Data)</span>
+                  </div>
+                </label>
               </div>
             </div>
-          </div>
+          ) : (
+            <div className="space-y-3">
+              <span className="text-xs font-semibold text-[#CBD5E1] block">Monitoring Startup Action</span>
+              <div
+                onClick={() => !isRunning && setLaunchApp(!launchApp)}
+                className="flex items-start gap-3 p-3.5 rounded-xl bg-[#080B10] border border-[#1C2230] cursor-pointer select-none transition-all hover:border-[#2D3748]"
+              >
+                <div className={`w-4 h-4 rounded mt-0.5 flex items-center justify-center transition-all shrink-0 ${
+                  launchApp ? 'bg-[#F59E0B]' : 'border border-[#2D3748] bg-transparent'
+                }`}>
+                  {launchApp && <Check className="w-3 h-3 text-black stroke-[3]" />}
+                </div>
+                <div className="space-y-0.5">
+                  <span className="text-xs font-bold text-white block">
+                    {launchApp ? 'Launch / Bring App to Foreground' : 'Attach to Running App Process (No Restart)'}
+                  </span>
+                  <p className="text-[11px] text-[#94A3B8] leading-tight">
+                    {launchApp
+                      ? 'Issues an ADB monkey/activity launch to start or bring the app forward.'
+                      : 'Waits for or immediately attaches to current app PID without relaunching.'}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
 
-          {/* Primary Action Button */}
-          <div className="pt-2 flex items-center justify-end gap-2">
-            {isRunning ? (
-              <button
-                onClick={handleCancelTest}
-                className="px-5 py-2.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-xs font-bold text-[#FFFFFF] shadow-sm transition-all flex items-center gap-2"
+          {/* Right: Post-Install Action */}
+          {appSource === 'uploaded' && (
+            <div className="space-y-3">
+              <span className="text-xs font-semibold text-[#CBD5E1] block">Post-Install Action</span>
+              <div
+                onClick={() => !isRunning && setLaunchApp(!launchApp)}
+                className="flex items-start gap-3 p-3.5 rounded-xl bg-[#080B10] border border-[#1C2230] cursor-pointer select-none transition-all hover:border-[#2D3748]"
               >
-                <StopCircle className="w-4 h-4" />
-                <span>Stop Monitoring</span>
-              </button>
-            ) : (
-              <button
-                onClick={() => handleStartTest(false)}
-                disabled={!selectedDevice || (appSource === 'uploaded' ? !selectedBuild : !selectedInstalledApp)}
-                className="px-6 py-2.5 rounded-lg bg-[#F59E0B] hover:bg-[#D97706] disabled:opacity-50 text-xs font-bold text-[#000000] shadow transition-all flex items-center gap-2 cursor-pointer"
-                title={appSource === 'uploaded' ? 'Run Play Asset Delivery test (Alt + Q)' : 'Start live QA monitoring for installed app (Alt + Q)'}
-              >
-                <PlayCircle className="w-4 h-4 text-[#000000]" />
-                <span>{appSource === 'uploaded' ? '▶ Run PAD Test' : '▶ Start App Monitoring'}</span>
-                <kbd className="px-1.5 py-0.5 rounded bg-[#000000]/15 text-[#000000] border border-[#000000]/25 text-[9px] font-sans font-medium ml-1">Alt + Q</kbd>
-              </button>
-            )}
-          </div>
+                <div className={`w-4 h-4 rounded mt-0.5 flex items-center justify-center transition-all shrink-0 ${
+                  launchApp ? 'bg-[#F59E0B]' : 'border border-[#2D3748] bg-transparent'
+                }`}>
+                  {launchApp && <Check className="w-3 h-3 text-black stroke-[3]" />}
+                </div>
+                <div className="space-y-0.5">
+                  <span className="text-xs font-bold text-white block">
+                    Launch app automatically after install
+                  </span>
+                  <p className="text-[11px] text-[#94A3B8] leading-tight">
+                    Automatically launches app and monitors PAD logcat.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Primary Action Button */}
+        <div className="pt-2 flex items-center justify-end">
+          {isRunning ? (
+            <button
+              onClick={handleCancelTest}
+              className="px-6 py-3 rounded-xl bg-rose-600 hover:bg-rose-500 text-xs font-bold text-white shadow-lg transition-all flex items-center gap-2 cursor-pointer"
+            >
+              <StopCircle className="w-4 h-4" />
+              <span>Stop Monitoring</span>
+            </button>
+          ) : (
+            <button
+              onClick={() => handleStartTest(false)}
+              disabled={!selectedDevice || (appSource === 'uploaded' ? !selectedBuild : !selectedInstalledApp)}
+              className="px-6 py-3 rounded-xl bg-[#F59E0B] hover:bg-[#D97706] disabled:opacity-40 text-xs font-bold text-black shadow-lg shadow-amber-500/10 transition-all flex items-center gap-2.5 cursor-pointer"
+              title={appSource === 'uploaded' ? 'Run Play Asset Delivery test (Alt + Q)' : 'Start live QA monitoring for installed app (Alt + Q)'}
+            >
+              <Play className="w-3.5 h-3.5 fill-black text-black" />
+              <span className="font-bold text-black tracking-tight">{appSource === 'uploaded' ? 'Run PAD Test' : 'Start App Monitoring'}</span>
+              <kbd className="px-1.5 py-0.5 rounded bg-black/10 border border-black/20 text-black text-[10px] font-mono font-bold tracking-tight ml-1">Alt + Q</kbd>
+            </button>
+          )}
         </div>
 
         {error && (
@@ -1033,23 +1054,35 @@ export default function RunTestPage({
       </div>
 
       {/* Controlled ADB Device Operations inside Run PAD Test */}
-      <div className="p-5 rounded-xl bg-[#131924] border border-[#1E2638] shadow-sm space-y-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Terminal className="w-4 h-4 text-[#F59E0B]" />
-            <h3 className="text-xs font-semibold text-[#CBD5E1] uppercase tracking-wide">
-              Controlled ADB Device Operations
-            </h3>
+      <div className="p-5 rounded-xl bg-[#10131B] border border-[#1C2230] shadow-sm space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[#1C2230]">
+          <div className="flex items-center gap-2.5">
+            <div className="w-7 h-7 rounded-lg bg-[#16130C] border border-[#F59E0B]/40 flex items-center justify-center text-[#F59E0B] shrink-0">
+              <Terminal className="w-4 h-4 text-[#F59E0B]" />
+            </div>
+            <div>
+              <h3 className="text-xs font-semibold text-[#CBD5E1] uppercase tracking-wide">
+                Controlled ADB Device Operations
+              </h3>
+              <p className="text-[11px] text-[#64748B]">One-click package maintenance and lifecycle commands</p>
+            </div>
           </div>
           {selectedDevice && (
-            <span className="text-xs text-[#94A3B8] font-mono">
-              Target: <span className="text-[#F59E0B] font-semibold">{selectedDevice.name || selectedDevice.model}</span> ({selectedDevice.serial})
-            </span>
+            <div className="flex items-center gap-3 bg-[#080B10] px-3 py-1.5 rounded-lg border border-[#1C2230] shadow-xs">
+              <DeviceThumbnail device={selectedDevice} size="header" className="shadow-sm shrink-0" />
+              <div className="text-xs font-mono min-w-0">
+                <div className="text-[10px] uppercase tracking-wider text-[#64748B] font-semibold">Target Device</div>
+                <div className="text-[#F59E0B] font-bold text-xs truncate max-w-[260px]" title={formatDeviceDisplayName(selectedDevice)}>
+                  {formatDeviceDisplayName(selectedDevice)}
+                </div>
+                <div className="text-[11px] text-[#64748B] truncate">{selectedDevice.serial}</div>
+              </div>
+            </div>
           )}
         </div>
 
         <div>
-          <label className="block text-xs font-medium text-[#CBD5E1] mb-1">
+          <label className="block text-[11px] font-semibold uppercase tracking-wider text-[#94A3B8] mb-1">
             Target Application Package Name
           </label>
           <input
@@ -1057,7 +1090,7 @@ export default function RunTestPage({
             value={adbPackageName}
             onChange={(e) => setAdbPackageName(e.target.value)}
             placeholder="e.g. com.bg.flyermaker"
-            className="w-full px-3 py-2 rounded-lg bg-[#0A0D14] border border-[#1E2638] text-xs text-[#FFFFFF] font-mono focus:outline-none focus:border-[#F59E0B]"
+            className="w-full px-3 py-2 rounded-lg bg-[#080B10] border border-[#1C2230] text-xs text-[#E2E8F0] font-mono focus:outline-none focus:border-[#F59E0B] focus:ring-1 focus:ring-[#F59E0B]/30"
           />
         </div>
 
@@ -1066,22 +1099,22 @@ export default function RunTestPage({
           <button
             onClick={() => handleAdbAction('launch')}
             disabled={loadingAdbAction || !selectedDevice}
-            className="p-3 rounded-lg bg-[#0D111A] hover:bg-[#1E2638] hover:border-emerald-500/40 border border-[#1E2638] text-xs text-[#CBD5E1] hover:text-emerald-300 transition-all flex flex-col items-center gap-1.5"
+            className="p-3 rounded-lg bg-[#16130C] hover:bg-[#1F190E] border border-[#F59E0B]/60 text-xs text-[#F59E0B] transition-all flex flex-col items-center gap-1.5 shadow-sm cursor-pointer"
             title="Relaunch application from fresh state (Alt + R)"
           >
-            <Play className="w-4 h-4 text-emerald-400" />
-            <span className="font-semibold text-[#FFFFFF]">Relaunch</span>
-            <div className="flex items-center gap-1.5 text-[10px] text-[#64748B] font-mono">
+            <Play className="w-4 h-4 text-[#F59E0B] fill-[#F59E0B]/20" />
+            <span className="font-bold text-[#F59E0B]">Relaunch</span>
+            <div className="flex items-center gap-1.5 text-[10px] text-[#94A3B8] font-mono">
               <span>monkey launcher</span>
               <span>•</span>
-              <kbd className="px-1 py-0.5 rounded bg-[#1E2638] text-[#94A3B8] border border-[#334155] text-[9px] font-sans">Alt+R</kbd>
+              <kbd className="px-1 py-0.5 rounded bg-black/40 text-[#F59E0B] border border-[#F59E0B]/30 text-[9px] font-sans">Alt+R</kbd>
             </div>
           </button>
 
           <button
             onClick={() => handleAdbAction('clear-data')}
             disabled={loadingAdbAction || !selectedDevice}
-            className="p-3 rounded-lg bg-[#0D111A] hover:bg-[#1E2638] hover:border-amber-500/40 border border-[#1E2638] text-xs text-[#CBD5E1] hover:text-amber-300 transition-all flex flex-col items-center gap-1.5"
+            className="p-3 rounded-lg bg-[#080B10] hover:bg-[#10131B] hover:border-amber-500/40 border border-[#1C2230] text-xs text-[#CBD5E1] hover:text-[#FFFFFF] transition-all flex flex-col items-center gap-1.5 cursor-pointer"
             title="Wipe application user and runtime data (Alt + D)"
           >
             <Eraser className="w-4 h-4 text-[#F59E0B]" />
@@ -1089,14 +1122,14 @@ export default function RunTestPage({
             <div className="flex items-center gap-1.5 text-[10px] text-[#64748B] font-mono">
               <span>pm clear</span>
               <span>•</span>
-              <kbd className="px-1 py-0.5 rounded bg-[#1E2638] text-[#94A3B8] border border-[#334155] text-[9px] font-sans">Alt+D</kbd>
+              <kbd className="px-1 py-0.5 rounded bg-[#10131B] text-[#94A3B8] border border-[#1C2230] text-[9px] font-sans">Alt+D</kbd>
             </div>
           </button>
 
           <button
             onClick={() => handleAdbAction('clear-cache')}
             disabled={loadingAdbAction || !selectedDevice}
-            className="p-3 rounded-lg bg-[#0D111A] hover:bg-[#1E2638] hover:border-cyan-500/40 border border-[#1E2638] text-xs text-[#CBD5E1] hover:text-cyan-300 transition-all flex flex-col items-center gap-1.5"
+            className="p-3 rounded-lg bg-[#080B10] hover:bg-[#10131B] hover:border-cyan-500/40 border border-[#1C2230] text-xs text-[#CBD5E1] hover:text-[#FFFFFF] transition-all flex flex-col items-center gap-1.5 cursor-pointer"
             title="Clear application cache without clearing persistent data (Alt + C)"
           >
             <Sparkles className="w-4 h-4 text-cyan-400" />
@@ -1104,14 +1137,14 @@ export default function RunTestPage({
             <div className="flex items-center gap-1.5 text-[10px] text-[#64748B] font-mono">
               <span>trim caches</span>
               <span>•</span>
-              <kbd className="px-1 py-0.5 rounded bg-[#1E2638] text-[#94A3B8] border border-[#334155] text-[9px] font-sans">Alt+C</kbd>
+              <kbd className="px-1 py-0.5 rounded bg-[#10131B] text-[#94A3B8] border border-[#1C2230] text-[9px] font-sans">Alt+C</kbd>
             </div>
           </button>
 
           <button
             onClick={() => handleAdbAction('uninstall')}
             disabled={loadingAdbAction || !selectedDevice}
-            className="p-3 rounded-lg bg-[#0D111A] hover:bg-[#1E2638] hover:border-rose-500/40 border border-[#1E2638] text-xs text-[#CBD5E1] hover:text-rose-300 transition-all flex flex-col items-center gap-1.5"
+            className="p-3 rounded-lg bg-[#080B10] hover:bg-[#10131B] hover:border-rose-500/40 border border-[#1C2230] text-xs text-[#CBD5E1] hover:text-[#FFFFFF] transition-all flex flex-col items-center gap-1.5 cursor-pointer"
             title="Uninstall application from device (Alt + U)"
           >
             <Trash2 className="w-4 h-4 text-rose-400" />
@@ -1119,7 +1152,7 @@ export default function RunTestPage({
             <div className="flex items-center gap-1.5 text-[10px] text-[#64748B] font-mono">
               <span>adb uninstall</span>
               <span>•</span>
-              <kbd className="px-1 py-0.5 rounded bg-[#1E2638] text-[#94A3B8] border border-[#334155] text-[9px] font-sans">Alt+U</kbd>
+              <kbd className="px-1 py-0.5 rounded bg-[#10131B] text-[#94A3B8] border border-[#1C2230] text-[9px] font-sans">Alt+U</kbd>
             </div>
           </button>
         </div>
@@ -1145,8 +1178,8 @@ export default function RunTestPage({
         <div
           className={`p-4 rounded-xl border flex flex-col md:flex-row items-start md:items-center justify-between gap-4 animate-fadeIn ${
             completedTest.result === 'PASS'
-              ? 'bg-emerald-950/20 border-emerald-500/30 text-emerald-200'
-              : 'bg-rose-950/20 border-rose-500/30 text-rose-200'
+              ? 'bg-[#0A1A12] border-emerald-500/30 text-emerald-200'
+              : 'bg-[#1F0D0D] border-rose-500/30 text-rose-200'
           }`}
         >
           <div className="flex items-center gap-3">
@@ -1183,7 +1216,7 @@ export default function RunTestPage({
           <div className="flex items-center gap-2 shrink-0">
             <button
               onClick={() => window.open(`/api/test/${completedTest.id}/download-logs`, '_blank')}
-              className="px-3 py-1.5 rounded-lg bg-[#1E2638] hover:bg-[#263248] text-xs text-[#CBD5E1] hover:text-[#FFFFFF] font-medium flex items-center gap-1.5 transition-colors border border-[#334155]"
+              className="px-3 py-1.5 rounded-lg bg-[#080B10] hover:bg-[#121620] text-xs text-[#CBD5E1] hover:text-[#FFFFFF] font-medium flex items-center gap-1.5 transition-colors border border-[#1C2230] cursor-pointer"
             >
               <Download className="w-3.5 h-3.5" />
               <span>Download Logs</span>
@@ -1191,7 +1224,7 @@ export default function RunTestPage({
 
             <button
               onClick={() => handleStartTest(false)}
-              className="px-3.5 py-1.5 rounded-lg bg-[#F59E0B] hover:bg-[#D97706] text-xs font-bold text-[#000000] shadow flex items-center gap-1.5 transition-colors"
+              className="px-3.5 py-1.5 rounded-lg bg-[#F59E0B] hover:bg-[#D97706] text-xs font-bold text-[#000000] shadow flex items-center gap-1.5 transition-colors cursor-pointer"
             >
               <RotateCcw className="w-3.5 h-3.5" />
               <span>Run Again</span>
@@ -1200,15 +1233,18 @@ export default function RunTestPage({
         </div>
       )}
 
-      {/* Real-time Step Tracker & Progress Bar */}
+      {/* Real-time Integrated PAD Progress Bar & Pipeline Tracker */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-1 space-y-4">
-          <StepTracker steps={steps} />
+        <div className="lg:col-span-1">
           <ProgressBar
             progress={progress}
+            steps={steps}
             assetPackName={assetPackName}
-            currentStepId={steps.find(s => s.status === 'RUNNING')?.id}
+            currentStepId={steps.find((s) => s.status === 'RUNNING')?.id}
             isRunning={isRunning}
+            completedTest={completedTest}
+            error={error}
+            appSource={appSource}
           />
         </div>
 
@@ -1224,15 +1260,15 @@ export default function RunTestPage({
 
       {/* Confirmation Modal for Existing Application Uninstall (Section 9) */}
       {confirmModalData && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-xs animate-fadeIn">
-          <div className="w-full max-w-md bg-[#131924] border border-[#1E2638] rounded-xl shadow-2xl p-6 space-y-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fadeIn">
+          <div className="w-full max-w-md bg-[#10131B] border border-[#1C2230] rounded-xl shadow-2xl p-6 space-y-4">
             <div className="flex items-center gap-3 text-[#F59E0B]">
-              <div className="p-2.5 rounded-lg bg-[#261D10] border border-[#78350F]">
+              <div className="p-2.5 rounded-lg bg-[#16130C] border border-[#F59E0B]/40">
                 <AlertTriangle className="w-6 h-6 text-[#F59E0B]" />
               </div>
               <div>
                 <h3 className="text-sm font-bold text-[#FFFFFF]">Existing App Detected</h3>
-                <p className="text-xs text-[#94A3B8]">Confirmation Required</p>
+                <p className="text-xs text-[#64748B]">Confirmation Required</p>
               </div>
             </div>
 
@@ -1248,14 +1284,14 @@ export default function RunTestPage({
                   setConfirmModalData(null);
                   setIsRunning(false);
                 }}
-                className="px-4 py-2 rounded-lg bg-[#1E2638] hover:bg-[#263248] text-xs font-medium text-[#CBD5E1] transition-colors border border-[#334155]"
+                className="px-4 py-2 rounded-lg bg-[#080B10] hover:bg-[#121620] text-xs font-medium text-[#CBD5E1] transition-colors border border-[#1C2230] cursor-pointer"
               >
                 Cancel
               </button>
 
               <button
                 onClick={() => handleStartTest(true)}
-                className="px-4 py-2 rounded-lg bg-[#F59E0B] hover:bg-[#D97706] text-xs font-bold text-[#000000] shadow transition-colors"
+                className="px-4 py-2 rounded-lg bg-[#F59E0B] hover:bg-[#D97706] text-xs font-bold text-[#000000] shadow transition-colors cursor-pointer"
               >
                 Uninstall & Continue
               </button>

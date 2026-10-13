@@ -42,6 +42,9 @@ function saveToDisk(customFile = null) {
       users: getRows('users'),
       user_sessions: getRows('user_sessions'),
       password_resets: getRows('password_resets'),
+      google_drive_tokens: getRows('google_drive_tokens'),
+      recordings: getRows('recordings'),
+      oauth_states: getRows('oauth_states'),
       schema_migrations: getRows('schema_migrations'),
       savedAt: new Date().toISOString()
     };
@@ -110,6 +113,81 @@ async function restoreFromDisk(customFile = null) {
             [r.id, r.user_id, r.token_hash, r.expires_at, r.used_at, r.created_at]
           );
         }
+      }
+    }
+
+    // 4. Restore Google Drive Tokens
+    if (Array.isArray(data.google_drive_tokens) && data.google_drive_tokens.length > 0) {
+      let restoredTokens = 0;
+      for (const t of data.google_drive_tokens) {
+        const check = await globalPool.query('SELECT id FROM google_drive_tokens WHERE id = $1 OR user_id = $2', [t.id, t.user_id]);
+        if (check.rows.length === 0) {
+          await globalPool.query(
+            `INSERT INTO google_drive_tokens (
+              id, user_id, google_email, google_name, google_picture,
+              encrypted_access_token, encrypted_refresh_token, token_iv, token_auth_tag,
+              expiry_date, scope, default_folder_id, default_folder_name, created_at, updated_at
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)`,
+            [
+              t.id, t.user_id, t.google_email, t.google_name, t.google_picture,
+              t.encrypted_access_token, t.encrypted_refresh_token, t.token_iv, t.token_auth_tag,
+              t.expiry_date, t.scope, t.default_folder_id, t.default_folder_name, t.created_at, t.updated_at
+            ]
+          );
+          restoredTokens++;
+        }
+      }
+      if (restoredTokens > 0) {
+        logger.info(`[DB Persistence] Restored ${restoredTokens} Google Drive token credential(s) from disk.`);
+      }
+    }
+
+    // 5. Restore Recordings
+    if (Array.isArray(data.recordings) && data.recordings.length > 0) {
+      let restoredRecordings = 0;
+      for (const rec of data.recordings) {
+        const check = await globalPool.query('SELECT id FROM recordings WHERE id = $1 OR recording_id = $2', [rec.id, rec.recording_id]);
+        if (check.rows.length === 0) {
+          await globalPool.query(
+            `INSERT INTO recordings (
+              id, user_id, recording_id, filename, original_filename, mime_type,
+              size_bytes, duration_sec, device_serial, device_name, test_id,
+              google_drive_file_id, google_drive_folder_id, google_drive_folder_name,
+              google_drive_web_view_link, google_drive_share_link, google_account_email,
+              upload_status, upload_error, created_at, updated_at
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)`,
+            [
+              rec.id, rec.user_id, rec.recording_id, rec.filename, rec.original_filename, rec.mime_type,
+              rec.size_bytes, rec.duration_sec, rec.device_serial, rec.device_name, rec.test_id,
+              rec.google_drive_file_id, rec.google_drive_folder_id, rec.google_drive_folder_name,
+              rec.google_drive_web_view_link, rec.google_drive_share_link, rec.google_account_email,
+              rec.upload_status, rec.upload_error, rec.created_at, rec.updated_at
+            ]
+          );
+          restoredRecordings++;
+        }
+      }
+      if (restoredRecordings > 0) {
+        logger.info(`[DB Persistence] Restored ${restoredRecordings} recording record(s) from disk.`);
+      }
+    }
+
+    // 6. Restore OAuth States
+    if (Array.isArray(data.oauth_states) && data.oauth_states.length > 0) {
+      let restoredStates = 0;
+      for (const st of data.oauth_states) {
+        const check = await globalPool.query('SELECT nonce FROM oauth_states WHERE nonce = $1', [st.nonce]);
+        if (check.rows.length === 0) {
+          await globalPool.query(
+            `INSERT INTO oauth_states (nonce, user_id, expires_at, used_at, created_at)
+             VALUES ($1, $2, $3, $4, $5)`,
+            [st.nonce, st.user_id, st.expires_at, st.used_at, st.created_at]
+          );
+          restoredStates++;
+        }
+      }
+      if (restoredStates > 0) {
+        logger.info(`[DB Persistence] Restored ${restoredStates} OAuth state record(s) from disk.`);
       }
     }
   } catch (err) {

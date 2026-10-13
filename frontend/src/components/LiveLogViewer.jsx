@@ -1175,11 +1175,8 @@ export function correlateLogs(logs = []) {
  * Postman-Style Syntax Highlighted JSON Viewer Component
  */
 export function JsonSyntaxViewer({ json, maxHeightClass = 'max-h-[480px]', showLineNumbers = true }) {
-  if (!json && json !== false && json !== 0) {
-    return <div className="text-slate-500 italic text-[11px] p-2">Empty payload</div>;
-  }
-
   const formattedJson = useMemo(() => {
+    if (!json && json !== false && json !== 0) return '';
     let str = '';
     if (typeof json === 'object') {
       str = JSON.stringify(json, null, 2);
@@ -1204,6 +1201,10 @@ export function JsonSyntaxViewer({ json, maxHeightClass = 'max-h-[480px]', showL
   const lines = useMemo(() => {
     return (formattedJson || '').split('\n');
   }, [formattedJson]);
+
+  if (!json && json !== false && json !== 0) {
+    return <div className="text-slate-500 italic text-[11px] p-2">Empty payload</div>;
+  }
 
   return (
     <div className={`bg-[#07090E] rounded border border-[#171E2E] overflow-x-hidden overflow-y-auto ${maxHeightClass} select-text font-mono text-[12px] leading-relaxed p-2.5`}>
@@ -1552,11 +1553,11 @@ export default function LiveLogViewer({ logs = [], onClear, testId }) {
   const consoleInnerContent = (
     <>
       {/* Console Header Bar */}
-      <div className="px-4 py-2.5 bg-[#0D111A] border-b border-[#1E2638] flex flex-wrap items-center justify-between gap-3 shrink-0">
+      <div className="px-4 py-2.5 bg-[#10131B] border-b border-[#1C2230] flex flex-wrap items-center justify-between gap-3 shrink-0">
         {/* Title & Live Status */}
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2">
-            <div className="p-1 rounded-md bg-[#261D10] border border-[#78350F]">
+            <div className="p-1 rounded-md bg-[#16130C] border border-[#F59E0B]/40">
               <Terminal className="w-3.5 h-3.5 text-[#F59E0B]" />
             </div>
             <span className="text-xs font-semibold text-white tracking-wide">Live Execution Console & HTTP Inspector</span>
@@ -1567,7 +1568,7 @@ export default function LiveLogViewer({ logs = [], onClear, testId }) {
             <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider">LIVE</span>
           </div>
 
-          <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-[#131924] border border-[#1E2638] text-slate-400">
+          <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-[#080B10] border border-[#1C2230] text-slate-400">
             {displayedLogs.length} / {parsedLogs.length} events
           </span>
         </div>
@@ -1575,24 +1576,24 @@ export default function LiveLogViewer({ logs = [], onClear, testId }) {
         {/* View Mode & Global Actions */}
         <div className="flex items-center gap-2">
           {/* View Mode Toggle */}
-          <div className="flex items-center bg-[#131924] p-0.5 rounded-lg border border-[#1E2638]">
+          <div className="flex items-center bg-[#080B10] p-0.5 rounded-lg border border-[#1C2230]">
             <button
               onClick={() => setViewMode('structured')}
-              className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors flex items-center gap-1.5 ${
+              className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors flex items-center gap-1.5 cursor-pointer ${
                 viewMode === 'structured'
-                  ? 'bg-[#1E2638] text-[#F59E0B] shadow-xs'
-                  : 'text-slate-400 hover:text-slate-200'
+                  ? 'bg-[#16130C] border border-[#F59E0B]/40 text-[#F59E0B] shadow-xs'
+                  : 'text-slate-400 hover:text-slate-200 border border-transparent'
               }`}
             >
-              <Layers className="w-3 h-3" />
+              <Layers className="w-3 h-3 text-[#F59E0B]" />
               Structured
             </button>
             <button
               onClick={() => setViewMode('raw')}
-              className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors flex items-center gap-1.5 ${
+              className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors flex items-center gap-1.5 cursor-pointer ${
                 viewMode === 'raw'
-                  ? 'bg-[#1E2638] text-[#F59E0B] shadow-xs'
-                  : 'text-slate-400 hover:text-slate-200'
+                  ? 'bg-[#16130C] border border-[#F59E0B]/40 text-[#F59E0B] shadow-xs'
+                  : 'text-slate-400 hover:text-slate-200 border border-transparent'
               }`}
             >
               <Code2 className="w-3 h-3" />
@@ -1603,8 +1604,8 @@ export default function LiveLogViewer({ logs = [], onClear, testId }) {
           {/* Auto Scroll */}
           <button
             onClick={() => setAutoScroll(!autoScroll)}
-            className={`px-2 py-1 rounded text-xs transition-colors flex items-center gap-1 ${
-              autoScroll ? 'bg-[#261D10] text-[#F59E0B] border border-[#78350F]' : 'bg-[#131924] border border-[#1E2638] text-slate-400'
+            className={`px-2 py-1 rounded text-xs transition-colors flex items-center gap-1 cursor-pointer ${
+              autoScroll ? 'bg-[#16130C] text-[#F59E0B] border border-[#F59E0B]/40' : 'bg-[#080B10] border border-[#1C2230] text-slate-400 hover:text-white'
             }`}
             title="Toggle Auto Scroll"
           >
@@ -1615,7 +1616,7 @@ export default function LiveLogViewer({ logs = [], onClear, testId }) {
           {/* Copy All */}
           <button
             onClick={handleCopyAll}
-            className="p-1.5 rounded bg-[#131924] border border-[#1E2638] hover:bg-[#1E2638] text-slate-300 hover:text-white transition-colors"
+            className="p-1.5 rounded bg-[#080B10] border border-[#1C2230] hover:bg-[#161B26] text-slate-300 hover:text-white transition-colors cursor-pointer"
             title="Copy Sanitized Logs"
           >
             {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
@@ -1624,7 +1625,7 @@ export default function LiveLogViewer({ logs = [], onClear, testId }) {
           {/* Download */}
           <button
             onClick={handleDownload}
-            className="p-1.5 rounded bg-[#131924] border border-[#1E2638] hover:bg-[#1E2638] text-slate-300 hover:text-white transition-colors"
+            className="p-1.5 rounded bg-[#080B10] border border-[#1C2230] hover:bg-[#161B26] text-slate-300 hover:text-white transition-colors cursor-pointer"
             title="Download Execution Log"
           >
             <Download className="w-3.5 h-3.5" />
@@ -1634,7 +1635,7 @@ export default function LiveLogViewer({ logs = [], onClear, testId }) {
           {onClear && (
             <button
               onClick={onClear}
-              className="p-1.5 rounded bg-[#131924] border border-[#1E2638] hover:bg-rose-500/20 hover:text-rose-400 text-slate-300 transition-colors"
+              className="p-1.5 rounded bg-[#080B10] border border-[#1C2230] hover:bg-rose-500/20 hover:text-rose-400 text-slate-300 transition-colors cursor-pointer"
               title="Clear Console"
             >
               <Trash2 className="w-3.5 h-3.5" />
@@ -1642,15 +1643,15 @@ export default function LiveLogViewer({ logs = [], onClear, testId }) {
           )}
 
           {/* Divider */}
-          <div className="h-4 w-px bg-[#1E2638] mx-0.5" />
+          <div className="h-4 w-px bg-[#1C2230] mx-0.5" />
 
           {/* Expand / Maximize Toggle Button */}
           <button
             onClick={() => setIsMaximized(!isMaximized)}
-            className={`p-1.5 rounded border transition-colors flex items-center justify-center ${
+            className={`p-1.5 rounded border transition-colors flex items-center justify-center cursor-pointer ${
               isMaximized
-                ? 'bg-[#261D10] text-[#F59E0B] border-[#78350F]'
-                : 'bg-[#131924] border-[#1E2638] text-slate-300 hover:text-white hover:bg-[#1E2638]'
+                ? 'bg-[#16130C] text-[#F59E0B] border-[#F59E0B]/40'
+                : 'bg-[#080B10] border-[#1C2230] text-slate-300 hover:text-white hover:bg-[#161B26]'
             }`}
             title={isMaximized ? "Close Expanded Console" : "Expand Console"}
             aria-label={isMaximized ? "Close Expanded Live Execution Console" : "Expand Live Execution Console"}
@@ -1666,7 +1667,7 @@ export default function LiveLogViewer({ logs = [], onClear, testId }) {
           {isMaximized && (
             <button
               onClick={() => setIsMaximized(false)}
-              className="p-1.5 rounded bg-[#131924] border border-[#1E2638] hover:bg-rose-500/20 hover:text-rose-400 text-slate-300 transition-colors flex items-center justify-center"
+              className="p-1.5 rounded bg-[#080B10] border border-[#1C2230] hover:bg-rose-500/20 hover:text-rose-400 text-slate-300 transition-colors flex items-center justify-center cursor-pointer"
               title="Close Expanded Console"
               aria-label="Close Expanded Live Execution Console"
             >
@@ -1677,7 +1678,7 @@ export default function LiveLogViewer({ logs = [], onClear, testId }) {
       </div>
 
       {/* Secondary Bar: Category Filter Tabs & Search */}
-      <div className="px-4 py-2 bg-[#090C12] border-b border-[#1E2638] flex flex-wrap items-center justify-between gap-3 shrink-0">
+      <div className="px-4 py-2 bg-[#090C12] border-b border-[#1C2230] flex flex-wrap items-center justify-between gap-3 shrink-0">
         {/* Category Tabs */}
         <div className="flex items-center gap-1.5 overflow-x-auto py-0.5">
           {[
@@ -1695,20 +1696,20 @@ export default function LiveLogViewer({ logs = [], onClear, testId }) {
               <button
                 key={tab.key}
                 onClick={() => setActiveTab(tab.key)}
-                className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-all flex items-center gap-1.5 border ${
+                className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-all flex items-center gap-1.5 border cursor-pointer ${
                   isActive
                     ? isCrashTab
                       ? 'bg-rose-950/80 border-rose-500 text-white'
-                      : 'bg-[#1E2638] border-[#3B82F6] text-white'
+                      : 'bg-[#16130C] border-[#F59E0B]/50 text-[#F59E0B]'
                     : isCrashTab && tab.count > 0
                     ? 'bg-rose-950/20 border-rose-900/50 text-rose-300 hover:text-white hover:bg-rose-950/40'
-                    : 'bg-[#131924]/60 border-[#1E2638] text-slate-400 hover:text-slate-200 hover:bg-[#131924]'
+                    : 'bg-[#080B10] border-[#1C2230] text-slate-400 hover:text-slate-200 hover:bg-[#121620]'
                 }`}
               >
                 {Icon && (
                   <Icon className={`w-3 h-3 ${
                     isActive
-                      ? isCrashTab ? 'text-rose-400' : 'text-[#3B82F6]'
+                      ? isCrashTab ? 'text-rose-400' : 'text-[#F59E0B]'
                       : isCrashTab && tab.count > 0
                       ? 'text-rose-400'
                       : 'text-slate-500'
@@ -1717,7 +1718,7 @@ export default function LiveLogViewer({ logs = [], onClear, testId }) {
                 <span>{tab.label}</span>
                 <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${
                   isActive
-                    ? isCrashTab ? 'bg-rose-500/30 text-rose-200' : 'bg-[#3B82F6]/20 text-[#3B82F6]'
+                    ? isCrashTab ? 'bg-rose-500/30 text-rose-200' : 'bg-[#F59E0B]/20 text-[#F59E0B]'
                     : isCrashTab && tab.count > 0
                     ? 'bg-rose-900/60 text-rose-300'
                     : 'bg-black/40 text-slate-500'
@@ -2267,16 +2268,16 @@ export default function LiveLogViewer({ logs = [], onClear, testId }) {
     return (
       <>
         {/* Placeholder in document flow so page layout remains unchanged underneath */}
-        <div className="bg-[#0A0D14]/40 border border-dashed border-[#1E2638] rounded-xl h-[520px] flex items-center justify-center text-slate-500 text-xs font-mono p-4 select-none">
+        <div className="bg-[#080B10]/40 border border-dashed border-[#1C2230] rounded-xl h-[520px] flex items-center justify-center text-slate-500 text-xs font-mono p-4 select-none">
           <div className="flex flex-col items-center gap-2 text-center">
-            <div className="p-2.5 rounded-lg bg-[#131924] border border-[#1E2638]">
+            <div className="p-2.5 rounded-lg bg-[#10131B] border border-[#1C2230]">
               <Terminal className="w-5 h-5 text-[#F59E0B]" />
             </div>
             <span className="text-slate-300 font-semibold text-xs">Live Execution Console is expanded</span>
             <span className="text-slate-500 text-[11px]">Press ESC or click Minimize / Close to restore view</span>
             <button
               onClick={() => setIsMaximized(false)}
-              className="mt-1 px-3 py-1 rounded bg-[#1E2638] text-xs text-slate-300 hover:text-white border border-[#2A3752] transition-colors"
+              className="mt-1 px-3 py-1 rounded bg-[#10131B] text-xs text-slate-300 hover:text-white border border-[#1C2230] transition-colors cursor-pointer"
             >
               Restore Embedded View
             </button>
@@ -2285,12 +2286,12 @@ export default function LiveLogViewer({ logs = [], onClear, testId }) {
 
         {/* Viewport Overlay Modal */}
         <div
-          className="fixed inset-0 z-50 bg-black/80 backdrop-blur-xs flex items-center justify-center p-3 md:p-6 animate-fadeIn"
+          className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-3 md:p-6 animate-fadeIn"
           role="dialog"
           aria-modal="true"
           aria-label="Expanded Live Execution Console & HTTP Inspector"
         >
-          <div className="w-[calc(100vw-24px)] h-[calc(100vh-24px)] md:w-[58vw] md:h-[92vh] max-w-[1200px] max-h-[900px] bg-[#0A0D14] border border-[#1E2638] rounded-xl shadow-2xl overflow-hidden flex flex-col">
+          <div className="w-[calc(100vw-24px)] h-[calc(100vh-24px)] md:w-[58vw] md:h-[92vh] max-w-[1200px] max-h-[900px] bg-[#080B10] border border-[#1C2230] rounded-xl shadow-2xl overflow-hidden flex flex-col">
             {consoleInnerContent}
           </div>
         </div>
@@ -2299,7 +2300,7 @@ export default function LiveLogViewer({ logs = [], onClear, testId }) {
   }
 
   return (
-    <div className="bg-[#0A0D14] border border-[#1E2638] rounded-xl overflow-hidden flex flex-col h-[520px] shadow-2xl">
+    <div className="bg-[#080B10] border border-[#1C2230] rounded-xl overflow-hidden flex flex-col h-[520px] shadow-2xl">
       {consoleInnerContent}
     </div>
   );

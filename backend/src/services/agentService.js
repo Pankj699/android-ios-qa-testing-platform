@@ -4,6 +4,7 @@ const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const config = require('../config');
 const logger = require('../utils/logger');
+const { formatDeviceDisplayName, formatDeviceModelName } = require('../utils/deviceFormatter');
 
 class AgentService {
   constructor() {
@@ -292,17 +293,22 @@ class AgentService {
     const udid = device.udid;
     const agent = this.agents.get(agentId);
 
+    const cleanModel = formatDeviceModelName({ platform: 'ios', manufacturer: 'Apple', model: device.model, name: device.name }) || 'iPhone';
+    const cleanOs = device.iosVersion && !/^(unknown|n\/?a)$/i.test(device.iosVersion)
+      ? `iOS ${device.iosVersion.replace(/^ios\s*/i, '').trim()}`
+      : (device.osVersion || 'iOS');
+
     const normalized = {
       serial: udid,
       udid: udid,
       deviceId: udid,
-      name: device.name || 'iPhone',
-      model: device.model || 'iPhone',
+      name: cleanModel,
+      model: cleanModel,
       productType: device.productType || 'iPhone',
       manufacturer: 'Apple',
       platform: 'ios',
       iosVersion: device.iosVersion || 'Unknown',
-      osVersion: device.osVersion || 'iOS',
+      osVersion: cleanOs,
       state: 'device',
       connected: true,
       isWireless: false,
@@ -322,6 +328,7 @@ class AgentService {
       userEmail: (wsUser.email || wsUser.userEmail || agent?.userEmail || '').toLowerCase(),
       lastSeenAt: new Date().toISOString()
     };
+    normalized.displayName = formatDeviceDisplayName(normalized);
 
     this.agentDevices.set(udid, normalized);
     logger.info(`[AgentService] Registered iOS device ${udid} (${normalized.name}) from agent ${agentId} for user ${normalized.userName}`);

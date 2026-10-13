@@ -50,6 +50,15 @@ async function request(endpoint, options = {}) {
   return data;
 }
 
+export function buildQueryString(params = {}) {
+  if (!params || typeof params !== 'object') return '';
+  const filtered = Object.entries(params).filter(
+    ([_, v]) => v !== undefined && v !== null && v !== '' && v !== 'undefined' && v !== 'null'
+  );
+  if (filtered.length === 0) return '';
+  return new URLSearchParams(Object.fromEntries(filtered)).toString();
+}
+
 export const api = {
   // Native Authentication Endpoints
   getAuthToken,
@@ -102,7 +111,7 @@ export const api = {
 
   // Builds
   getBuilds: (params = {}) => {
-    const query = new URLSearchParams(params).toString();
+    const query = buildQueryString(params);
     return request(`/builds${query ? `?${query}` : ''}`);
   },
   getBuild: (id) => request(`/build/${id}`),
@@ -120,7 +129,7 @@ export const api = {
 
   // Installed Applications & Tests
   getInstalledApps: (serial, params = {}) => {
-    const query = new URLSearchParams(params).toString();
+    const query = buildQueryString(params);
     return request(`/device/${encodeURIComponent(serial)}/installed-apps${query ? `?${query}` : ''}`);
   },
   runTest: (params) => request('/test/run', { method: 'POST', body: params }),
@@ -129,11 +138,14 @@ export const api = {
   cancelTest: (id) => request(`/test/${id}/cancel`, { method: 'POST' }),
   getTestLogs: (id) => request(`/test/${id}/logs`),
   getTestHistory: (params = {}) => {
-    const query = new URLSearchParams(params).toString();
+    const query = buildQueryString(params);
     return request(`/tests/history${query ? `?${query}` : ''}`);
   },
   deleteTest: (id) => request(`/test/${id}`, { method: 'DELETE' }),
-  getSummaryStats: () => request('/tests/summary'),
+  getSummaryStats: (params = {}) => {
+    const query = buildQueryString(params);
+    return request(`/tests/summary${query ? `?${query}` : ''}`);
+  },
 
   // Browser USB Test Helpers
   prepareBrowserArtifact: (buildId) => request('/test/prepare-browser-artifact', {
@@ -218,7 +230,150 @@ export const api = {
     body: temporaryPassword ? { temporaryPassword } : {}
   }),
 
+  // Admin Device Management & Controlled System Restart
+  adminGetDeviceModels: (params = {}) => {
+    const qs = new URLSearchParams();
+    if (params.search) qs.append('search', params.search);
+    if (params.filter) qs.append('filter', params.filter);
+    const query = qs.toString() ? `?${qs.toString()}` : '';
+    return request(`/admin/devices/models${query}`);
+  },
+  adminAddDeviceModel: (data) => request('/admin/devices/models', { method: 'POST', body: data }),
+  adminUploadDeviceImage: (manufacturer, model, formData) => request(
+    `/admin/devices/models/${encodeURIComponent(manufacturer)}/${encodeURIComponent(model)}/image`,
+    { method: 'POST', body: formData, isFormData: true }
+  ),
+  adminRemoveDeviceImage: (manufacturer, model) => request(
+    `/admin/devices/models/${encodeURIComponent(manufacturer)}/${encodeURIComponent(model)}/image`,
+    { method: 'DELETE' }
+  ),
+  adminDeleteDeviceModel: (manufacturer, model) => request(
+    `/admin/devices/models/${encodeURIComponent(manufacturer)}/${encodeURIComponent(model)}`,
+    { method: 'DELETE' }
+  ),
+  adminRestoreOriginalDeviceImage: (manufacturer, model) => request(
+    `/admin/devices/models/${encodeURIComponent(manufacturer)}/${encodeURIComponent(model)}/restore-original`,
+    { method: 'POST' }
+  ),
+  adminRestartBackend: () => request('/admin/system/restart', { method: 'POST' }),
+
+  // Google Drive & Screen Recording
+  getDriveStatus: () => request('/drive/status'),
+  getDriveAuthUrl: async (prompt, origin) => {
+    const params = new URLSearchParams();
+    if (prompt) params.append('prompt', prompt);
+    const resolvedOrigin = origin || (typeof window !== 'undefined' ? window.location.origin : '');
+    if (resolvedOrigin) params.append('origin', resolvedOrigin);
+    const q = params.toString() ? `?${params.toString()}` : '';
+    try {
+      return await request(`/drive/auth-url${q}`);
+    } catch (err) {
+      if (err.status === 404) {
+        return await request(`/drive/auth/url${q}`);
+      }
+      throw err;
+    }
+  },
+  disconnectDrive: () => request('/drive/disconnect', { method: 'POST' }),
+  getDriveQuota: () => request('/drive/quota'),
+  listDriveFiles: (params = {}) => {
+    const qs = buildQueryString(params);
+    return request(`/drive/files${qs ? `?${qs}` : ''}`);
+  },
+  createDriveFolder: (name, parentId) => request('/drive/folders', {
+    method: 'POST',
+    body: { name, parentId }
+  }),
+  getDriveFolderBreadcrumbs: (folderId) => request(`/drive/folders/${encodeURIComponent(folderId)}/breadcrumbs`),
+  getDriveFileMetadata: (fileId) => request(`/drive/files/${encodeURIComponent(fileId)}`),
+  renameDriveFile: (fileId, name) => request(`/drive/files/${encodeURIComponent(fileId)}/rename`, {
+    method: 'PATCH',
+    body: { name }
+  }),
+  moveDriveFile: (fileId, destinationFolderId, currentParentId) => request(`/drive/files/${encodeURIComponent(fileId)}/move`, {
+    method: 'POST',
+    body: { destinationFolderId, currentParentId }
+  }),
+  deleteDriveFile: (fileId) => request(`/drive/files/${encodeURIComponent(fileId)}`, {
+    method: 'DELETE'
+  }),
+  shareDriveFile: (fileId) => request(`/drive/files/${encodeURIComponent(fileId)}/share`, {
+    method: 'POST'
+  }),
+  publishDriveFile: (fileId, options = {}) => request(`/drive/files/${encodeURIComponent(fileId)}/publish`, {
+    method: 'POST',
+    body: options
+  }),
+  getDriveDefaultFolder: () => request('/drive/default-folder'),
+  setDriveDefaultFolder: (folderId, folderName) => request('/drive/default-folder', {
+    method: 'POST',
+    body: { folderId, folderName }
+  }),
+  uploadScreenRecording: (formData, onProgress) => {
+    if (onProgress && typeof XMLHttpRequest !== 'undefined') {
+      return new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', `${API_BASE}/drive/upload-recording`);
+        xhr.withCredentials = true;
+
+        if (xhr.upload) {
+          xhr.upload.onprogress = (event) => {
+            if (event.lengthComputable) {
+              const percent = Math.round((event.loaded / event.total) * 100);
+              onProgress(percent, event.loaded, event.total);
+            }
+          };
+        }
+
+        xhr.onload = () => {
+          let data;
+          try {
+            data = JSON.parse(xhr.responseText);
+          } catch (e) {
+            data = {};
+          }
+          if (xhr.status >= 200 && xhr.status < 300 && data.success) {
+            resolve(data);
+          } else {
+            const err = new Error(data.error || data.message || `Upload failed with status ${xhr.status}`);
+            err.status = xhr.status;
+            err.data = data;
+            reject(err);
+          }
+        };
+
+        xhr.onerror = () => {
+          reject(new Error('Network error during recording upload'));
+        };
+
+        xhr.ontimeout = () => {
+          reject(new Error('Recording upload timed out'));
+        };
+
+        xhr.send(formData);
+      });
+    }
+
+    return request('/drive/upload-recording', {
+      method: 'POST',
+      body: formData,
+      isFormData: true
+    });
+  },
+  listRecordings: (params = {}) => {
+    const qs = buildQueryString(params);
+    return request(`/recordings${qs ? `?${qs}` : ''}`);
+  },
+  getRecording: (recordingId) => request(`/recordings/${encodeURIComponent(recordingId)}`),
+  deleteRecording: (recordingId, deleteFromDrive = false) => {
+    const q = deleteFromDrive ? '?deleteFromDrive=true' : '';
+    return request(`/recordings/${encodeURIComponent(recordingId)}${q}`, {
+      method: 'DELETE'
+    });
+  },
+
   // System
   getDiagnostics: () => request('/system/diagnostics'),
+  getHealth: () => request('/system/health'),
   getEnv: () => request('/system/env')
 };

@@ -4,12 +4,14 @@ const { spawn, exec } = require('child_process');
 const config = require('../config');
 const logger = require('../utils/logger');
 const networkUtils = require('../utils/networkUtils');
+const { formatDeviceModelName, formatDeviceDisplayName } = require('../utils/deviceFormatter');
 
 class AdbService {
   constructor() {
     this.adbPath = config.ADB_PATH;
     this.wirelessFallbacks = new Map();
     this._hardwareSerialCache = new Map();
+    this._deviceMetaCache = new Map();
     this._disconnectingSerials = new Set();
     this.deferredCleanups = new Map(); // hwSerial -> { wSerial, usbSerial, hwSerial }
     this._activeTestChecker = null;
@@ -366,6 +368,98 @@ class AdbService {
   }
 
   /**
+   * Fast resolution and caching of immutable Android device build metadata
+   */
+  async resolveDeviceMetadata(serial, hwSerial = null) {
+    if (!serial) return null;
+    const cacheKey = hwSerial || serial;
+    if (this._deviceMetaCache && this._deviceMetaCache.has(cacheKey)) {
+      return this._deviceMetaCache.get(cacheKey);
+    }
+    if (this._deviceMetaCache && this._deviceMetaCache.has(serial)) {
+      return this._deviceMetaCache.get(serial);
+    }
+
+    try {
+      const res = await this.execute([
+        '-s', serial, 'shell',
+        'getprop ro.product.manufacturer; getprop ro.product.model; getprop ro.build.version.release; getprop ro.build.version.sdk'
+      ], { timeout: 2500 });
+
+      if (res && res.stdout) {
+        const lines = res.stdout.split('\n').map(l => l.trim()).filter(Boolean);
+        if (lines.length >= 2) {
+          const manufacturer = lines[0] || 'Android';
+          const model = lines[1] || 'Device';
+          const osVersion = lines[2] || '';
+          const sdkVersion = lines[3] || '';
+
+          const meta = {
+            manufacturer,
+            model,
+            osVersion,
+            sdkVersion,
+            cachedAt: Date.now()
+          };
+
+          if (!this._deviceMetaCache) this._deviceMetaCache = new Map();
+          this._deviceMetaCache.set(serial, meta);
+          if (hwSerial) this._deviceMetaCache.set(hwSerial, meta);
+
+          return meta;
+        }
+      }
+    } catch (e) {
+      logger.debug(`[AdbService] resolveDeviceMetadata notice for ${serial}: ${e.message}`);
+    }
+
+    return null;
+  }
+
+  /**
+   * Enrich raw connected device with cached metadata and standard display names
+   */
+  async enrichDeviceMetadata(dev) {
+    if (!dev || !dev.serial) return dev;
+    const meta = await this.resolveDeviceMetadata(dev.serial, dev.hardwareSerial);
+    
+    let manufacturer = meta?.manufacturer;
+    if (!manufacturer || manufacturer.toLowerCase() === 'android') {
+      if (dev.model && /^SM[-_ ]/i.test(dev.model)) {
+        manufacturer = 'samsung';
+      } else {
+        manufacturer = 'Android';
+      }
+    }
+
+    const model = meta?.model || dev.model || 'Unknown Model';
+    const osVersion = meta?.osVersion || dev.osVersion || null;
+    const androidVersion = osVersion ? `Android ${osVersion}` : 'Android';
+    const sdkVersion = meta?.sdkVersion || dev.sdkVersion || '';
+
+    const cleanModelName = formatDeviceModelName({ manufacturer, model }) || dev.model || 'Android Device';
+
+    dev.manufacturer = manufacturer;
+    dev.model = model;
+    dev.osVersion = osVersion;
+    dev.androidVersion = androidVersion;
+    dev.sdkVersion = sdkVersion;
+    dev.name = cleanModelName;
+    dev.platform = 'android';
+    dev.displayName = formatDeviceDisplayName({
+      name: cleanModelName,
+      model,
+      manufacturer,
+      osVersion,
+      androidVersion,
+      serial: dev.serial,
+      platform: 'android'
+    });
+
+    return dev;
+  }
+
+  /**
    * List all connected ADB devices with parsed properties
    */
   async listDevices(options = {}) {
@@ -425,6 +519,16 @@ class AdbService {
 
       // Deduplicate and prioritize transports (USB > Wireless)
       const prioritized = await this.deduplicateAndPrioritizeTransports(devices);
+
+      // Enrich devices with immutable build metadata in parallel
+      await Promise.all(
+        prioritized.map(async (dev) => {
+          if (dev.connected && dev.state === 'device') {
+            await this.enrichDeviceMetadata(dev);
+          }
+        })
+      );
+
       return prioritized;
     } catch (e) {
       logger.error(`Failed to list devices: ${e.message}`);
@@ -759,15 +863,36 @@ class AdbService {
       }
     }
 
-    const fullModelName = `${modelManufacturer} ${modelName}`.trim() || 'Android Device';
+    const model = modelName || 'Unknown Model';
+    const manufacturer = modelManufacturer || 'Android';
+    const cleanModelName = formatDeviceModelName({ manufacturer, model }) || 'Android Device';
+    const formattedAndroidVersion = osVersion ? `Android ${osVersion}` : 'Android';
+    const rawDev = {
+      serial,
+      hardwareSerial,
+      name: cleanModelName,
+      model,
+      manufacturer,
+      osVersion: osVersion || null,
+      androidVersion: formattedAndroidVersion,
+      platform: 'android'
+    };
+    const displayName = formatDeviceDisplayName(rawDev);
+
+    if (!this._deviceMetaCache) this._deviceMetaCache = new Map();
+    const meta = { manufacturer, model, osVersion: osVersion || null, sdkVersion: sdkVersion || '', cachedAt: Date.now() };
+    this._deviceMetaCache.set(serial, meta);
+    if (hardwareSerial) this._deviceMetaCache.set(hardwareSerial, meta);
 
     return {
       serial,
       hardwareSerial,
-      name: fullModelName,
-      model: modelName || 'Unknown Model',
-      manufacturer: modelManufacturer || 'Android',
-      androidVersion: `Android ${osVersion || 'Unknown'}`,
+      displayName,
+      name: cleanModelName,
+      model,
+      manufacturer,
+      osVersion: osVersion || null,
+      androidVersion: formattedAndroidVersion,
       sdkVersion: sdkVersion || 'Unknown',
       battery: batteryLevel,
       batteryStatus,
@@ -778,7 +903,8 @@ class AdbService {
       screenResolution,
       connected: true,
       state: 'device',
-      isWireless: serial.includes(':')
+      isWireless: serial.includes(':'),
+      platform: 'android'
     };
   }
 

@@ -20,13 +20,13 @@ export default function BuildInfoCard({ build, isSelected, onSelect, onDelete })
   return (
     <div className={`p-5 rounded-xl border transition-all ${
       isSelected 
-        ? 'bg-[#131924] border-[#F59E0B] shadow-md shadow-[#F59E0B]/10' 
-        : 'bg-[#131924] border-[#1E2638] hover:border-[#334155]'
+        ? 'bg-[#10131B] border-[#F59E0B] shadow-lg shadow-[#F59E0B]/10' 
+        : 'bg-[#10131B] border-[#1C2230] hover:border-[#2C3549]'
     }`}>
       {/* Header */}
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-3">
-          <div className="p-2.5 rounded-lg bg-[#261D10] border border-[#78350F] text-[#F59E0B]">
+          <div className="p-2.5 rounded-lg bg-[#16130C] border border-[#F59E0B]/40 text-[#F59E0B]">
             <Package className="w-5 h-5" />
           </div>
           <div>
@@ -35,7 +35,7 @@ export default function BuildInfoCard({ build, isSelected, onSelect, onDelete })
               <span className={`text-[10px] uppercase font-mono px-1.5 py-0.2 rounded font-bold border ${
                 build.fileType === 'apk' || build.fileName?.endsWith('.apk')
                   ? 'bg-purple-500/20 text-purple-300 border-purple-500/40'
-                  : 'bg-[#261D10] text-[#F59E0B] border-[#78350F]'
+                  : 'bg-[#16130C] text-[#F59E0B] border-[#F59E0B]/40'
               }`}>
                 {build.fileType === 'apk' || build.fileName?.endsWith('.apk') ? 'APK' : 'AAB'}
               </span>
@@ -46,14 +46,14 @@ export default function BuildInfoCard({ build, isSelected, onSelect, onDelete })
 
         <div className="flex items-center gap-2">
           {isSelected && (
-            <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-[#F59E0B] text-[#000000]">
+            <span className="px-2.5 py-0.5 rounded text-[11px] font-bold bg-[#F59E0B] text-[#000000] shadow-sm">
               Selected
             </span>
           )}
           {onDelete && (
             <button
               onClick={() => onDelete(build.id)}
-              className="p-1.5 rounded-lg text-[#64748B] hover:text-rose-400 hover:bg-rose-500/10 transition-colors"
+              className="p-1.5 rounded-lg text-[#64748B] hover:text-rose-400 hover:bg-rose-500/10 transition-colors cursor-pointer"
               title="Delete Build"
             >
               <Trash2 className="w-3.5 h-3.5" />
@@ -63,24 +63,24 @@ export default function BuildInfoCard({ build, isSelected, onSelect, onDelete })
       </div>
 
       {/* Build Details Grid */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4 pt-4 border-t border-[#1E2638]">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4 pt-4 border-t border-[#1C2230]">
         <div className="space-y-1">
-          <span className="text-[11px] text-[#94A3B8]">Version</span>
+          <span className="text-[11px] font-semibold uppercase tracking-wider text-[#94A3B8]">Version</span>
           <p className="text-xs font-medium text-[#CBD5E1] font-mono">{build.versionName || '1.0'} ({build.versionCode || '1'})</p>
         </div>
 
         <div className="space-y-1">
-          <span className="text-[11px] text-[#94A3B8]">Target SDK</span>
+          <span className="text-[11px] font-semibold uppercase tracking-wider text-[#94A3B8]">Target SDK</span>
           <p className="text-xs font-medium text-[#CBD5E1] font-mono">API {build.targetSdkVersion || '34'}</p>
         </div>
 
         <div className="space-y-1">
-          <span className="text-[11px] text-[#94A3B8]">Min SDK</span>
+          <span className="text-[11px] font-semibold uppercase tracking-wider text-[#94A3B8]">Min SDK</span>
           <p className="text-xs font-medium text-[#CBD5E1] font-mono">API {build.minSdkVersion || '24'}</p>
         </div>
 
         <div className="space-y-1">
-          <span className="text-[11px] text-[#94A3B8]">File Size</span>
+          <span className="text-[11px] font-semibold uppercase tracking-wider text-[#94A3B8]">File Size</span>
           <p className="text-xs font-medium text-[#CBD5E1] font-mono">
             {build.fileSize ? `${(build.fileSize / (1024 * 1024)).toFixed(1)} MB` : 'N/A'}
           </p>
@@ -88,7 +88,7 @@ export default function BuildInfoCard({ build, isSelected, onSelect, onDelete })
       </div>
 
       {/* Asset Packs Breakdown */}
-      <div className="mt-4 pt-3 border-t border-[#1E2638]">
+      <div className="mt-4 pt-3 border-t border-[#1C2230]">
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-1.5 text-xs font-semibold text-[#CBD5E1]">
             <Layers className="w-3.5 h-3.5 text-[#F59E0B]" />
@@ -104,7 +104,7 @@ export default function BuildInfoCard({ build, isSelected, onSelect, onDelete })
             {build.assetPacks.map((pack, idx) => (
               <div
                 key={idx}
-                className="flex items-center justify-between p-2 rounded-lg bg-[#0A0D14] border border-[#1E2638] text-xs"
+                className="flex items-center justify-between p-2 rounded-lg bg-[#080B10] border border-[#1C2230] text-xs"
               >
                 <div className="flex items-center gap-2">
                   <Sparkles className="w-3 h-3 text-[#F59E0B]" />
@@ -130,10 +130,10 @@ export default function BuildInfoCard({ build, isSelected, onSelect, onDelete })
 
       {/* Footer select button */}
       {!isSelected && onSelect && (
-        <div className="mt-4 pt-3 border-t border-[#1E2638] flex justify-end">
+        <div className="mt-4 pt-3 border-t border-[#1C2230] flex justify-end">
           <button
             onClick={() => onSelect(build)}
-            className="px-3.5 py-1.5 rounded-lg bg-[#F59E0B] hover:bg-[#D97706] text-xs font-bold text-[#000000] shadow transition-colors flex items-center gap-1.5"
+            className="px-3.5 py-1.5 rounded-lg bg-[#F59E0B] hover:bg-[#D97706] text-xs font-bold text-[#000000] shadow-md shadow-[#F59E0B]/20 transition-colors flex items-center gap-1.5 cursor-pointer"
           >
             <CheckCircle2 className="w-3.5 h-3.5 text-[#000000]" />
             <span>Select for Testing</span>

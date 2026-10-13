@@ -30,9 +30,18 @@ import {
   Trash2,
   Film,
   Image,
-  Loader2
+  Loader2,
+  HardDrive,
+  Folder,
+  Upload,
+  ExternalLink,
+  CheckCircle2,
+  Share2
 } from 'lucide-react';
 import { api, getAuthToken } from '../services/api';
+import { formatDeviceDisplayName } from '../utils/deviceFormatter';
+import DeviceThumbnail from './DeviceThumbnail';
+import DriveFolderSelectorModal from './DriveFolderSelectorModal';
 import { webUsbAdbService } from '../services/webUsbAdbService';
 
 const getSupportedMimeType = () => {
@@ -106,6 +115,21 @@ export default function ScreenMirrorView({ device, onClose }) {
   const recordingTimerRef = useRef(null);
   const recordingStartTimeRef = useRef(null);
   const recordingMimeRef = useRef(null);
+
+  // Google Drive Screen Recording Upload State
+  const [driveStatus, setDriveStatus] = useState(null);
+  const [selectedDriveFolder, setSelectedDriveFolder] = useState({ id: 'root', name: 'My Drive' });
+  const [driveFolderPickerOpen, setDriveFolderPickerOpen] = useState(false);
+  const [driveUploadStatus, setDriveUploadStatus] = useState('idle'); // 'idle' | 'uploading' | 'success' | 'error'
+  const [driveUploadProgress, setDriveUploadProgress] = useState(0);
+  const [driveUploadError, setDriveUploadError] = useState(null);
+  const [uploadedDriveFile, setUploadedDriveFile] = useState(null);
+
+  // Google Drive Screen Recording Publish State
+  const [publishStatus, setPublishStatus] = useState('idle'); // 'idle' | 'publishing' | 'published' | 'error'
+  const [publishedUrl, setPublishedUrl] = useState(null);
+  const [publishError, setPublishError] = useState(null);
+  const [copyLinkSuccess, setCopyLinkSuccess] = useState(false);
 
   // Touch/Drag tracking for swipe vs tap
   const dragStartRef = useRef(null);
@@ -755,14 +779,26 @@ export default function ScreenMirrorView({ device, onClose }) {
           success: true,
           filename: `screenshot_usb_${Date.now()}.png`,
           previewBase64: dataUrl,
-          downloadUrl: dataUrl
+          downloadUrl: dataUrl,
+          device: {
+            name: formatDeviceDisplayName(device),
+            serial: device?.serial || '',
+            screenResolution: resolution
+          }
         });
         return;
       }
 
       const res = await api.takeScreenshot(device.serial);
       if (res.success) {
-        setScreenshotModal(res);
+        setScreenshotModal({
+          ...res,
+          device: res.device ? { ...res.device, name: formatDeviceDisplayName(res.device) } : {
+            name: formatDeviceDisplayName(device),
+            serial: device?.serial || '',
+            screenResolution: resolution
+          }
+        });
       }
     } catch (err) {
       alert(`Screenshot failed: ${err.message}`);
@@ -907,7 +943,7 @@ export default function ScreenMirrorView({ device, onClose }) {
             ext,
             mimeType,
             device: {
-              name: device?.name || device?.model || 'Android Device',
+              name: formatDeviceDisplayName(device),
               serial: device?.serial || '',
               screenResolution: resolution
             }
@@ -967,6 +1003,155 @@ export default function ScreenMirrorView({ device, onClose }) {
     if (onClose) onClose();
   };
 
+  // Google Drive Upload & Publish Handlers
+  useEffect(() => {
+    if (recordingModal) {
+      setDriveUploadStatus('idle');
+      setDriveUploadProgress(0);
+      setDriveUploadError(null);
+      setUploadedDriveFile(null);
+      setPublishStatus('idle');
+      setPublishedUrl(null);
+      setPublishError(null);
+      setCopyLinkSuccess(false);
+      api.getDriveStatus()
+        .then((st) => {
+          setDriveStatus(st);
+          if (st?.connected) {
+            setSelectedDriveFolder({
+              id: st.defaultFolderId || 'root',
+              name: st.defaultFolderName || 'My Drive'
+            });
+          }
+        })
+        .catch(() => {});
+    }
+  }, [recordingModal]);
+
+  const copyTextToClipboard = async (text) => {
+    if (!text) return false;
+    try {
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+        return true;
+      }
+    } catch (e) {
+      console.warn('[Clipboard] navigator.clipboard.writeText failed, using fallback:', e);
+    }
+    try {
+      const textArea = document.createElement('textarea');
+      textArea.value = text;
+      textArea.style.position = 'fixed';
+      textArea.style.left = '-9999px';
+      textArea.style.top = '0';
+      document.body.appendChild(textArea);
+      textArea.focus();
+      textArea.select();
+      const success = document.execCommand('copy');
+      document.body.removeChild(textArea);
+      return success;
+    } catch (err) {
+      console.error('[Clipboard] Copy fallback failed:', err);
+      return false;
+    }
+  };
+
+  const handleUploadToDrive = async () => {
+    if (!recordingModal?.blob) return;
+    setDriveUploadStatus('uploading');
+    setDriveUploadProgress(0);
+    setDriveUploadError(null);
+    setPublishStatus('idle');
+    setPublishedUrl(null);
+    setPublishError(null);
+    setCopyLinkSuccess(false);
+
+    const formData = new FormData();
+    formData.append('file', recordingModal.blob, recordingModal.filename);
+    formData.append('durationSec', recordingModal.durationSec);
+    formData.append('deviceSerial', device?.serial || '');
+    formData.append('deviceName', formatDeviceDisplayName(device) || '');
+    formData.append('originalFilename', recordingModal.filename);
+    if (selectedDriveFolder?.id && selectedDriveFolder.id !== 'root') {
+      formData.append('folderId', selectedDriveFolder.id);
+    }
+
+    try {
+      const res = await api.uploadScreenRecording(formData, (percent) => {
+        setDriveUploadProgress(percent);
+      });
+
+      if (res?.success && res.recording) {
+        setUploadedDriveFile({
+          id: res.recording.google_drive_file_id,
+          webViewLink: res.recording.google_drive_web_view_link,
+          name: res.recording.filename
+        });
+        setDriveUploadStatus('success');
+      } else {
+        throw new Error(res?.error || 'Failed to upload recording');
+      }
+    } catch (err) {
+      console.error('[UploadToDrive Error]', err);
+      setDriveUploadError(err.message || 'Upload failed');
+      setDriveUploadStatus('error');
+    }
+  };
+
+  const handlePublishLink = async () => {
+    const fileId = uploadedDriveFile?.id;
+    if (!fileId || publishStatus === 'publishing') return;
+
+    setPublishStatus('publishing');
+    setPublishError(null);
+
+    try {
+      const res = await api.publishDriveFile(fileId);
+      if (res?.success && (res.shareLink || res.webViewLink)) {
+        const shareUrl = res.shareLink || res.webViewLink;
+        setPublishedUrl(shareUrl);
+        setPublishStatus('published');
+
+        // Automatically copy shareable URL to clipboard
+        const copied = await copyTextToClipboard(shareUrl);
+        if (copied) {
+          setCopyLinkSuccess(true);
+          setTimeout(() => setCopyLinkSuccess(false), 3000);
+        }
+      } else {
+        throw new Error(res?.error || res?.message || 'Failed to generate shareable link');
+      }
+    } catch (err) {
+      console.error('[PublishLink Error]', err);
+      setPublishError(err.message || 'Failed to publish recording link');
+      setPublishStatus('error');
+    }
+  };
+
+  const handleCopyPublishedLink = async () => {
+    if (!publishedUrl) return;
+    const copied = await copyTextToClipboard(publishedUrl);
+    if (copied) {
+      setCopyLinkSuccess(true);
+      setTimeout(() => setCopyLinkSuccess(false), 3000);
+    }
+  };
+
+  const handleCloseRecordingModal = () => {
+    if (recordingModal?.url) {
+      URL.revokeObjectURL(recordingModal.url);
+    }
+    setRecordingModal(null);
+    setDriveUploadStatus('idle');
+    setDriveUploadProgress(0);
+    setDriveUploadError(null);
+    setUploadedDriveFile(null);
+    setPublishStatus('idle');
+    setPublishedUrl(null);
+    setPublishError(null);
+    setCopyLinkSuccess(false);
+  };
+
   return (
     <div
       ref={containerRef}
@@ -978,40 +1163,38 @@ export default function ScreenMirrorView({ device, onClose }) {
     >
       {/* Top Header Bar */}
       <div className="px-5 py-3 bg-[#131924] border-b border-[#1E2638] flex flex-wrap items-center justify-between gap-3 shrink-0">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-[#261D10] border border-[#78350F] flex items-center justify-center text-[#F59E0B]">
-            <Tv className="w-4 h-4" />
-          </div>
-          <div>
+        <div className="flex items-center gap-3.5 min-w-0">
+          <DeviceThumbnail device={device} size="header" className="shadow-md shrink-0" />
+          <div className="min-w-0 space-y-1">
             <div className="flex items-center gap-2">
-              <h3 className="font-bold text-sm text-[#FFFFFF] truncate max-w-[220px]">
-                {device?.name || device?.model || 'Android Device'}
+              <h3 className="font-bold text-sm text-[#FFFFFF] truncate max-w-[280px]" title={formatDeviceDisplayName(device)}>
+                {formatDeviceDisplayName(device)}
               </h3>
               {mirrorStatus === 'live' && (
-                <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 shrink-0">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
                   LIVE MIRROR
                 </span>
               )}
               {mirrorStatus === 'connecting' && (
-                <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/15 text-[#F59E0B] border border-amber-500/30">
+                <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/15 text-[#F59E0B] border border-amber-500/30 shrink-0">
                   <RefreshCw className="w-2.5 h-2.5 animate-spin" />
                   CONNECTING
                 </span>
               )}
               {mirrorStatus === 'waiting_for_frame' && (
-                <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/15 text-[#F59E0B] border border-amber-500/30">
+                <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/15 text-[#F59E0B] border border-amber-500/30 shrink-0">
                   <RefreshCw className="w-2.5 h-2.5 animate-spin" />
                   WAITING FOR VIDEO
                 </span>
               )}
               {mirrorStatus === 'error' && (
-                <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/15 text-rose-400 border border-rose-500/30">
+                <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/15 text-rose-400 border border-rose-500/30 shrink-0">
                   ERROR
                 </span>
               )}
             </div>
-            <p className="text-[11px] text-[#64748B] font-mono">{device?.serial}</p>
+            <p className="text-[11px] text-[#64748B] font-mono truncate">{device?.serial}</p>
           </div>
         </div>
 
@@ -1407,7 +1590,7 @@ export default function ScreenMirrorView({ device, onClose }) {
               <div className="w-full grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4 pt-4 border-t border-[#1E2638] text-xs">
                 <div>
                   <span className="text-[#64748B] text-[10px] block">Device</span>
-                  <span className="font-semibold text-[#CBD5E1] truncate">{screenshotModal.device?.name || 'Android'}</span>
+                  <span className="font-semibold text-[#CBD5E1] truncate">{formatDeviceDisplayName(screenshotModal.device) || 'Android'}</span>
                 </div>
                 <div>
                   <span className="text-[#64748B] text-[10px] block">Resolution</span>
@@ -1518,25 +1701,22 @@ export default function ScreenMirrorView({ device, onClose }) {
               </div>
 
               <button
-                onClick={() => {
-                  URL.revokeObjectURL(recordingModal.url);
-                  setRecordingModal(null);
-                }}
+                onClick={handleCloseRecordingModal}
                 className="p-1.5 rounded-lg hover:bg-[#1E2638] text-[#94A3B8] hover:text-[#FFFFFF] transition-colors"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            {/* Modal Body with Video Preview Player */}
+            {/* Modal Body with Video Preview Player & Drive Section */}
             <div className="p-6 overflow-y-auto flex flex-col items-center justify-center bg-[#070A10]">
-              <div className="max-h-[460px] max-w-full overflow-hidden rounded-xl border border-[#1E2638] shadow-lg bg-black flex items-center justify-center p-1">
+              <div className="max-h-[420px] max-w-full overflow-hidden rounded-xl border border-[#1E2638] shadow-lg bg-black flex items-center justify-center p-1">
                 <video
                   src={recordingModal.url}
                   controls
                   autoPlay
                   playsInline
-                  className="max-h-[440px] w-auto object-contain rounded-lg shadow-inner"
+                  className="max-h-[400px] w-auto object-contain rounded-lg shadow-inner"
                 />
               </div>
 
@@ -1544,7 +1724,7 @@ export default function ScreenMirrorView({ device, onClose }) {
               <div className="w-full grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4 pt-4 border-t border-[#1E2638] text-xs">
                 <div>
                   <span className="text-[#64748B] text-[10px] block">Device</span>
-                  <span className="font-semibold text-[#CBD5E1] truncate">{recordingModal.device?.name || 'Android'}</span>
+                  <span className="font-semibold text-[#CBD5E1] truncate">{formatDeviceDisplayName(recordingModal.device) || 'Android'}</span>
                 </div>
                 <div>
                   <span className="text-[#64748B] text-[10px] block">Duration</span>
@@ -1563,15 +1743,195 @@ export default function ScreenMirrorView({ device, onClose }) {
                   <span className="font-semibold text-[#F59E0B] font-mono uppercase">{recordingModal.ext}</span>
                 </div>
               </div>
+
+              {/* Google Drive Upload Panel */}
+              <div className="w-full mt-4 p-3.5 rounded-xl bg-[#0F141E] border border-[#1E2638] space-y-2.5">
+                <div className="flex items-center justify-between text-xs">
+                  <div className="flex items-center gap-2">
+                    <HardDrive className="w-4 h-4 text-[#F59E0B]" />
+                    <span className="font-semibold text-white">Google Drive Integration</span>
+                    {driveStatus?.connected && (
+                      <span className="text-[10px] font-mono text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 px-1.5 py-0.2 rounded">
+                        Connected
+                      </span>
+                    )}
+                  </div>
+
+                  {driveStatus?.connected && driveUploadStatus !== 'uploading' && driveUploadStatus !== 'success' && (
+                    <button
+                      type="button"
+                      onClick={() => setDriveFolderPickerOpen(true)}
+                      className="text-[11px] text-[#F59E0B] hover:underline flex items-center gap-1 cursor-pointer"
+                    >
+                      <Folder className="w-3 h-3" />
+                      <span>Change Folder</span>
+                    </button>
+                  )}
+                </div>
+
+                {driveStatus?.connected ? (
+                  <>
+                    <div className="flex items-center justify-between text-xs bg-[#070A10] px-3 py-2 rounded-lg border border-[#1A2234]">
+                      <span className="text-slate-400 text-[11px]">Upload Folder:</span>
+                      <span className="font-semibold text-slate-200 truncate max-w-[280px]">
+                        {selectedDriveFolder?.name || 'My Drive (Root)'}
+                      </span>
+                    </div>
+
+                    {/* Uploading Progress */}
+                    {driveUploadStatus === 'uploading' && (
+                      <div className="space-y-1.5 pt-1">
+                        <div className="flex items-center justify-between text-[11px]">
+                          <span className="text-amber-400 font-medium flex items-center gap-1.5">
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            <span>Uploading screen recording to Drive...</span>
+                          </span>
+                          <span className="font-mono text-amber-400">{driveUploadProgress}%</span>
+                        </div>
+                        <div className="w-full h-1.5 bg-[#161B26] rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-gradient-to-r from-amber-500 to-amber-300 rounded-full transition-all duration-300"
+                            style={{ width: `${driveUploadProgress}%` }}
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Upload Success & Publish Link Section */}
+                    {driveUploadStatus === 'success' && (
+                      <div className="space-y-2 pt-0.5">
+                        <div className="p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2 text-xs text-emerald-400 font-medium">
+                            <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                            <span>Uploaded successfully to Google Drive!</span>
+                          </div>
+
+                          {/* Publish Link Button (shown if not yet published) */}
+                          {publishStatus !== 'published' && (
+                            <button
+                              type="button"
+                              onClick={handlePublishLink}
+                              disabled={publishStatus === 'publishing' || !uploadedDriveFile?.id}
+                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#261D10] hover:bg-[#3D2C15] disabled:opacity-50 border border-[#78350F] text-xs font-bold text-[#F59E0B] hover:text-[#FBBF24] transition-all shadow-sm cursor-pointer disabled:cursor-not-allowed shrink-0"
+                              title="Publish recording link: grants public view access and copies shareable link to clipboard"
+                            >
+                              {publishStatus === 'publishing' ? (
+                                <>
+                                  <Loader2 className="w-3.5 h-3.5 animate-spin text-[#F59E0B]" />
+                                  <span>Publishing...</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Share2 className="w-3.5 h-3.5 text-[#F59E0B]" />
+                                  <span>Publish Link</span>
+                                </>
+                              )}
+                            </button>
+                          )}
+                        </div>
+
+                        {/* Published Status & Shareable Link Display */}
+                        {publishStatus === 'published' && publishedUrl && (
+                          <div className="p-3 rounded-lg bg-[#070A10] border border-emerald-500/40 space-y-2 animate-fadeIn">
+                            <div className="flex items-center justify-between gap-2 text-xs">
+                              <div className="flex items-center gap-1.5 text-emerald-300 font-semibold">
+                                <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                                <span>Shareable link copied to clipboard!</span>
+                              </div>
+                              <span className="text-[10px] text-slate-400 font-medium">
+                                Anyone with link can view
+                              </span>
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                              <div
+                                className="flex-1 min-w-0 bg-[#0F141E] border border-[#1E2638] rounded-lg px-2.5 py-1.5 text-[11px] font-mono text-slate-300 truncate select-all"
+                                title={publishedUrl}
+                              >
+                                {publishedUrl}
+                              </div>
+
+                              <button
+                                type="button"
+                                onClick={handleCopyPublishedLink}
+                                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[#1E2638] hover:bg-[#263248] text-xs font-semibold text-slate-200 hover:text-white border border-[#334155] transition-colors cursor-pointer shrink-0"
+                                title="Copy shareable link again"
+                              >
+                                {copyLinkSuccess ? (
+                                  <>
+                                    <Check className="w-3 h-3 text-emerald-400" />
+                                    <span className="text-emerald-400">Copied!</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Copy className="w-3 h-3 text-slate-300" />
+                                    <span>Copy Link</span>
+                                  </>
+                                )}
+                              </button>
+
+                              <a
+                                href={publishedUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[#261D10] hover:bg-[#3D2C15] text-xs font-bold text-[#F59E0B] border border-[#78350F] transition-colors cursor-pointer shrink-0"
+                                title="Open published recording in Google Drive"
+                              >
+                                <span>Open Link</span>
+                                <ExternalLink className="w-3 h-3" />
+                              </a>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Publish Error Message */}
+                        {publishStatus === 'error' && (
+                          <div className="p-2.5 rounded-lg bg-rose-500/10 border border-rose-500/30 flex items-center justify-between gap-2 animate-fadeIn">
+                            <div className="flex items-center gap-2 text-xs text-rose-300 min-w-0">
+                              <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+                              <span className="truncate">{publishError || 'Failed to publish recording link'}</span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={handlePublishLink}
+                              className="px-2.5 py-1 rounded bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 text-xs font-semibold transition-colors shrink-0 cursor-pointer"
+                            >
+                              Retry
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Upload Error */}
+                    {driveUploadStatus === 'error' && (
+                      <div className="p-2.5 rounded-lg bg-rose-500/10 border border-rose-500/30 flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2 text-xs text-rose-400 min-w-0">
+                          <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+                          <span className="truncate">{driveUploadError || 'Upload failed'}</span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={handleUploadToDrive}
+                          className="px-2.5 py-1 rounded bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 text-xs font-semibold transition-colors shrink-0"
+                        >
+                          Retry
+                        </button>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <div className="text-[11px] text-slate-400">
+                    Google Drive is not connected. Connect your Google account in Google Drive to upload recordings directly.
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Modal Footer Actions */}
             <div className="px-6 py-4 bg-[#131924] border-t border-[#1E2638] flex items-center justify-between gap-3">
               <button
-                onClick={() => {
-                  URL.revokeObjectURL(recordingModal.url);
-                  setRecordingModal(null);
-                }}
+                onClick={handleCloseRecordingModal}
                 className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-xs font-medium text-rose-400 border border-rose-500/20 transition-colors"
               >
                 <Trash2 className="w-3.5 h-3.5" />
@@ -1580,14 +1940,44 @@ export default function ScreenMirrorView({ device, onClose }) {
 
               <div className="flex items-center gap-2">
                 <button
-                  onClick={() => {
-                    URL.revokeObjectURL(recordingModal.url);
-                    setRecordingModal(null);
-                  }}
+                  onClick={handleCloseRecordingModal}
                   className="px-4 py-2 rounded-lg bg-[#1E2638] hover:bg-[#263248] text-xs font-semibold text-[#94A3B8] hover:text-[#FFFFFF] transition-colors"
                 >
                   Close
                 </button>
+
+                {/* Upload to Google Drive Button */}
+                {driveStatus?.connected && driveUploadStatus === 'idle' && (
+                  <button
+                    onClick={handleUploadToDrive}
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-[#1E2638] hover:bg-[#263248] text-xs font-bold text-[#F59E0B] border border-[#78350F]/70 shadow transition-colors cursor-pointer"
+                  >
+                    <Upload className="w-3.5 h-3.5" />
+                    <span>Upload to Drive</span>
+                  </button>
+                )}
+
+                {driveStatus?.connected && driveUploadStatus === 'uploading' && (
+                  <button
+                    disabled
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-[#1E2638] opacity-70 text-xs font-bold text-[#F59E0B] border border-[#78350F]/70 shadow"
+                  >
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <span>Uploading...</span>
+                  </button>
+                )}
+
+                {driveStatus?.connected && driveUploadStatus === 'error' && (
+                  <button
+                    onClick={handleUploadToDrive}
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-[#1E2638] hover:bg-[#263248] text-xs font-bold text-rose-400 border border-rose-500/40 shadow transition-colors cursor-pointer"
+                  >
+                    <Upload className="w-3.5 h-3.5" />
+                    <span>Retry Upload</span>
+                  </button>
+                )}
+
+                {/* Local Download Video Button (Always preserved) */}
                 <a
                   href={recordingModal.url}
                   download={recordingModal.filename}
@@ -1601,6 +1991,16 @@ export default function ScreenMirrorView({ device, onClose }) {
           </div>
         </div>
       )}
+
+      {/* Destination Folder Picker Modal */}
+      <DriveFolderSelectorModal
+        isOpen={driveFolderPickerOpen}
+        onClose={() => setDriveFolderPickerOpen(false)}
+        onSelectFolder={(folder) => setSelectedDriveFolder(folder)}
+        initialFolderId={selectedDriveFolder?.id}
+        initialFolderName={selectedDriveFolder?.name}
+        title="Select Recording Upload Folder"
+      />
     </div>
   );
 }

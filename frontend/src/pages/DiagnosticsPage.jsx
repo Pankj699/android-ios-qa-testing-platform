@@ -23,13 +23,13 @@ export default function DiagnosticsPage({ diagnostics, onRefresh, loading }) {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-4 border-b border-[#1C2230]">
         <div>
-          <h2 className="text-lg font-bold text-white flex items-center gap-2">
+          <h2 className="text-xl font-bold text-white flex items-center gap-2.5">
             <Activity className="w-5 h-5 text-[#F59E0B]" />
             Host Server & System Diagnostics
           </h2>
-          <p className="text-xs text-slate-400">
+          <p className="text-xs text-[#94A3B8] mt-1">
             Verify execution prerequisites, binary dependencies, runtime versions, and filesystem writability.
           </p>
         </div>
@@ -37,7 +37,7 @@ export default function DiagnosticsPage({ diagnostics, onRefresh, loading }) {
         <button
           onClick={onRefresh}
           disabled={loading}
-          className="px-3.5 py-2 rounded-lg bg-[#F59E0B] hover:bg-[#D97706] text-xs font-bold text-black shadow-lg shadow-amber-500/10 transition-all flex items-center gap-2 disabled:opacity-50"
+          className="px-3.5 py-2 rounded-lg bg-[#F59E0B] hover:bg-[#D97706] text-xs font-bold text-black shadow-md shadow-[#F59E0B]/20 transition-all flex items-center gap-2 disabled:opacity-50 cursor-pointer"
         >
           <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
           <span>Refresh Diagnostics</span>
@@ -47,7 +47,7 @@ export default function DiagnosticsPage({ diagnostics, onRefresh, loading }) {
       {/* Tools Status Grid */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {/* Java */}
-        <div className="p-5 rounded-xl bg-[#131924] border border-[#1E2638] space-y-3">
+        <div className="p-5 rounded-xl bg-[#10131B] border border-[#1C2230] shadow-sm space-y-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Cpu className="w-5 h-5 text-[#F59E0B]" />
@@ -75,7 +75,7 @@ export default function DiagnosticsPage({ diagnostics, onRefresh, loading }) {
         </div>
 
         {/* ADB */}
-        <div className="p-5 rounded-xl bg-[#131924] border border-[#1E2638] space-y-3">
+        <div className="p-5 rounded-xl bg-[#10131B] border border-[#1C2230] shadow-sm space-y-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Terminal className="w-5 h-5 text-[#F59E0B]" />
@@ -103,7 +103,7 @@ export default function DiagnosticsPage({ diagnostics, onRefresh, loading }) {
         </div>
 
         {/* Bundletool */}
-        <div className="p-5 rounded-xl bg-[#131924] border border-[#1E2638] space-y-3">
+        <div className="p-5 rounded-xl bg-[#10131B] border border-[#1C2230] shadow-sm space-y-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Package className="w-5 h-5 text-[#F59E0B]" />
@@ -134,7 +134,7 @@ export default function DiagnosticsPage({ diagnostics, onRefresh, loading }) {
       {/* Server & Environment Overview */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* Node Server */}
-        <div className="p-5 rounded-xl bg-[#131924] border border-[#1E2638] space-y-3">
+        <div className="p-5 rounded-xl bg-[#10131B] border border-[#1C2230] shadow-sm space-y-3">
           <div className="flex items-center gap-2">
             <Server className="w-5 h-5 text-emerald-400" />
             <span className="font-semibold text-sm text-white">Backend Server Runtime</span>
@@ -151,7 +151,7 @@ export default function DiagnosticsPage({ diagnostics, onRefresh, loading }) {
         </div>
 
         {/* Filesystem & Storage */}
-        <div className="p-5 rounded-xl bg-[#131924] border border-[#1E2638] space-y-3">
+        <div className="p-5 rounded-xl bg-[#10131B] border border-[#1C2230] shadow-sm space-y-3">
           <div className="flex items-center gap-2">
             <HardDrive className="w-5 h-5 text-[#F59E0B]" />
             <span className="font-semibold text-sm text-white">Filesystem & Directories</span>

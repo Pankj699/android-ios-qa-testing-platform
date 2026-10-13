@@ -41,21 +41,21 @@ export default function StepTracker({ steps = [] }) {
   };
 
   return (
-    <div className="bg-[#131924] border border-[#1E2638] rounded-xl p-4 space-y-3">
+    <div className="bg-[#10131B] border border-[#1C2230] rounded-xl p-4 space-y-3 shadow-sm">
       {/* Header & Overall Pipeline Progress */}
-      <div className="space-y-1.5 pb-2 border-b border-[#1E2638]">
+      <div className="space-y-1.5 pb-2 border-b border-[#1C2230]">
         <div className="flex items-center justify-between text-xs">
-          <div className="flex items-center gap-1.5 font-semibold text-white uppercase tracking-wider">
+          <div className="flex items-center gap-1.5 font-semibold text-white uppercase tracking-wider text-[11px]">
             <Layers className="w-3.5 h-3.5 text-[#F59E0B]" />
             <span>Overall Pipeline Progress</span>
           </div>
-          <span className="font-mono text-[#F59E0B] font-bold">
+          <span className="font-mono text-[#F59E0B] font-bold text-xs">
             Step {activeStepNumber}/{totalSteps} ({overallPercent}%)
           </span>
         </div>
 
         {/* Small overall progress bar */}
-        <div className="w-full bg-[#0A0D14] rounded-full h-2 border border-[#1E2638] overflow-hidden">
+        <div className="w-full bg-[#080B10] rounded-full h-2 border border-[#1C2230] overflow-hidden">
           <div
             className="bg-[#F59E0B] h-full rounded-full transition-all duration-300"
             style={{ width: `${overallPercent}%` }}
@@ -70,10 +70,10 @@ export default function StepTracker({ steps = [] }) {
             key={step.id || index}
             className={`flex items-start justify-between p-2 rounded-lg transition-colors ${
               step.status === 'RUNNING'
-                ? 'bg-[#261D10] border border-[#78350F]'
+                ? 'bg-[#16130C] border border-[#F59E0B]/50'
                 : step.status === 'FAILED'
                 ? 'bg-rose-500/10 border border-rose-500/20'
-                : 'bg-[#0A0D14] border border-transparent'
+                : 'bg-[#080B10] border border-[#1C2230]/60'
             }`}
           >
             <div className="flex items-center gap-2.5">

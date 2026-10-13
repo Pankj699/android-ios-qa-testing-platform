@@ -5,6 +5,7 @@ const historyService = require('../services/historyService');
 const adbService = require('../services/adbService');
 const iosService = require('../services/iosService');
 const deviceLockService = require('../services/deviceLockService');
+const { broadcastEvent } = require('../websocket/testSocket');
 const config = require('../config');
 
 class TestController {
@@ -146,7 +147,7 @@ class TestController {
 
       const userId = req.user?.id;
       const isAdmin = (req.user?.role || '').toLowerCase() === 'admin';
-      if (config.AUTH_ENABLED && !isAdmin && test.userId && test.userId !== userId) {
+      if (config.AUTH_ENABLED && !isAdmin && (!test.userId || test.userId !== userId)) {
         return res.status(403).json({ success: false, error: 'Forbidden. You do not have permission to view this test.' });
       }
 
@@ -168,9 +169,12 @@ class TestController {
   async getTestLogs(req, res, next) {
     try {
       const test = historyService.getTestById(req.params.id);
+      if (!test) {
+        return res.status(404).json({ success: false, error: 'Test not found.' });
+      }
       const userId = req.user?.id;
       const isAdmin = (req.user?.role || '').toLowerCase() === 'admin';
-      if (config.AUTH_ENABLED && !isAdmin && test && test.userId && test.userId !== userId) {
+      if (config.AUTH_ENABLED && !isAdmin && (!test.userId || test.userId !== userId)) {
         return res.status(403).json({ success: false, error: 'Forbidden. You do not have permission to view these logs.' });
       }
 
@@ -184,9 +188,12 @@ class TestController {
   async downloadTestLogs(req, res, next) {
     try {
       const test = historyService.getTestById(req.params.id);
+      if (!test) {
+        return res.status(404).json({ success: false, error: 'Test not found.' });
+      }
       const userId = req.user?.id;
       const isAdmin = (req.user?.role || '').toLowerCase() === 'admin';
-      if (config.AUTH_ENABLED && !isAdmin && test && test.userId && test.userId !== userId) {
+      if (config.AUTH_ENABLED && !isAdmin && (!test.userId || test.userId !== userId)) {
         return res.status(403).json({ success: false, error: 'Forbidden.' });
       }
 
@@ -201,13 +208,20 @@ class TestController {
 
   async listHistory(req, res, next) {
     try {
-      const filters = { ...req.query };
+      const filters = {};
       const userId = req.user?.id;
       const isAdmin = (req.user?.role || '').toLowerCase() === 'admin';
       const showAll = req.query.all === 'true' && isAdmin;
 
       if (config.AUTH_ENABLED && !showAll && userId) {
         filters.userId = userId;
+      }
+
+      if (req.query.result && req.query.result !== 'undefined' && req.query.result !== 'null') {
+        filters.result = req.query.result;
+      }
+      if (req.query.search && req.query.search !== 'undefined' && req.query.search !== 'null') {
+        filters.search = req.query.search;
       }
 
       const history = historyService.getHistory(filters);
@@ -220,15 +234,17 @@ class TestController {
   async deleteTest(req, res, next) {
     try {
       const test = historyService.getTestById(req.params.id);
-      if (test) {
-        const userId = req.user?.id;
-        const isAdmin = (req.user?.role || '').toLowerCase() === 'admin';
-        if (config.AUTH_ENABLED && !isAdmin && test.userId && test.userId !== userId) {
-          return res.status(403).json({ success: false, error: 'Forbidden. You do not have permission to delete this test.' });
-        }
+      if (!test) {
+        return res.status(404).json({ success: false, error: 'Test not found.' });
+      }
+      const userId = req.user?.id;
+      const isAdmin = (req.user?.role || '').toLowerCase() === 'admin';
+      if (config.AUTH_ENABLED && !isAdmin && (!test.userId || test.userId !== userId)) {
+        return res.status(403).json({ success: false, error: 'Forbidden. You do not have permission to delete this test.' });
       }
 
       historyService.deleteTest(req.params.id);
+      broadcastEvent('TEST_DELETED', { testId: req.params.id });
       res.json({ success: true, message: 'Test history entry deleted.' });
     } catch (err) {
       next(err);
@@ -368,6 +384,7 @@ class TestController {
       };
 
       historyService.saveTest(testRecord);
+      broadcastEvent('TEST_FINISHED', { testId: testRecord.id, test: testRecord });
 
       // Save log file if provided
       if (logs && logs.length > 0) {

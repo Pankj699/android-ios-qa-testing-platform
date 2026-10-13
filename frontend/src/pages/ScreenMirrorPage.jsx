@@ -14,6 +14,8 @@ import {
   Sparkles,
   Info
 } from 'lucide-react';
+import { formatDeviceDisplayName, formatDeviceOsVersion, formatDeviceSelectorLabel } from '../utils/deviceFormatter';
+import DeviceThumbnail from '../components/DeviceThumbnail';
 
 export default function ScreenMirrorPage({
   devices = [],
@@ -26,9 +28,9 @@ export default function ScreenMirrorPage({
   return (
     <div className="space-y-6 animate-fadeIn pb-12">
       {/* Top Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-[#131924] border border-[#1E2638] p-5 rounded-2xl">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-[#10131B] border border-[#1C2230] p-5 rounded-2xl shadow-sm">
         <div className="flex items-center gap-3.5">
-          <div className="w-10 h-10 rounded-xl bg-[#261D10] border border-[#78350F] flex items-center justify-center text-[#F59E0B]">
+          <div className="w-10 h-10 rounded-xl bg-[#16130C] border border-[#F59E0B]/40 flex items-center justify-center text-[#F59E0B]">
             <Tv className="w-5 h-5" />
           </div>
           <div>
@@ -47,26 +49,21 @@ export default function ScreenMirrorPage({
         {/* Device Selection Dropdown */}
         {devices.length > 0 && (
           <div className="flex items-center gap-2">
-            <span className="text-xs text-[#94A3B8] font-medium hidden sm:inline">Active Device:</span>
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-[#94A3B8] hidden sm:inline">Active Device:</span>
+            <DeviceThumbnail device={currentDevice} size="xs" />
             <select
               value={currentDevice?.serial || ''}
               onChange={(e) => {
                 const target = devices.find(d => d.serial === e.target.value);
                 if (target && onSelectDevice) onSelectDevice(target);
               }}
-              className="px-3 py-2 bg-[#0D111A] border border-[#1E2638] rounded-xl text-xs font-semibold text-[#FFFFFF] focus:outline-none focus:border-[#F59E0B]"
+              className="px-3 py-2 bg-[#080B10] border border-[#1C2230] rounded-xl text-xs font-semibold text-[#FFFFFF] focus:outline-none focus:border-[#F59E0B] cursor-pointer"
             >
-              {devices.map((d) => {
-                const isIos = d.platform === 'ios';
-                const osLabel = isIos 
-                  ? (d.osVersion || (d.iosVersion ? `iOS ${d.iosVersion}` : 'iOS')) 
-                  : (d.androidVersion || 'Android');
-                return (
-                  <option key={d.serial} value={d.serial}>
-                    {d.name || d.model} — {osLabel} ({d.serial})
-                  </option>
-                );
-              })}
+              {devices.map((d) => (
+                <option key={d.serial} value={d.serial} className="bg-[#10131B]">
+                  {formatDeviceSelectorLabel(d)}
+                </option>
+              ))}
             </select>
           </div>
         )}
@@ -83,33 +80,29 @@ export default function ScreenMirrorPage({
           {/* Side Telemetry & Instructions Panel */}
           <div className="lg:col-span-4 space-y-4">
             {/* Device Profile Card */}
-            <div className="p-5 rounded-2xl bg-[#131924] border border-[#1E2638] space-y-3">
-              <div className="flex items-center gap-2.5">
-                <div className="p-2 rounded-lg bg-[#261D10] text-[#F59E0B] border border-[#78350F]">
-                  <Smartphone className="w-4 h-4" />
-                </div>
-                <div>
-                  <h4 className="font-bold text-xs text-[#FFFFFF] flex items-center gap-2">
-                    {currentDevice.name || currentDevice.model}
+            <div className="p-5 rounded-2xl bg-[#10131B] border border-[#1C2230] space-y-4 shadow-sm">
+              <div className="flex items-center gap-3.5">
+                <DeviceThumbnail device={currentDevice} size="xl" className="shadow-md shrink-0" />
+                <div className="min-w-0 space-y-1">
+                  <h4 className="font-bold text-sm text-[#FFFFFF] flex flex-wrap items-center gap-2">
+                    <span className="truncate">{formatDeviceDisplayName(currentDevice)}</span>
                     {currentDevice.platform === 'ios' && (
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-sky-500/20 text-sky-400 border border-sky-500/30">
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-sky-500/20 text-sky-400 border border-sky-500/30 shrink-0">
                         iOS
                       </span>
                     )}
                   </h4>
-                  <p className="text-[11px] text-[#64748B] font-mono">{currentDevice.serial}</p>
+                  <p className="text-xs text-[#64748B] font-mono truncate">{currentDevice.serial}</p>
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-2.5 pt-3 border-t border-[#1E2638] text-xs">
+              <div className="grid grid-cols-2 gap-2.5 pt-3 border-t border-[#1C2230] text-xs">
                 <div>
                   <span className="text-[#64748B] text-[10px] block">
                     {currentDevice.platform === 'ios' ? 'iOS Version' : 'Android Version'}
                   </span>
                   <span className="font-semibold text-[#CBD5E1] font-mono">
-                    {currentDevice.platform === 'ios'
-                      ? (currentDevice.osVersion || (currentDevice.iosVersion ? `iOS ${currentDevice.iosVersion}` : 'iOS'))
-                      : (currentDevice.androidVersion || 'Android')}
+                    {formatDeviceOsVersion(currentDevice) || 'N/A'}
                   </span>
                 </div>
                 <div>
@@ -136,7 +129,7 @@ export default function ScreenMirrorPage({
             </div>
 
             {/* QA Debugging Tips Card */}
-            <div className="p-5 rounded-2xl bg-[#131924] border border-[#1E2638] space-y-3 text-xs">
+            <div className="p-5 rounded-2xl bg-[#10131B] border border-[#1C2230] space-y-3 text-xs shadow-sm">
               <h4 className="font-bold text-xs text-[#FFFFFF] flex items-center gap-1.5">
                 <Sparkles className="w-4 h-4 text-[#F59E0B]" />
                 QA Defect Reporting Tips
@@ -164,8 +157,8 @@ export default function ScreenMirrorPage({
           </div>
         </div>
       ) : (
-        <div className="p-12 rounded-2xl bg-[#131924] border border-[#1E2638] text-center flex flex-col items-center justify-center gap-4">
-          <div className="w-16 h-16 rounded-2xl bg-[#261D10] border border-[#78350F] flex items-center justify-center text-[#F59E0B]">
+        <div className="p-12 rounded-2xl bg-[#10131B] border border-[#1C2230] text-center flex flex-col items-center justify-center gap-4 shadow-sm">
+          <div className="w-16 h-16 rounded-2xl bg-[#16130C] border border-[#F59E0B]/40 flex items-center justify-center text-[#F59E0B]">
             <Tv className="w-8 h-8" />
           </div>
           <div className="max-w-md">
@@ -177,7 +170,7 @@ export default function ScreenMirrorPage({
           {onOpenPairModal && (
             <button
               onClick={onOpenPairModal}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#F59E0B] hover:bg-[#D97706] font-bold text-xs text-[#000000] shadow transition-colors"
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#F59E0B] hover:bg-[#D97706] font-bold text-xs text-[#000000] shadow-md shadow-[#F59E0B]/20 transition-colors cursor-pointer"
             >
               <Wifi className="w-4 h-4" />
               <span>Connect Device Now</span>

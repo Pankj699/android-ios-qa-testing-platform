@@ -46,6 +46,7 @@ const config = {
   
   // Limits and timeouts
   MAX_AAB_SIZE_MB: parseInt(process.env.MAX_AAB_SIZE_MB || '1024', 10),
+  MAX_RECORDING_SIZE_MB: parseInt(process.env.MAX_RECORDING_SIZE_MB || '500', 10),
   TEST_TIMEOUT_MS: parseInt(process.env.TEST_TIMEOUT_MS || '600000', 10), // 10 minutes
   ADB_TIMEOUT_MS: parseInt(process.env.ADB_TIMEOUT_MS || '30000', 10), // 30 seconds
   
@@ -63,7 +64,14 @@ const config = {
   
   // HTTPS & SSL Config for Secure Context / WebUSB
   USE_HTTPS: process.env.USE_HTTPS !== 'false',
-  HTTP_PORT: parseInt(process.env.HTTP_PORT || '8081', 10)
+  HTTP_PORT: parseInt(process.env.HTTP_PORT || '8081', 10),
+
+  // Google Drive & OAuth Configuration
+  GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID || '',
+  GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET || '',
+  GOOGLE_REDIRECT_URI: process.env.GOOGLE_REDIRECT_URI || 'http://localhost:8080/api/drive/callback',
+  GOOGLE_REDIRECT_URI_SOURCE: process.env.GOOGLE_REDIRECT_URI ? 'process.env.GOOGLE_REDIRECT_URI' : 'hardcoded_default',
+  GOOGLE_TOKEN_ENCRYPTION_KEY: process.env.GOOGLE_TOKEN_ENCRYPTION_KEY || ''
 };
 
 module.exports = config;

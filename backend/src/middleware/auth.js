@@ -20,7 +20,17 @@ const PUBLIC_PATHS = [
   '/agent/pair',
   '/api/agent/pair',
   '/agent/download',
-  '/api/agent/download'
+  '/api/agent/download',
+  '/health',
+  '/api/health',
+  '/system/health',
+  '/api/system/health',
+  '/devices/image',
+  '/api/devices/image',
+  '/drive/callback',
+  '/api/drive/callback',
+  '/drive/oauth-complete',
+  '/api/drive/oauth-complete'
 ];
 
 /**

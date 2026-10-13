@@ -29,9 +29,9 @@ export default function IosAgentSection({ onOpenPairModal }) {
   };
 
   return (
-    <div className="space-y-6 pt-4 border-t border-[#1E2638]">
+    <div className="space-y-6 pt-4 border-t border-[#1C2230]">
       {/* 1. Download Header & Cards Section */}
-      <div className="bg-[#131924] border border-[#1E2638] rounded-2xl p-6 space-y-6">
+      <div className="bg-[#10131B] border border-[#1C2230] rounded-2xl p-6 space-y-6 shadow-sm">
         <div>
           <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-[#F59E0B]">
             <Sparkles className="w-4 h-4" />
@@ -46,7 +46,7 @@ export default function IosAgentSection({ onOpenPairModal }) {
         {/* Download Cards Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {/* Windows Download Card */}
-          <div className="bg-[#0D111A] border border-[#1E2638] hover:border-blue-500/40 rounded-xl p-5 flex flex-col justify-between transition-all">
+          <div className="bg-[#080B10] border border-[#1C2230] hover:border-blue-500/40 rounded-xl p-5 flex flex-col justify-between transition-all">
             <div className="space-y-3">
               <div className="flex items-start justify-between">
                 <div className="p-3 rounded-xl bg-blue-500/10 text-blue-400 border border-blue-500/20">
@@ -74,11 +74,11 @@ export default function IosAgentSection({ onOpenPairModal }) {
               </div>
             </div>
 
-            <div className="pt-4 mt-4 border-t border-[#1E2638]/60">
+            <div className="pt-4 mt-4 border-t border-[#1C2230]/60">
               <a
                 href="/api/agent/download/windows"
                 download="QA-Device-Agent-Windows-x64-v1.1.2.zip"
-                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs transition-colors shadow-lg shadow-blue-500/10"
+                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs transition-colors shadow-lg shadow-blue-500/10 cursor-pointer"
               >
                 <Download className="w-4 h-4" />
                 <span>Download Windows Agent</span>
@@ -87,10 +87,10 @@ export default function IosAgentSection({ onOpenPairModal }) {
           </div>
 
           {/* macOS Download Card */}
-          <div className="bg-[#0D111A] border border-[#1E2638] hover:border-amber-500/40 rounded-xl p-5 flex flex-col justify-between transition-all">
+          <div className="bg-[#080B10] border border-[#1C2230] hover:border-amber-500/40 rounded-xl p-5 flex flex-col justify-between transition-all">
             <div className="space-y-3">
               <div className="flex items-start justify-between">
-                <div className="p-3 rounded-xl bg-[#261D10] text-[#F59E0B] border border-[#78350F]">
+                <div className="p-3 rounded-xl bg-[#16130C] text-[#F59E0B] border border-[#F59E0B]/40">
                   <Terminal className="w-6 h-6" />
                 </div>
                 <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-mono bg-[#F59E0B]/10 text-[#F59E0B] border border-[#F59E0B]/20 font-semibold">
@@ -115,11 +115,11 @@ export default function IosAgentSection({ onOpenPairModal }) {
               </div>
             </div>
 
-            <div className="pt-4 mt-4 border-t border-[#1E2638]/60">
+            <div className="pt-4 mt-4 border-t border-[#1C2230]/60">
               <a
                 href="/api/agent/download/macos"
                 download="QA-Device-Agent-macOS-v1.1.2.zip"
-                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-[#F59E0B] hover:bg-[#D97706] text-black font-semibold text-xs transition-colors shadow-lg shadow-amber-500/10"
+                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-[#F59E0B] hover:bg-[#D97706] text-black font-bold text-xs transition-colors shadow-lg shadow-amber-500/10 cursor-pointer"
               >
                 <Download className="w-4 h-4" />
                 <span>Download macOS Agent</span>
@@ -130,7 +130,7 @@ export default function IosAgentSection({ onOpenPairModal }) {
       </div>
 
       {/* 2. SOP Section with Tabs */}
-      <div className="bg-[#131924] border border-[#1E2638] rounded-2xl p-6 space-y-6">
+      <div className="bg-[#10131B] border border-[#1C2230] rounded-2xl p-6 space-y-6 shadow-sm">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <h3 className="text-base font-bold text-[#FFFFFF]">Agent Setup & Usage SOP</h3>
@@ -140,10 +140,10 @@ export default function IosAgentSection({ onOpenPairModal }) {
           </div>
 
           {/* SOP Tabs */}
-          <div className="flex items-center gap-1.5 p-1 bg-[#0D111A] border border-[#1E2638] rounded-xl self-start sm:self-auto">
+          <div className="flex items-center gap-1.5 p-1 bg-[#080B10] border border-[#1C2230] rounded-xl self-start sm:self-auto">
             <button
               onClick={() => setActiveTab('windows')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
                 activeTab === 'windows'
                   ? 'bg-blue-600 text-white shadow'
                   : 'text-[#94A3B8] hover:text-[#FFFFFF]'
@@ -154,7 +154,7 @@ export default function IosAgentSection({ onOpenPairModal }) {
             </button>
             <button
               onClick={() => setActiveTab('macos')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
                 activeTab === 'macos'
                   ? 'bg-[#F59E0B] text-black shadow'
                   : 'text-[#94A3B8] hover:text-[#FFFFFF]'
@@ -165,7 +165,7 @@ export default function IosAgentSection({ onOpenPairModal }) {
             </button>
             <button
               onClick={() => setActiveTab('flow')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
                 activeTab === 'flow'
                   ? 'bg-emerald-600 text-white shadow'
                   : 'text-[#94A3B8] hover:text-[#FFFFFF]'

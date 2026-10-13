@@ -22,7 +22,7 @@ export default function DevicesPage({
   return (
     <div className="space-y-6 fade-in">
       {/* Page Header */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-4 border-b border-[#1E2638]">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-4 border-b border-[#1C2230]">
         <div>
           <h2 className="text-xl font-bold text-[#FFFFFF] flex items-center gap-2.5">
             <Smartphone className="w-5 h-5 text-[#F59E0B]" />
@@ -37,7 +37,7 @@ export default function DevicesPage({
           <button
             onClick={onRefreshDevices}
             disabled={loading}
-            className="p-2 rounded-lg bg-[#1E2638] hover:bg-[#263248] text-[#CBD5E1] transition-colors border border-[#334155]"
+            className="p-2 rounded-lg bg-[#10131B] hover:bg-[#161B26] text-[#CBD5E1] transition-colors border border-[#1C2230] cursor-pointer"
             title="Refresh Devices List"
           >
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
@@ -57,7 +57,7 @@ export default function DevicesPage({
           {onOpenUsbDiagnostics && (
             <button
               onClick={onOpenUsbDiagnostics}
-              className="p-2 rounded-lg bg-[#1E2638] hover:bg-[#263248] text-purple-300 hover:text-purple-200 transition-colors border border-purple-500/30"
+              className="p-2 rounded-lg bg-[#10131B] hover:bg-[#161B26] text-purple-300 hover:text-purple-200 transition-colors border border-purple-500/30 cursor-pointer"
               title="Inspect WebUSB & Secure Context Diagnostics"
             >
               <Usb className="w-4 h-4" />
@@ -77,7 +77,7 @@ export default function DevicesPage({
 
           <button
             onClick={onOpenPairModal}
-            className="px-3.5 py-2 rounded-lg bg-[#F59E0B] hover:bg-[#D97706] text-xs font-bold text-[#000000] shadow transition-all flex items-center gap-2"
+            className="px-3.5 py-2 rounded-lg bg-[#F59E0B] hover:bg-[#D97706] text-xs font-bold text-[#000000] shadow-md shadow-[#F59E0B]/20 transition-all flex items-center gap-2 cursor-pointer"
           >
             <Wifi className="w-4 h-4 text-[#000000]" />
             <span>Pair New Device (Wi-Fi)</span>
@@ -87,7 +87,7 @@ export default function DevicesPage({
 
       {/* Network Reachability & Wireless Debugging Note */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        <div className="p-4 rounded-xl bg-[#131924] border border-purple-500/20 text-xs text-[#CBD5E1] space-y-1">
+        <div className="p-4 rounded-xl bg-[#10131B] border border-purple-500/20 text-xs text-[#CBD5E1] space-y-1">
           <div className="flex items-center justify-between">
             <span className="font-bold text-purple-400 flex items-center gap-1.5">
               <Usb className="w-3.5 h-3.5" /> Browser USB Direct Connection:
@@ -95,24 +95,24 @@ export default function DevicesPage({
             {onOpenUsbDiagnostics && (
               <button
                 onClick={onOpenUsbDiagnostics}
-                className="text-[11px] text-purple-400 hover:text-purple-300 underline font-mono"
+                className="text-[11px] text-purple-400 hover:text-purple-300 underline font-mono cursor-pointer"
               >
                 Diagnostics
               </button>
             )}
           </div>
           <p className="text-[#94A3B8]">
-            Plug your Android phone/tablet into this PC using a USB cable. Enable <span className="font-mono text-[#FFFFFF] bg-[#0A0D14] px-1 py-0.5 rounded border border-[#1E2638]">USB Debugging</span> in Developer Options. Tap <strong className="text-white font-medium">"Connect Device (USB)"</strong> above, select your device, and allow USB debugging on your device screen.
+            Plug your Android phone/tablet into this PC using a USB cable. Enable <span className="font-mono text-[#FFFFFF] bg-[#080B10] px-1 py-0.5 rounded border border-[#1C2230]">USB Debugging</span> in Developer Options. Tap <strong className="text-white font-medium">"Connect Device (USB)"</strong> above, select your device, and allow USB debugging on your device screen.
           </p>
         </div>
 
-        <div className="p-4 rounded-xl bg-[#131924] border border-[#1E2638] text-xs text-[#CBD5E1] space-y-1">
+        <div className="p-4 rounded-xl bg-[#10131B] border border-[#1C2230] text-xs text-[#CBD5E1] space-y-1">
           <span className="font-bold text-[#F59E0B] flex items-center gap-1.5">
             <Wifi className="w-3.5 h-3.5" /> Wireless Debugging (Wi-Fi):
           </span>
           <p className="text-[#94A3B8]">
-            On Android 11+: Go to <span className="font-mono text-[#FFFFFF] bg-[#0A0D14] px-1 py-0.5 rounded border border-[#1E2638]">Settings → Developer Options → Wireless Debugging</span>. 
-            Tap <span className="font-mono text-[#FFFFFF] bg-[#0A0D14] px-1 py-0.5 rounded border border-[#1E2638]">"Pair device with pairing code"</span> to get the 6-digit code and pairing port.
+            On Android 11+: Go to <span className="font-mono text-[#FFFFFF] bg-[#080B10] px-1 py-0.5 rounded border border-[#1C2230]">Settings → Developer Options → Wireless Debugging</span>. 
+            Tap <span className="font-mono text-[#FFFFFF] bg-[#080B10] px-1 py-0.5 rounded border border-[#1C2230]">"Pair device with pairing code"</span> to get the 6-digit code and pairing port.
           </p>
         </div>
       </div>
@@ -141,7 +141,7 @@ export default function DevicesPage({
             ))}
           </div>
         ) : (
-          <div className="p-12 rounded-2xl border-2 border-dashed border-[#1E2638] text-center space-y-3 bg-[#131924]/40">
+          <div className="p-12 rounded-2xl border-2 border-dashed border-[#1C2230] text-center space-y-3 bg-[#10131B]/40">
             <Smartphone className="w-10 h-10 text-[#64748B] mx-auto opacity-50" />
             <div>
               <h3 className="text-sm font-semibold text-[#FFFFFF]">No Devices Connected</h3>

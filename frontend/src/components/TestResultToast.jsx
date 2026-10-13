@@ -1,5 +1,7 @@
 import React from 'react';
 import { CheckCircle2, XCircle, Clock, Smartphone, Package, Download, X, RotateCcw } from 'lucide-react';
+import { formatDeviceDisplayName } from '../utils/deviceFormatter';
+import DeviceThumbnail from './DeviceThumbnail';
 
 export default function TestResultToast({ test, onClose, onRunAgain }) {
   if (!test) return null;
@@ -71,8 +73,10 @@ export default function TestResultToast({ test, onClose, onRunAgain }) {
         {/* Compact Metadata Chips */}
         <div className="grid grid-cols-2 gap-2 text-[11px] font-mono text-slate-300 bg-[#0A0D14] p-2.5 rounded-xl border border-[#1E2638]">
           <div className="flex items-center gap-1.5 truncate">
-            <Smartphone className="w-3.5 h-3.5 text-[#F59E0B] shrink-0" />
-            <span className="truncate">{test.deviceName || test.deviceSerial}</span>
+            <DeviceThumbnail device={{ name: test.deviceName, serial: test.deviceSerial, osVersion: test.androidVersion || test.osVersion, platform: test.platform }} size="xs" />
+            <span className="truncate">
+              {formatDeviceDisplayName({ name: test.deviceName, serial: test.deviceSerial, osVersion: test.androidVersion || test.osVersion, platform: test.platform })}
+            </span>
           </div>
 
           <div className="flex items-center gap-1.5 truncate">

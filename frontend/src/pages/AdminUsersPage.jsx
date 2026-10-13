@@ -171,7 +171,7 @@ export default function AdminUsersPage({ currentUser }) {
       )}
 
       {/* Header */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-4 border-b border-[#1E2638]">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-4 border-b border-[#1C2230]">
         <div>
           <h2 className="text-xl font-bold text-white flex items-center gap-2.5">
             <ShieldCheck className="w-5 h-5 text-[#F59E0B]" />
@@ -185,7 +185,7 @@ export default function AdminUsersPage({ currentUser }) {
         <button
           onClick={loadUsers}
           disabled={loading}
-          className="p-2 rounded-lg bg-[#1E2638] hover:bg-[#263248] text-slate-300 hover:text-white transition-colors border border-[#334155]"
+          className="p-2 rounded-lg bg-[#080B10] hover:bg-[#1C2230] text-slate-300 hover:text-white transition-colors border border-[#1C2230]"
           title="Refresh Users"
         >
           <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
@@ -194,7 +194,7 @@ export default function AdminUsersPage({ currentUser }) {
 
       {/* Summary KPI Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <div className="p-4 rounded-xl bg-[#131924] border border-[#1E2638]">
+        <div className="p-4 rounded-xl bg-[#10131B] border border-[#1C2230]">
           <div className="flex items-center justify-between text-slate-400 text-xs mb-2">
             <span>Total Accounts</span>
             <Users className="w-4 h-4 text-blue-400" />
@@ -202,7 +202,7 @@ export default function AdminUsersPage({ currentUser }) {
           <div className="text-2xl font-bold text-white font-mono">{summary.total}</div>
         </div>
 
-        <div className="p-4 rounded-xl bg-[#131924] border border-[#1E2638]">
+        <div className="p-4 rounded-xl bg-[#10131B] border border-[#1C2230]">
           <div className="flex items-center justify-between text-slate-400 text-xs mb-2">
             <span>Active Users</span>
             <UserCheck className="w-4 h-4 text-emerald-400" />
@@ -210,7 +210,7 @@ export default function AdminUsersPage({ currentUser }) {
           <div className="text-2xl font-bold text-emerald-400 font-mono">{summary.active}</div>
         </div>
 
-        <div className="p-4 rounded-xl bg-[#131924] border border-[#1E2638]">
+        <div className="p-4 rounded-xl bg-[#10131B] border border-[#1C2230]">
           <div className="flex items-center justify-between text-slate-400 text-xs mb-2">
             <span>Inactive Users</span>
             <UserX className="w-4 h-4 text-rose-400" />
@@ -218,7 +218,7 @@ export default function AdminUsersPage({ currentUser }) {
           <div className="text-2xl font-bold text-rose-400 font-mono">{summary.inactive}</div>
         </div>
 
-        <div className="p-4 rounded-xl bg-[#131924] border border-[#1E2638]">
+        <div className="p-4 rounded-xl bg-[#10131B] border border-[#1C2230]">
           <div className="flex items-center justify-between text-slate-400 text-xs mb-2">
             <span>Administrators</span>
             <Shield className="w-4 h-4 text-[#F59E0B]" />
@@ -228,7 +228,7 @@ export default function AdminUsersPage({ currentUser }) {
       </div>
 
       {/* Filter and Search Bar */}
-      <div className="p-4 rounded-xl bg-[#131924] border border-[#1E2638] flex flex-wrap items-center justify-between gap-4">
+      <div className="p-4 rounded-xl bg-[#10131B] border border-[#1C2230] flex flex-wrap items-center justify-between gap-4">
         <form onSubmit={handleSearchSubmit} className="flex items-center gap-2 flex-1 max-w-md">
           <div className="relative flex-1">
             <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
@@ -237,12 +237,12 @@ export default function AdminUsersPage({ currentUser }) {
               placeholder="Search by name or email..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-3 py-2 rounded-lg bg-[#0A0D14] border border-[#1E2638] text-xs text-white placeholder-slate-500 focus:outline-none focus:border-[#F59E0B]"
+              className="w-full pl-9 pr-3 py-2 rounded-lg bg-[#080B10] border border-[#1C2230] text-xs text-white placeholder-slate-500 focus:outline-none focus:border-[#F59E0B]"
             />
           </div>
           <button
             type="submit"
-            className="px-3.5 py-2 rounded-lg bg-[#1E2638] hover:bg-[#263248] text-xs font-medium text-slate-200 border border-[#334155] transition-colors"
+            className="px-3.5 py-2 rounded-lg bg-[#080B10] hover:bg-[#1C2230] text-xs font-medium text-slate-200 border border-[#1C2230] transition-colors"
           >
             Search
           </button>
@@ -254,7 +254,7 @@ export default function AdminUsersPage({ currentUser }) {
             <select
               value={roleFilter}
               onChange={(e) => setRoleFilter(e.target.value)}
-              className="px-3 py-1.5 rounded-lg bg-[#0A0D14] border border-[#1E2638] text-xs text-slate-200 focus:outline-none focus:border-[#F59E0B]"
+              className="px-3 py-1.5 rounded-lg bg-[#080B10] border border-[#1C2230] text-xs text-slate-200 focus:outline-none focus:border-[#F59E0B]"
             >
               <option value="">All Roles</option>
               {ROLES.map((r) => (
@@ -270,7 +270,7 @@ export default function AdminUsersPage({ currentUser }) {
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              className="px-3 py-1.5 rounded-lg bg-[#0A0D14] border border-[#1E2638] text-xs text-slate-200 focus:outline-none focus:border-[#F59E0B]"
+              className="px-3 py-1.5 rounded-lg bg-[#080B10] border border-[#1C2230] text-xs text-slate-200 focus:outline-none focus:border-[#F59E0B]"
             >
               <option value="">All Statuses</option>
               {STATUSES.map((s) => (
@@ -297,11 +297,11 @@ export default function AdminUsersPage({ currentUser }) {
       </div>
 
       {/* Users Table */}
-      <div className="bg-[#131924] border border-[#1E2638] rounded-xl overflow-hidden shadow-sm">
+      <div className="bg-[#10131B] border border-[#1C2230] rounded-xl overflow-hidden shadow-sm">
         {users.length > 0 ? (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs text-slate-300">
-              <thead className="bg-[#0D111A] text-slate-400 uppercase text-[10px] font-semibold tracking-wider border-b border-[#1E2638]">
+              <thead className="bg-[#080B10] text-[#94A3B8] uppercase text-[10px] font-semibold tracking-wider border-b border-[#1C2230]">
                 <tr>
                   <th className="py-3.5 px-4">User</th>
                   <th className="py-3.5 px-4">Role</th>
@@ -311,14 +311,14 @@ export default function AdminUsersPage({ currentUser }) {
                   <th className="py-3.5 px-4 text-right">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[#1E2638]/60 font-sans">
+              <tbody className="divide-y divide-[#1C2230] font-sans">
                 {users.map((u) => {
                   const isCurrent = currentUser?.id === u.id || currentUser?.email === u.email;
                   return (
-                    <tr key={u.id} className="hover:bg-[#1E2638]/40 transition-colors">
+                    <tr key={u.id} className="hover:bg-[#1C2230]/40 transition-colors">
                       <td className="py-3 px-4">
                         <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-full bg-[#1E2638] border border-[#334155] flex items-center justify-center font-bold text-xs text-[#F59E0B]">
+                          <div className="w-8 h-8 rounded-full bg-[#080B10] border border-[#1C2230] flex items-center justify-center font-bold text-xs text-[#F59E0B]">
                             {u.name ? u.name.charAt(0).toUpperCase() : u.email.charAt(0).toUpperCase()}
                           </div>
                           <div>
@@ -371,7 +371,7 @@ export default function AdminUsersPage({ currentUser }) {
                         <div className="flex items-center justify-end gap-2">
                           <button
                             onClick={() => openEditModal(u)}
-                            className="px-2.5 py-1.5 rounded-lg bg-[#1E2638] hover:bg-[#263248] text-slate-200 hover:text-white border border-[#334155] text-xs font-medium transition-colors flex items-center gap-1.5"
+                            className="px-2.5 py-1.5 rounded-lg bg-[#080B10] hover:bg-[#1C2230] text-slate-200 hover:text-white border border-[#1C2230] text-xs font-medium transition-colors flex items-center gap-1.5"
                             title="Edit Role or Status"
                           >
                             <Edit2 className="w-3.5 h-3.5 text-slate-400" />
@@ -380,7 +380,7 @@ export default function AdminUsersPage({ currentUser }) {
 
                           <button
                             onClick={() => openResetModal(u)}
-                            className="px-2.5 py-1.5 rounded-lg bg-[#261D10] hover:bg-[#3D2C15] text-[#F59E0B] hover:text-[#FBBF24] border border-[#78350F] text-xs font-medium transition-colors flex items-center gap-1.5"
+                            className="px-2.5 py-1.5 rounded-lg bg-[#16130C] hover:bg-[#261D10] text-[#F59E0B] hover:text-[#FBBF24] border border-[#F59E0B]/30 text-xs font-medium transition-colors flex items-center gap-1.5"
                             title="Reset User Password"
                           >
                             <KeyRound className="w-3.5 h-3.5 text-[#F59E0B]" />
@@ -403,9 +403,9 @@ export default function AdminUsersPage({ currentUser }) {
 
       {/* Edit User Modal */}
       {editModalUser && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-fadeIn">
-          <div className="relative w-full max-w-md rounded-2xl bg-[#0F1420] border border-[#1E2638] shadow-2xl overflow-hidden">
-            <div className="flex items-center justify-between p-5 bg-[#141B2D] border-b border-[#1E2638]">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fadeIn">
+          <div className="relative w-full max-w-md rounded-2xl bg-[#10131B] border border-[#1C2230] shadow-2xl overflow-hidden">
+            <div className="flex items-center justify-between p-5 bg-[#080B10] border-b border-[#1C2230]">
               <div className="flex items-center gap-3">
                 <div className="p-2 rounded-lg bg-[#F59E0B]/10 text-[#F59E0B] border border-[#F59E0B]/20">
                   <Edit2 className="w-5 h-5" />
@@ -419,7 +419,7 @@ export default function AdminUsersPage({ currentUser }) {
               </div>
               <button
                 onClick={() => setEditModalUser(null)}
-                className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-[#1E2638] transition-colors"
+                className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-[#1C2230] transition-colors"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -442,7 +442,7 @@ export default function AdminUsersPage({ currentUser }) {
                   required
                   value={editForm.name}
                   onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
-                  className="w-full px-3 py-2 rounded-lg bg-[#0A0D14] border border-[#1E2638] text-xs text-white focus:outline-none focus:border-[#F59E0B]"
+                  className="w-full px-3 py-2 rounded-lg bg-[#080B10] border border-[#1C2230] text-xs text-white focus:outline-none focus:border-[#F59E0B]"
                 />
               </div>
 
@@ -453,7 +453,7 @@ export default function AdminUsersPage({ currentUser }) {
                 <select
                   value={editForm.role}
                   onChange={(e) => setEditForm({ ...editForm, role: e.target.value })}
-                  className="w-full px-3 py-2 rounded-lg bg-[#0A0D14] border border-[#1E2638] text-xs text-white focus:outline-none focus:border-[#F59E0B]"
+                  className="w-full px-3 py-2 rounded-lg bg-[#080B10] border border-[#1C2230] text-xs text-white focus:outline-none focus:border-[#F59E0B]"
                 >
                   {ROLES.map((r) => (
                     <option key={r} value={r}>
@@ -473,7 +473,7 @@ export default function AdminUsersPage({ currentUser }) {
                 <select
                   value={editForm.status}
                   onChange={(e) => setEditForm({ ...editForm, status: e.target.value })}
-                  className="w-full px-3 py-2 rounded-lg bg-[#0A0D14] border border-[#1E2638] text-xs text-white focus:outline-none focus:border-[#F59E0B]"
+                  className="w-full px-3 py-2 rounded-lg bg-[#080B10] border border-[#1C2230] text-xs text-white focus:outline-none focus:border-[#F59E0B]"
                 >
                   <option value="ACTIVE">ACTIVE (Authorized to sign in)</option>
                   <option value="INACTIVE">INACTIVE (Deactivated / Blocked)</option>
@@ -483,11 +483,11 @@ export default function AdminUsersPage({ currentUser }) {
                 </p>
               </div>
 
-              <div className="flex items-center justify-end gap-3 pt-3 border-t border-[#1E2638]">
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-[#1C2230]">
                 <button
                   type="button"
                   onClick={() => setEditModalUser(null)}
-                  className="px-4 py-2 rounded-lg bg-[#131924] hover:bg-[#1E2638] text-xs font-semibold text-slate-300 transition-colors"
+                  className="px-4 py-2 rounded-lg bg-[#080B10] hover:bg-[#1C2230] border border-[#1C2230] text-xs font-semibold text-slate-300 transition-colors"
                 >
                   Cancel
                 </button>
@@ -507,9 +507,9 @@ export default function AdminUsersPage({ currentUser }) {
 
       {/* Reset Password Modal */}
       {resetModalUser && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-fadeIn">
-          <div className="relative w-full max-w-md rounded-2xl bg-[#0F1420] border border-[#1E2638] shadow-2xl overflow-hidden">
-            <div className="flex items-center justify-between p-5 bg-[#141B2D] border-b border-[#1E2638]">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fadeIn">
+          <div className="relative w-full max-w-md rounded-2xl bg-[#10131B] border border-[#1C2230] shadow-2xl overflow-hidden">
+            <div className="flex items-center justify-between p-5 bg-[#080B10] border-b border-[#1C2230]">
               <div className="flex items-center gap-3">
                 <div className="p-2 rounded-lg bg-[#F59E0B]/10 text-[#F59E0B] border border-[#F59E0B]/20">
                   <KeyRound className="w-5 h-5" />
@@ -523,7 +523,7 @@ export default function AdminUsersPage({ currentUser }) {
               </div>
               <button
                 onClick={() => setResetModalUser(null)}
-                className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-[#1E2638] transition-colors"
+                className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-[#1C2230] transition-colors"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -554,12 +554,12 @@ export default function AdminUsersPage({ currentUser }) {
                       New Temporary Password
                     </label>
                     <div className="flex items-center gap-2">
-                      <div className="flex-1 px-3 py-2.5 rounded-lg bg-[#0A0D14] border border-[#1E2638] text-sm font-mono text-[#F59E0B] font-bold select-all tracking-wider">
+                      <div className="flex-1 px-3 py-2.5 rounded-lg bg-[#080B10] border border-[#1C2230] text-sm font-mono text-[#F59E0B] font-bold select-all tracking-wider">
                         {resetResult}
                       </div>
                       <button
                         onClick={handleCopyPassword}
-                        className="px-3.5 py-2.5 rounded-lg bg-[#1E2638] hover:bg-[#263248] text-slate-200 hover:text-white border border-[#334155] text-xs font-semibold transition-colors flex items-center gap-1.5"
+                        className="px-3.5 py-2.5 rounded-lg bg-[#080B10] hover:bg-[#1C2230] text-slate-200 hover:text-white border border-[#1C2230] text-xs font-semibold transition-colors flex items-center gap-1.5"
                       >
                         {copied ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
                         <span>{copied ? 'Copied' : 'Copy'}</span>
@@ -567,7 +567,7 @@ export default function AdminUsersPage({ currentUser }) {
                     </div>
                   </div>
 
-                  <div className="pt-3 border-t border-[#1E2638] flex justify-end">
+                  <div className="pt-3 border-t border-[#1C2230] flex justify-end">
                     <button
                       onClick={() => setResetModalUser(null)}
                       className="px-4 py-2 rounded-lg bg-[#F59E0B] hover:bg-[#D97706] text-xs font-bold text-black transition-all"
@@ -591,22 +591,22 @@ export default function AdminUsersPage({ currentUser }) {
                       placeholder="Leave blank to generate cryptographically secure password"
                       value={resetCustomPassword}
                       onChange={(e) => setResetCustomPassword(e.target.value)}
-                      className="w-full px-3 py-2 rounded-lg bg-[#0A0D14] border border-[#1E2638] text-xs text-white placeholder-slate-500 focus:outline-none focus:border-[#F59E0B]"
+                      className="w-full px-3 py-2 rounded-lg bg-[#080B10] border border-[#1C2230] text-xs text-white placeholder-slate-500 focus:outline-none focus:border-[#F59E0B]"
                     />
                     <p className="text-[10px] text-slate-500 mt-1">
                       If provided, must be at least 8 chars with uppercase, lowercase, digit, and special character.
                     </p>
                   </div>
 
-                  <div className="p-3 rounded-lg bg-[#141B2D] border border-[#1E2638] text-[11px] text-slate-400">
+                  <div className="p-3 rounded-lg bg-[#080B10] border border-[#1C2230] text-[11px] text-slate-400">
                     Resetting will automatically terminate all active sessions for this user.
                   </div>
 
-                  <div className="flex items-center justify-end gap-3 pt-3 border-t border-[#1E2638]">
+                  <div className="flex items-center justify-end gap-3 pt-3 border-t border-[#1C2230]">
                     <button
                       type="button"
                       onClick={() => setResetModalUser(null)}
-                      className="px-4 py-2 rounded-lg bg-[#131924] hover:bg-[#1E2638] text-xs font-semibold text-slate-300 transition-colors"
+                      className="px-4 py-2 rounded-lg bg-[#080B10] hover:bg-[#1C2230] border border-[#1C2230] text-xs font-semibold text-slate-300 transition-colors"
                     >
                       Cancel
                     </button>

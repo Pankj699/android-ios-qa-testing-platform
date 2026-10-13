@@ -23,6 +23,8 @@ import {
   Info
 } from 'lucide-react';
 import { webUsbAdbService } from '../services/webUsbAdbService';
+import { formatDeviceSelectorLabel } from '../utils/deviceFormatter';
+import DeviceThumbnail from './DeviceThumbnail';
 
 export default function WebUsbDiagnosticsModal({
   isOpen,
@@ -374,8 +376,9 @@ export default function WebUsbDiagnosticsModal({
               <div className="p-3 flex items-center justify-between">
                 <div>
                   <div className="font-semibold text-white">10. Transport Active & Ready</div>
-                  <div className="text-[11px] text-slate-400 font-mono">
-                    {diag.connectedDevice ? `${diag.connectedDevice.name} (${diag.connectedDevice.serial})` : 'No active transport'}
+                  <div className="text-[11px] text-slate-400 font-mono flex items-center gap-1.5">
+                    {diag.connectedDevice && <DeviceThumbnail device={diag.connectedDevice} size="xs" />}
+                    <span>{diag.connectedDevice ? formatDeviceSelectorLabel(diag.connectedDevice) : 'No active transport'}</span>
                   </div>
                 </div>
                 {getStatusBadge(diag.connectedDevice ? 'PASSED' : 'PENDING')}

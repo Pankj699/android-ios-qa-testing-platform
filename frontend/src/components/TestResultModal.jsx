@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { CheckCircle2, XCircle, Clock, Smartphone, Package, Download, X, ChevronDown, ChevronUp } from 'lucide-react';
 import { api } from '../services/api';
+import { formatDeviceDisplayName, formatDeviceOsVersion } from '../utils/deviceFormatter';
+import DeviceThumbnail from './DeviceThumbnail';
 
 export default function TestResultModal({ test, isOpen, onClose, onRunAgain }) {
   const [showTechnical, setShowTechnical] = useState(false);
@@ -58,8 +60,13 @@ export default function TestResultModal({ test, isOpen, onClose, onRunAgain }) {
                 <Smartphone className="w-3.5 h-3.5 text-[#F59E0B]" />
                 <span>Target Device</span>
               </div>
-              <p className="font-semibold text-white">{test.deviceName || test.deviceSerial}</p>
-              <p className="text-[11px] text-slate-400">{test.androidVersion}</p>
+              <p className="font-semibold text-white flex items-center gap-1.5">
+                <DeviceThumbnail device={{ name: test.deviceName, serial: test.deviceSerial, osVersion: test.androidVersion || test.osVersion, platform: test.platform }} size="xs" />
+                <span>{formatDeviceDisplayName({ name: test.deviceName, serial: test.deviceSerial, osVersion: test.androidVersion || test.osVersion, platform: test.platform })}</span>
+              </p>
+              <p className="text-[11px] text-slate-400">
+                {formatDeviceOsVersion({ name: test.deviceName, serial: test.deviceSerial, osVersion: test.androidVersion || test.osVersion, platform: test.platform }) || test.androidVersion || 'Android'}
+              </p>
             </div>
 
             <div className="p-3 rounded-lg bg-[#0A0D14] border border-[#1E2638] space-y-1">

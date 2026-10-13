@@ -3,6 +3,7 @@ import { AdbWebUsbBackendManager, ADB_DEFAULT_DEVICE_FILTER } from '@yume-chan/a
 import AdbWebCredentialStore from '@yume-chan/adb-credential-web';
 import { AdbDaemonTransport } from '@yume-chan/adb/esm/daemon/transport.js';
 import { AndroidDeviceTransport } from './transports/AndroidDeviceTransport';
+import { formatDeviceModelName, formatDeviceDisplayName } from '../utils/deviceFormatter';
 
 export class WebUsbAdbService {
   constructor() {
@@ -458,19 +459,32 @@ export class WebUsbAdbService {
     } catch (e) {}
 
     const cleanSerial = hardwareSerial || this.backend?.serial || 'usb_device';
-    const displayName = `${manufacturer} ${model}`.trim() || 'Android Device (USB)';
+    const cleanModelName = formatDeviceModelName({ manufacturer, model }) || 'Android Device';
+    const formattedAndroidVersion = osVersion ? `Android ${osVersion}` : '';
+    const tempDev = {
+      serial: `browser_usb_${cleanSerial}`,
+      hardwareSerial: cleanSerial,
+      name: cleanModelName,
+      model,
+      manufacturer,
+      platform: 'android',
+      osVersion: formattedAndroidVersion,
+      androidVersion: formattedAndroidVersion
+    };
+    const displayName = formatDeviceDisplayName(tempDev);
 
     return {
       id: `browser_usb_${cleanSerial}`,
       serial: `browser_usb_${cleanSerial}`,
       hardwareSerial: cleanSerial,
-      name: displayName,
+      displayName,
+      name: cleanModelName,
       model,
       manufacturer,
       platform: 'android',
       connectionMode: 'browser-usb',
-      androidVersion: `Android ${osVersion}`,
-      osVersion: `Android ${osVersion}`,
+      androidVersion: formattedAndroidVersion || 'Android',
+      osVersion: formattedAndroidVersion || 'Android',
       state: 'device',
       connected: true,
       isWireless: false,

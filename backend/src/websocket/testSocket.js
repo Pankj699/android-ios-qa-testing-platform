@@ -25,12 +25,19 @@ function sanitizeSensitiveData(text) {
 
 let globalWss = null;
 
-function setupWebSocket(server) {
+function setupWebSocket(server, extraServer = null) {
   const clientWss = new WebSocketServer({ noServer: true });
   const agentWss = setupAgentWebSocket(server);
   globalWss = clientWss;
 
-  server.on('upgrade', (request, socket, head) => {
+  // Wire global test completion notifications to client broadcast
+  if (testRunnerService && typeof testRunnerService.setGlobalBroadcastCallback === 'function') {
+    testRunnerService.setGlobalBroadcastCallback((type, payload) => {
+      broadcastEvent(type, payload);
+    });
+  }
+
+  const handleUpgrade = (request, socket, head) => {
     try {
       const url = new URL(request.url, `http://${request.headers.host || 'localhost'}`);
       const pathname = url.pathname;
@@ -49,7 +56,12 @@ function setupWebSocket(server) {
     } catch (e) {
       socket.destroy();
     }
-  });
+  };
+
+  server.on('upgrade', handleUpgrade);
+  if (extraServer && typeof extraServer.on === 'function') {
+    extraServer.on('upgrade', handleUpgrade);
+  }
 
   clientWss.on('connection', (ws, req) => {
     const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);

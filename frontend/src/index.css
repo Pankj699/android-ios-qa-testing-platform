@@ -4,8 +4,15 @@
 
 @layer base {
   body {
-    @apply bg-[#0A0D14] text-[#FFFFFF] antialiased font-sans;
+    @apply bg-[#080A0F] text-[#FFFFFF] antialiased font-sans;
   }
+}
+
+/* Seamless Geometric Isometric Grid Background (Screenshot 1 Reference) */
+.bg-qa-isometric {
+  background-color: #080A0F;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='104' viewBox='0 0 60 104'%3E%3Cpath d='M30 0 L60 17.32 L60 52 L30 69.28 L0 52 L0 17.32 Z M30 0 L30 34.64 L60 52 M30 34.64 L0 52 M30 69.28 L30 104 M0 86.64 L30 104 L60 86.64' fill='none' stroke='%2319202E' stroke-width='1' stroke-opacity='0.42'/%3E%3C/svg%3E");
+  background-size: 60px 104px;
 }
 
 /* Custom dark scrollbars */
@@ -15,16 +22,16 @@
 }
 
 ::-webkit-scrollbar-track {
-  background: #0D111A;
+  background: #090C12;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #1E2638;
+  background: #181E2B;
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #2A364F;
+  background: #252F43;
 }
 
 /* Focused elements */

@@ -50,6 +50,73 @@ const MIGRATIONS = [
       CREATE INDEX IF NOT EXISTS idx_resets_token_hash ON password_resets(token_hash);
       CREATE INDEX IF NOT EXISTS idx_resets_user_id ON password_resets(user_id);
     `
+  },
+  {
+    name: '004_create_google_drive_tokens_table',
+    up: `
+      CREATE TABLE IF NOT EXISTS google_drive_tokens (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id UUID UNIQUE NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        google_email VARCHAR(255) NOT NULL,
+        google_name VARCHAR(255),
+        google_picture TEXT,
+        encrypted_access_token TEXT NOT NULL,
+        encrypted_refresh_token TEXT,
+        token_iv VARCHAR(64) NOT NULL,
+        token_auth_tag VARCHAR(64) NOT NULL,
+        expiry_date BIGINT,
+        scope TEXT NOT NULL,
+        default_folder_id VARCHAR(255),
+        default_folder_name VARCHAR(255),
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_gdrive_tokens_user_id ON google_drive_tokens(user_id);
+    `
+  },
+  {
+    name: '005_create_recordings_table',
+    up: `
+      CREATE TABLE IF NOT EXISTS recordings (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        recording_id VARCHAR(255) UNIQUE NOT NULL,
+        filename VARCHAR(255) NOT NULL,
+        original_filename VARCHAR(255) NOT NULL,
+        mime_type VARCHAR(100),
+        size_bytes BIGINT,
+        duration_sec INT,
+        device_serial VARCHAR(100),
+        device_name VARCHAR(255),
+        test_id VARCHAR(255),
+        google_drive_file_id VARCHAR(255),
+        google_drive_folder_id VARCHAR(255),
+        google_drive_folder_name VARCHAR(255),
+        google_drive_web_view_link TEXT,
+        google_drive_share_link TEXT,
+        google_account_email VARCHAR(255),
+        upload_status VARCHAR(50) DEFAULT 'LOCAL_ONLY',
+        upload_error TEXT,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_recordings_user_id ON recordings(user_id);
+      CREATE INDEX IF NOT EXISTS idx_recordings_test_id ON recordings(test_id);
+    `
+  },
+  {
+    name: '006_create_oauth_states_table',
+    up: `
+      CREATE TABLE IF NOT EXISTS oauth_states (
+        nonce VARCHAR(64) PRIMARY KEY,
+        user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        expires_at BIGINT NOT NULL,
+        used_at TIMESTAMPTZ,
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_oauth_states_user_id ON oauth_states(user_id);
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_gdrive_tokens_unique_user ON google_drive_tokens(user_id);
+    `
   }
 ];
 

@@ -4,7 +4,7 @@ const config = require('../config');
 const agentService = require('../services/agentService');
 const agentMirrorService = require('../services/agentMirrorService');
 
-router.get('/health', (req, res) => {
+router.get(['/health', '/system/health'], (req, res) => {
   const activeAgents = Array.from(agentService.agents.values()).filter(a => a.status === 'ONLINE').length;
   const activeMirrors = agentMirrorService.sessions.size;
   const connectedDevices = agentService.agentDevices.size;

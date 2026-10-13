@@ -18,6 +18,8 @@ import SafeAdbConsole from '../components/SafeAdbConsole';
 import { api } from '../services/api';
 import { webUsbAdbService } from '../services/webUsbAdbService';
 import { getDeviceTransport } from '../services/transports/deviceTransportFactory';
+import { formatDeviceDisplayName, formatDeviceOsVersion, formatDeviceSelectorLabel } from '../utils/deviceFormatter';
+import DeviceThumbnail from '../components/DeviceThumbnail';
 
 export default function AdbOperationsPage({
   devices = [],
@@ -85,49 +87,51 @@ export default function AdbOperationsPage({
   return (
     <div className="space-y-6">
       {/* Page Header */}
-      <div>
-        <h2 className="text-lg font-bold text-white flex items-center gap-2">
+      <div className="pb-4 border-b border-[#1C2230]">
+        <h2 className="text-xl font-bold text-white flex items-center gap-2.5">
           <Terminal className="w-5 h-5 text-[#F59E0B]" />
           Controlled ADB Device Operations
         </h2>
-        <p className="text-xs text-slate-400">
+        <p className="text-xs text-[#94A3B8] mt-1">
           Execute controlled, server-validated Android Debug Bridge maintenance operations on connected devices.
         </p>
       </div>
 
       {/* Target Device Bar */}
-      <div className="p-4 rounded-xl bg-[#131924] border border-[#1E2638] flex flex-wrap items-center justify-between gap-4">
+      <div className="p-4 rounded-xl bg-[#10131B] border border-[#1C2230] shadow-sm flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-3">
-          <Smartphone className="w-4 h-4 text-[#F59E0B]" />
-          <span className="text-xs text-slate-300 font-medium">Target Device:</span>
-          <select
-            value={effectiveSelectedDevice?.serial || ''}
-            onChange={(e) => {
-              const found = androidDevices.find(d => d.serial === e.target.value);
-              if (found) setSelectedDevice(found);
-            }}
-            className="px-3 py-1.5 rounded-lg bg-[#0A0D14] border border-[#1E2638] text-xs text-white focus:outline-none focus:border-[#F59E0B] font-mono"
-          >
-            {androidDevices.length === 0 && <option value="">No Android devices connected</option>}
-            {androidDevices.map(d => (
-              <option key={d.serial} value={d.serial}>
-                {d.name || d.model} ({d.serial})
-              </option>
-            ))}
-          </select>
+          <DeviceThumbnail device={effectiveSelectedDevice} size="header" className="shadow-xs shrink-0" />
+          <div className="space-y-1">
+            <span className="text-[10px] uppercase tracking-wider text-[#94A3B8] font-semibold block">Target Device</span>
+            <select
+              value={effectiveSelectedDevice?.serial || ''}
+              onChange={(e) => {
+                const found = androidDevices.find(d => d.serial === e.target.value);
+                if (found) setSelectedDevice(found);
+              }}
+              className="px-3 py-1.5 rounded-lg bg-[#080B10] border border-[#1C2230] text-xs text-white focus:outline-none focus:border-[#F59E0B] font-mono cursor-pointer"
+            >
+              {androidDevices.length === 0 && <option value="" className="bg-[#10131B]">No Android devices connected</option>}
+              {androidDevices.map(d => (
+                <option key={d.serial} value={d.serial} className="bg-[#10131B]">
+                  {formatDeviceSelectorLabel(d)}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
 
         {effectiveSelectedDevice && (
-          <div className="flex items-center gap-4 text-xs font-mono text-slate-400">
+          <div className="flex items-center gap-4 text-xs font-mono text-[#94A3B8]">
             <div>Battery: <span className="text-white">{effectiveSelectedDevice.battery || 'N/A'}</span></div>
             <div>Storage: <span className="text-white">{effectiveSelectedDevice.storageFree || 'N/A'}</span></div>
-            <div>OS: <span className="text-white">{effectiveSelectedDevice.androidVersion || 'Android'}</span></div>
+            <div>OS: <span className="text-white">{formatDeviceOsVersion(effectiveSelectedDevice) || 'Android'}</span></div>
           </div>
         )}
       </div>
 
       {/* Predefined Package Actions Card */}
-      <div className="p-5 rounded-xl bg-[#131924] border border-[#1E2638] space-y-4">
+      <div className="p-5 rounded-xl bg-[#10131B] border border-[#1C2230] shadow-sm space-y-4">
         <div className="flex items-center gap-2">
           <ShieldCheck className="w-4 h-4 text-[#F59E0B]" />
           <h3 className="text-xs font-semibold text-slate-200 uppercase tracking-wide">
@@ -136,7 +140,7 @@ export default function AdbOperationsPage({
         </div>
 
         <div>
-          <label className="block text-xs font-medium text-slate-300 mb-1">
+          <label className="block text-[11px] font-semibold uppercase tracking-wider text-[#94A3B8] mb-1">
             Target Application Package Name
           </label>
           <input
@@ -144,7 +148,7 @@ export default function AdbOperationsPage({
             value={packageName}
             onChange={(e) => setPackageName(e.target.value)}
             placeholder="e.g. com.example.app or com.company.game"
-            className="w-full px-3 py-2 rounded-lg bg-[#0A0D14] border border-[#1E2638] text-xs text-white font-mono placeholder-slate-500 focus:outline-none focus:border-[#F59E0B]"
+            className="w-full px-3 py-2 rounded-lg bg-[#080B10] border border-[#1C2230] text-xs text-white font-mono placeholder-[#64748B] focus:outline-none focus:border-[#F59E0B]"
           />
         </div>
 
@@ -153,45 +157,45 @@ export default function AdbOperationsPage({
           <button
             onClick={() => handleAction('launch')}
             disabled={loadingAction || !effectiveSelectedDevice}
-            className="p-3 rounded-lg bg-[#0A0D14] hover:bg-emerald-500/10 hover:border-emerald-500/40 border border-[#1E2638] text-xs text-slate-200 hover:text-emerald-300 transition-all flex flex-col items-center gap-2 disabled:opacity-50"
+            className="p-3 rounded-lg bg-[#16130C] hover:bg-[#1F190E] border border-[#F59E0B]/60 text-xs text-[#F59E0B] transition-all flex flex-col items-center gap-2 disabled:opacity-50 shadow-sm cursor-pointer"
             title="Relaunch application from fresh state"
           >
-            <Play className="w-5 h-5 text-emerald-400" />
-            <span className="font-semibold">Relaunch</span>
-            <span className="text-[10px] text-slate-400 font-mono">monkey launcher</span>
+            <Play className="w-5 h-5 text-[#F59E0B] fill-[#F59E0B]/20" />
+            <span className="font-bold text-[#F59E0B]">Relaunch</span>
+            <span className="text-[10px] text-[#94A3B8] font-mono">monkey launcher</span>
           </button>
 
           <button
             onClick={() => handleAction('clear-data')}
             disabled={loadingAction || !effectiveSelectedDevice}
-            className="p-3 rounded-lg bg-[#0A0D14] hover:bg-[#261D10] hover:border-[#78350F] border border-[#1E2638] text-xs text-slate-200 hover:text-[#F59E0B] transition-all flex flex-col items-center gap-2 disabled:opacity-50"
+            className="p-3 rounded-lg bg-[#080B10] hover:bg-[#10131B] hover:border-amber-500/40 border border-[#1C2230] text-xs text-slate-200 hover:text-white transition-all flex flex-col items-center gap-2 disabled:opacity-50 cursor-pointer"
             title="Wipe application user and runtime data"
           >
             <Eraser className="w-5 h-5 text-[#F59E0B]" />
             <span className="font-semibold">Clear App Data</span>
-            <span className="text-[10px] text-slate-400 font-mono">pm clear</span>
+            <span className="text-[10px] text-[#64748B] font-mono">pm clear</span>
           </button>
 
           <button
             onClick={() => handleAction('clear-cache')}
             disabled={loadingAction || !effectiveSelectedDevice}
-            className="p-3 rounded-lg bg-[#0A0D14] hover:bg-cyan-500/10 hover:border-cyan-500/40 border border-[#1E2638] text-xs text-slate-200 hover:text-cyan-300 transition-all flex flex-col items-center gap-2 disabled:opacity-50"
+            className="p-3 rounded-lg bg-[#080B10] hover:bg-[#10131B] hover:border-cyan-500/40 border border-[#1C2230] text-xs text-slate-200 hover:text-white transition-all flex flex-col items-center gap-2 disabled:opacity-50 cursor-pointer"
             title="Clear application cache without clearing persistent data"
           >
             <Sparkles className="w-5 h-5 text-cyan-400" />
             <span className="font-semibold">Clear Cache</span>
-            <span className="text-[10px] text-slate-400 font-mono">trim caches</span>
+            <span className="text-[10px] text-[#64748B] font-mono">trim caches</span>
           </button>
 
           <button
             onClick={() => handleAction('uninstall')}
             disabled={loadingAction || !effectiveSelectedDevice}
-            className="p-3 rounded-lg bg-[#0A0D14] hover:bg-rose-500/10 hover:border-rose-500/40 border border-[#1E2638] text-xs text-slate-200 hover:text-rose-300 transition-all flex flex-col items-center gap-2 disabled:opacity-50"
+            className="p-3 rounded-lg bg-[#080B10] hover:bg-[#10131B] hover:border-rose-500/40 border border-[#1C2230] text-xs text-slate-200 hover:text-white transition-all flex flex-col items-center gap-2 disabled:opacity-50 cursor-pointer"
             title="Uninstall application from device"
           >
             <Trash2 className="w-5 h-5 text-rose-400" />
             <span className="font-semibold">Uninstall App</span>
-            <span className="text-[10px] text-slate-400 font-mono">adb uninstall</span>
+            <span className="text-[10px] text-[#64748B] font-mono">adb uninstall</span>
           </button>
         </div>
 

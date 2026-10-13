@@ -73,21 +73,39 @@ class HistoryService {
     try {
       if (fs.existsSync(this.historyFile)) {
         let list = JSON.parse(fs.readFileSync(this.historyFile, 'utf8'));
+
+        // Strictly isolate by userId when specified (do not leak unowned/other users' tests)
         if (filters.userId) {
-          list = list.filter(t => t.userId === filters.userId || !t.userId);
+          list = list.filter(t => t.userId === filters.userId);
         }
-        if (filters.result) {
-          list = list.filter(t => t.result.toUpperCase() === filters.result.toUpperCase());
+
+        // Sanitize and filter by execution result (PASS, FAIL, etc.)
+        if (filters.result && typeof filters.result === 'string') {
+          const res = filters.result.trim().toUpperCase();
+          if (res && res !== 'UNDEFINED' && res !== 'NULL' && res !== 'ALL') {
+            list = list.filter(t => t.result && t.result.toUpperCase() === res);
+          }
         }
-        if (filters.search) {
-          const q = filters.search.toLowerCase();
-          list = list.filter(t => 
-            (t.packageName && t.packageName.toLowerCase().includes(q)) ||
-            (t.deviceName && t.deviceName.toLowerCase().includes(q)) ||
-            (t.version && t.version.toLowerCase().includes(q)) ||
-            (t.id && t.id.toLowerCase().includes(q))
-          );
+
+        // Sanitize and filter by keyword search
+        if (filters.search && typeof filters.search === 'string') {
+          const q = filters.search.trim().toLowerCase();
+          if (q && q !== 'undefined' && q !== 'null') {
+            list = list.filter(t => 
+              (t.packageName && t.packageName.toLowerCase().includes(q)) ||
+              (t.applicationName && t.applicationName.toLowerCase().includes(q)) ||
+              (t.fileName && t.fileName.toLowerCase().includes(q)) ||
+              (t.deviceName && t.deviceName.toLowerCase().includes(q)) ||
+              (t.deviceSerial && t.deviceSerial.toLowerCase().includes(q)) ||
+              (t.version && t.version.toLowerCase().includes(q)) ||
+              (t.id && t.id.toLowerCase().includes(q))
+            );
+          }
         }
+
+        // Always sort descending by createdAt (newest test runs first)
+        list.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+
         return list;
       }
     } catch (e) {
@@ -140,7 +158,8 @@ class HistoryService {
     const passed = history.filter(t => t.result === 'PASS').length;
     const failed = history.filter(t => t.result === 'FAIL').length;
     const running = history.filter(t => t.status === 'RUNNING' || t.status === 'QUEUED').length;
-    const passRate = total > 0 ? Math.round((passed / total) * 100) : 0;
+    const completed = passed + failed;
+    const passRate = completed > 0 ? Math.round((passed / completed) * 100) : 0;
 
     return {
       totalTests: total,

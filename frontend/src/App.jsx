@@ -19,6 +19,8 @@ import AdbOperationsPage from './pages/AdbOperationsPage';
 import SopPage from './pages/SopPage';
 import DiagnosticsPage from './pages/DiagnosticsPage';
 import AdminUsersPage from './pages/AdminUsersPage';
+import AdminDeviceManagementPage from './pages/AdminDeviceManagementPage';
+import GoogleDrivePage from './pages/GoogleDrivePage';
 
 import { api } from './services/api';
 import { socketService } from './services/socket';
@@ -152,9 +154,15 @@ export default function App() {
         fetchData();
       });
 
-    // Connect WebSocket and listen for real-time device updates across clients
+    // Connect WebSocket and listen for real-time device and test updates across clients
     socketService.connect();
     const unsubDevices = socketService.on('DEVICES_UPDATED', () => {
+      fetchData();
+    });
+    const unsubFinished = socketService.on('TEST_FINISHED', () => {
+      fetchData();
+    });
+    const unsubDeleted = socketService.on('TEST_DELETED', () => {
       fetchData();
     });
 
@@ -183,7 +191,9 @@ export default function App() {
 
     return () => {
       clearInterval(interval);
-      unsubDevices();
+      if (typeof unsubDevices === 'function') unsubDevices();
+      if (typeof unsubFinished === 'function') unsubFinished();
+      if (typeof unsubDeleted === 'function') unsubDeleted();
       unsubUsb();
     };
   }, [fetchData]);
@@ -318,7 +328,7 @@ export default function App() {
   };
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[#0A0D14] text-[#FFFFFF] font-sans antialiased">
+    <div className="flex h-screen overflow-hidden bg-[#080A0F] text-[#FFFFFF] font-sans antialiased">
       {/* Sidebar Navigation */}
       <Sidebar
         currentTab={currentTab}
@@ -329,7 +339,7 @@ export default function App() {
       />
 
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden bg-qa-isometric">
         {/* Header with live status & User Profile */}
         <Header
           currentUser={currentUser}
@@ -431,6 +441,10 @@ export default function App() {
               />
             )}
 
+            {currentTab === 'google-drive' && (
+              <GoogleDrivePage currentUser={currentUser} />
+            )}
+
             {currentTab === 'run-test' && (
               <RunTestPage
                 devices={combinedDevices}
@@ -449,7 +463,7 @@ export default function App() {
             )}
 
             {currentTab === 'history' && (
-              <TestHistoryPage />
+              <TestHistoryPage currentUser={currentUser} />
             )}
 
             {currentTab === 'adb-ops' && (
@@ -486,6 +500,18 @@ export default function App() {
                   <ShieldAlert className="w-12 h-12 text-rose-500 mx-auto mb-3" />
                   <h3 className="text-base font-bold text-white">Access Forbidden</h3>
                   <p className="text-xs text-slate-400 mt-1">Administrator privileges are required to access User Management.</p>
+                </div>
+              )
+            )}
+
+            {currentTab === 'admin-devices' && (
+              currentUser?.role === 'ADMIN' ? (
+                <AdminDeviceManagementPage currentUser={currentUser} />
+              ) : (
+                <div className="p-8 text-center text-slate-400">
+                  <ShieldAlert className="w-12 h-12 text-rose-500 mx-auto mb-3" />
+                  <h3 className="text-base font-bold text-white">Access Forbidden</h3>
+                  <p className="text-xs text-slate-400 mt-1">Administrator privileges are required to access Device Management.</p>
                 </div>
               )
             )}

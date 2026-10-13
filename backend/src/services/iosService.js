@@ -1,6 +1,7 @@
 const { spawn } = require('child_process');
 const config = require('../config');
 const logger = require('../utils/logger');
+const { formatDeviceDisplayName, formatDeviceModelName } = require('../utils/deviceFormatter');
 
 class IosService {
   constructor() {
@@ -61,16 +62,20 @@ class IosService {
           // Update cache
           const currentUdids = new Set();
           for (const dev of parsed) {
+            const cleanModel = formatDeviceModelName({ platform: 'ios', manufacturer: 'Apple', model: dev.model, name: dev.name }) || 'iPhone';
+            const cleanOs = dev.iosVersion && !/^(unknown|n\/?a)$/i.test(dev.iosVersion)
+              ? `iOS ${dev.iosVersion.replace(/^ios\s*/i, '').trim()}`
+              : (dev.osVersion || 'iOS');
             const normalized = {
               serial: dev.udid,
               udid: dev.udid,
-              name: dev.name || 'iPhone',
-              model: dev.model || 'iPhone',
+              name: cleanModel,
+              model: cleanModel,
               productType: dev.productType || 'iPhone',
               manufacturer: 'Apple',
               platform: 'ios',
               iosVersion: dev.iosVersion || 'Unknown',
-              osVersion: dev.osVersion || `iOS ${dev.iosVersion || ''}`.trim(),
+              osVersion: cleanOs,
               state: 'device',
               connected: true,
               isWireless: !!dev.isWireless,
@@ -84,6 +89,7 @@ class IosService {
               storageTotal: dev.storageTotal || 'N/A',
               screenResolution: dev.screenResolution || '1170 × 2532'
             };
+            normalized.displayName = formatDeviceDisplayName(normalized);
             this.cachedDevices.set(dev.udid, normalized);
             currentUdids.add(dev.udid);
           }
