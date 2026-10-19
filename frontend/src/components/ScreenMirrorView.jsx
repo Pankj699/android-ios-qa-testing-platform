@@ -43,6 +43,7 @@ import { formatDeviceDisplayName } from '../utils/deviceFormatter';
 import DeviceThumbnail from './DeviceThumbnail';
 import DriveFolderSelectorModal from './DriveFolderSelectorModal';
 import { webUsbAdbService } from '../services/webUsbAdbService';
+import { screenMirrorStreamManager } from '../services/screenMirrorStreamManager';
 
 const getSupportedMimeType = () => {
   const types = [
@@ -72,7 +73,7 @@ const formatDuration = (totalSeconds) => {
   return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
 };
 
-export default function ScreenMirrorView({ device, onClose }) {
+export default function ScreenMirrorView({ device, onClose, onStopMirror, isActive = true }) {
   const videoRef = useRef(null);
   const containerRef = useRef(null);
   const viewportRef = useRef(null);
@@ -133,6 +134,66 @@ export default function ScreenMirrorView({ device, onClose }) {
 
   // Touch/Drag tracking for swipe vs tap
   const dragStartRef = useRef(null);
+
+  // Helper to ensure video playback begins once MediaSource buffers or chunks arrive
+  const ensureVideoPlaying = useCallback(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    video.muted = true;
+    if (video.paused) {
+      const playPromise = video.play();
+      if (playPromise !== undefined) {
+        playPromise.catch(() => {
+          // Playback may await initial decoded frame or user gesture; will retry on next frame
+        });
+      }
+    }
+  }, []);
+
+  // When container becomes active / visible (e.g. user switched back to Screen Mirror tab), resume video playback
+  useEffect(() => {
+    if (isActive) {
+      ensureVideoPlaying();
+    }
+  }, [isActive, ensureVideoPlaying]);
+
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        ensureVideoPlaying();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
+  }, [ensureVideoPlaying]);
+
+  // Synchronize recording state and duration with ScreenMirrorStreamManager
+  useEffect(() => {
+    const handleRecState = (e) => {
+      const detail = e.detail;
+      if (detail && detail.state === 'recording') {
+        setIsRecording(true);
+        setRecordingDurationSec(detail.durationSec);
+      } else if (detail && detail.state !== 'recording') {
+        if (screenMirrorStreamManager.state !== 'recording') {
+          setIsRecording(false);
+          setRecordingDurationSec(0);
+        }
+      }
+    };
+
+    if (screenMirrorStreamManager.state === 'recording') {
+      setIsRecording(true);
+      setRecordingDurationSec(screenMirrorStreamManager.durationSec);
+    }
+
+    window.addEventListener('bugdesk:recording-state-changed', handleRecState);
+    return () => {
+      window.removeEventListener('bugdesk:recording-state-changed', handleRecState);
+    };
+  }, []);
 
   const isBrowserUsb = device?.connectionMode === 'browser-usb' || device?.serial?.startsWith('browser_usb_');
 
@@ -393,10 +454,11 @@ export default function ScreenMirrorView({ device, onClose }) {
     // Initialize JMuxer immediately
     if (videoRef.current) {
       try {
+        videoRef.current.muted = true;
         jmuxerRef.current = new JMuxer({
           node: videoRef.current,
           mode: 'video',
-          flushingTime: 0,
+          flushingTime: 100, // Regular 100ms flush guarantees reliable SourceBuffer appends without updating conflicts
           clearBuffer: true,
           fps: 30,
           debug: false,
@@ -417,12 +479,7 @@ export default function ScreenMirrorView({ device, onClose }) {
       }
     }, 8000);
 
-    // Setup hardware-accurate Frame Presentation & FPS listener
-    let frameCountInWindow = 0;
-    let windowStartTime = performance.now();
-
-    const onFramePresented = (now) => {
-      // First frame presentation marks the stream as truly LIVE
+    const markLiveIfRendering = () => {
       if (!firstFrameRenderedRef.current) {
         firstFrameRenderedRef.current = true;
         setMirrorStatus('live');
@@ -431,6 +488,15 @@ export default function ScreenMirrorView({ device, onClose }) {
           startupTimeoutRef.current = null;
         }
       }
+    };
+
+    // Setup hardware-accurate Frame Presentation & FPS listener
+    let frameCountInWindow = 0;
+    let windowStartTime = performance.now();
+
+    const onFramePresented = (now) => {
+      // First frame presentation marks the stream as truly LIVE
+      markLiveIfRendering();
 
       // Calculate real rendered FPS based on presented video frames
       frameCountInWindow++;
@@ -450,26 +516,26 @@ export default function ScreenMirrorView({ device, onClose }) {
       rvfcHandleRef.current = videoRef.current.requestVideoFrameCallback(onFramePresented);
     }
 
-    // Fallback listeners for browsers without requestVideoFrameCallback
+    // Event listeners for video element state transitions
     if (videoRef.current) {
-      videoRef.current.onloadeddata = () => {
-        if (!firstFrameRenderedRef.current && videoRef.current.videoWidth > 0) {
-          firstFrameRenderedRef.current = true;
-          setMirrorStatus('live');
-          if (startupTimeoutRef.current) {
-            clearTimeout(startupTimeoutRef.current);
-            startupTimeoutRef.current = null;
-          }
+      const videoEl = videoRef.current;
+      videoEl.muted = true;
+
+      videoEl.oncanplay = () => {
+        ensureVideoPlaying();
+      };
+      videoEl.onloadeddata = () => {
+        ensureVideoPlaying();
+        if (videoEl.videoWidth > 0) {
+          markLiveIfRendering();
         }
       };
-      videoRef.current.onplaying = () => {
-        if (!firstFrameRenderedRef.current) {
-          firstFrameRenderedRef.current = true;
-          setMirrorStatus('live');
-          if (startupTimeoutRef.current) {
-            clearTimeout(startupTimeoutRef.current);
-            startupTimeoutRef.current = null;
-          }
+      videoEl.onplaying = () => {
+        markLiveIfRendering();
+      };
+      videoEl.ontimeupdate = () => {
+        if (videoEl.currentTime > 0) {
+          markLiveIfRendering();
         }
       };
     }
@@ -513,6 +579,7 @@ export default function ScreenMirrorView({ device, onClose }) {
             jmuxerRef.current.feed({
               video: uint8
             });
+            ensureVideoPlaying();
           } catch (err) {}
         }
       } else {
@@ -582,11 +649,19 @@ export default function ScreenMirrorView({ device, onClose }) {
     startStream();
   };
 
+  // Synchronize stream with global ScreenMirrorStreamManager for BugDesk recording
+  useEffect(() => {
+    if (device?.serial) {
+      screenMirrorStreamManager.registerStream(device, videoRef.current, mirrorStatus);
+    }
+  }, [device, mirrorStatus]);
+
   // Lifecycle
   useEffect(() => {
     startStream();
 
     return () => {
+      screenMirrorStreamManager.unregisterStream(device?.serial, videoRef.current);
       usbStreamActiveRef.current = false;
       if (startupTimeoutRef.current) clearTimeout(startupTimeoutRef.current);
       if (pingIntervalRef.current) clearInterval(pingIntervalRef.current);
@@ -603,9 +678,6 @@ export default function ScreenMirrorView({ device, onClose }) {
       }
       if (wsRef.current) {
         try {
-          if (wsRef.current.readyState === WebSocket.OPEN && device?.serial) {
-            wsRef.current.send(JSON.stringify({ action: 'MIRROR_STOP', serial: device.serial }));
-          }
           wsRef.current.close();
         } catch (e) {}
       }
@@ -986,20 +1058,78 @@ export default function ScreenMirrorView({ device, onClose }) {
     }
   };
 
-  // Safe Close Handler
-  const handleRequestClose = () => {
-    if (isRecording) {
-      const confirmSave = window.confirm(
-        'A screen recording is currently active. Stop and save this recording before closing?'
-      );
-      if (confirmSave) {
-        stopRecording();
-        setTimeout(() => {
-          if (onClose) onClose();
-        }, 300);
+  // Screen Recording Actions (Unified with ScreenMirrorStreamManager)
+  const handleStartRecordingUnified = async () => {
+    if (isRecording) return;
+    try {
+      if (screenMirrorStreamManager.isMirrorReady(device)) {
+        await screenMirrorStreamManager.startRecording();
         return;
       }
+    } catch (err) {
+      console.warn('screenMirrorStreamManager startRecording failed, using local recorder:', err);
     }
+    startRecording();
+  };
+
+  const handleStopRecordingUnified = async () => {
+    if (screenMirrorStreamManager.state === 'recording') {
+      try {
+        const recording = await screenMirrorStreamManager.stopRecording();
+        if (recording) {
+          let mod = null;
+          try {
+            const raw = localStorage.getItem('bugdesk_current_module');
+            if (raw) mod = JSON.parse(raw);
+          } catch (e) {}
+
+          await screenMirrorStreamManager.uploadAndPublish({
+            project: mod?.project || 'Project',
+            module: mod?.module || 'Module',
+            round: mod?.round || '',
+            recording
+          });
+        }
+        return;
+      } catch (err) {
+        console.error('Error stopping unified recording:', err);
+      }
+    }
+    stopRecording();
+  };
+
+  // Explicit Stop Mirror Session Handler
+  const handleExplicitStopMirror = async () => {
+    if (isRecording || screenMirrorStreamManager.state === 'recording') {
+      const confirmStop = window.confirm('A screen recording is currently active. Stop recording and mirror session?');
+      if (!confirmStop) return;
+      try {
+        await screenMirrorStreamManager.stopRecording();
+      } catch (e) {}
+    }
+
+    try {
+      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN && device?.serial) {
+        wsRef.current.send(JSON.stringify({ action: 'MIRROR_STOP', serial: device.serial }));
+      }
+      if (device?.serial) {
+        await api.stopMirror(device.serial);
+      }
+    } catch (err) {
+      console.warn('Error stopping mirror session:', err);
+    }
+
+    setMirrorStatus('stopped');
+    screenMirrorStreamManager.updateStatus(device?.serial, 'stopped');
+    if (onStopMirror) {
+      onStopMirror();
+    } else if (onClose) {
+      onClose();
+    }
+  };
+
+  // Safe Close Handler: Only closes/hides the mirror UI without terminating mirror or recording
+  const handleRequestClose = () => {
     if (onClose) onClose();
   };
 
@@ -1232,9 +1362,9 @@ export default function ScreenMirrorView({ device, onClose }) {
                 REC {formatDuration(recordingDurationSec)}
               </span>
               <button
-                onClick={stopRecording}
+                onClick={handleStopRecordingUnified}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-xs font-bold text-white shadow-sm transition-all cursor-pointer"
-                title="Stop screen recording and preview video"
+                title="Stop screen recording and auto-publish or preview video"
               >
                 <Square className="w-3.5 h-3.5 fill-current" />
                 <span>Stop Recording</span>
@@ -1242,7 +1372,7 @@ export default function ScreenMirrorView({ device, onClose }) {
             </div>
           ) : (
             <button
-              onClick={startRecording}
+              onClick={handleStartRecordingUnified}
               disabled={mirrorStatus !== 'live'}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#0D111A] hover:bg-[#1E2638] hover:border-rose-500/40 disabled:opacity-50 border border-[#1E2638] text-xs font-bold text-[#CBD5E1] hover:text-rose-400 transition-all shadow-sm group cursor-pointer"
               title="Start recording the current streaming screen"
@@ -1260,6 +1390,16 @@ export default function ScreenMirrorView({ device, onClose }) {
             title="Restart Mirror Stream"
           >
             <RefreshCw className="w-3.5 h-3.5" />
+          </button>
+
+          {/* Explicit Stop Mirror Session */}
+          <button
+            onClick={handleExplicitStopMirror}
+            disabled={mirrorStatus === 'stopped'}
+            className="p-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/25 disabled:opacity-40 text-rose-400 hover:text-rose-300 transition-colors border border-rose-500/30 cursor-pointer"
+            title="Stop Screen Mirror session on device"
+          >
+            <Power className="w-3.5 h-3.5" />
           </button>
 
           {/* Fullscreen Video Player Toggle */}
@@ -1382,6 +1522,8 @@ export default function ScreenMirrorView({ device, onClose }) {
                 autoPlay
                 playsInline
                 muted
+                onLoadedMetadata={() => ensureVideoPlaying()}
+                onCanPlay={() => ensureVideoPlaying()}
                 onMouseDown={handleMouseDown}
                 onMouseUp={handleMouseUp}
                 className={`cursor-pointer object-contain shadow-inner active:opacity-95 ${

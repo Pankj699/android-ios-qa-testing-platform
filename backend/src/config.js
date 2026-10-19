@@ -71,7 +71,18 @@ const config = {
   GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET || '',
   GOOGLE_REDIRECT_URI: process.env.GOOGLE_REDIRECT_URI || 'http://localhost:8080/api/drive/callback',
   GOOGLE_REDIRECT_URI_SOURCE: process.env.GOOGLE_REDIRECT_URI ? 'process.env.GOOGLE_REDIRECT_URI' : 'hardcoded_default',
-  GOOGLE_TOKEN_ENCRYPTION_KEY: process.env.GOOGLE_TOKEN_ENCRYPTION_KEY || ''
+  GOOGLE_TOKEN_ENCRYPTION_KEY: process.env.GOOGLE_TOKEN_ENCRYPTION_KEY || '',
+
+  // Mixpanel Event Validator Configuration & Feature Flag
+  MIXPANEL_VALIDATOR_ENABLED: process.env.MIXPANEL_VALIDATOR_ENABLED !== 'false',
+  MIXPANEL_PROJECT_ID: process.env.MIXPANEL_PROJECT_ID || '',
+  MIXPANEL_SERVICE_ACCOUNT_USERNAME: process.env.MIXPANEL_SERVICE_ACCOUNT_USERNAME || '',
+  MIXPANEL_SERVICE_ACCOUNT_SECRET: process.env.MIXPANEL_SERVICE_ACCOUNT_SECRET || '',
+  MIXPANEL_API_SECRET: process.env.MIXPANEL_API_SECRET || '',
+  MIXPANEL_REGION: process.env.MIXPANEL_REGION || 'US', // 'US' or 'EU'
+  MIXPANEL_POLL_INTERVAL_MS: parseInt(process.env.MIXPANEL_POLL_INTERVAL_MS || '3000', 10),
+  MIXPANEL_POLL_TIMEOUT_MS: parseInt(process.env.MIXPANEL_POLL_TIMEOUT_MS || '60000', 10),
+  MAX_EVENTS_PER_SESSION: parseInt(process.env.MAX_EVENTS_PER_SESSION || '500', 10)
 };
 
 module.exports = config;

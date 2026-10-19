@@ -45,6 +45,9 @@ function saveToDisk(customFile = null) {
       google_drive_tokens: getRows('google_drive_tokens'),
       recordings: getRows('recordings'),
       oauth_states: getRows('oauth_states'),
+      mixpanel_specifications: getRows('mixpanel_specifications'),
+      mixpanel_sessions: getRows('mixpanel_sessions'),
+      mixpanel_events: getRows('mixpanel_events'),
       schema_migrations: getRows('schema_migrations'),
       savedAt: new Date().toISOString()
     };
@@ -188,6 +191,63 @@ async function restoreFromDisk(customFile = null) {
       }
       if (restoredStates > 0) {
         logger.info(`[DB Persistence] Restored ${restoredStates} OAuth state record(s) from disk.`);
+      }
+    }
+
+    // 7. Restore Mixpanel Specifications
+    if (Array.isArray(data.mixpanel_specifications) && data.mixpanel_specifications.length > 0) {
+      for (const sp of data.mixpanel_specifications) {
+        const check = await globalPool.query('SELECT id FROM mixpanel_specifications WHERE id = $1', [sp.id]);
+        if (check.rows.length === 0) {
+          await globalPool.query(
+            `INSERT INTO mixpanel_specifications (id, user_id, name, version, original_filename, file_hash, sheets_summary, events_count, rules, created_at, updated_at)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+            [
+              sp.id, sp.user_id, sp.name, sp.version, sp.original_filename, sp.file_hash,
+              JSON.stringify(sp.sheets_summary || []), sp.events_count || 0,
+              JSON.stringify(sp.rules || []), sp.created_at, sp.updated_at
+            ]
+          );
+        }
+      }
+    }
+
+    // 8. Restore Mixpanel Sessions
+    if (Array.isArray(data.mixpanel_sessions) && data.mixpanel_sessions.length > 0) {
+      for (const sess of data.mixpanel_sessions) {
+        const check = await globalPool.query('SELECT id FROM mixpanel_sessions WHERE id = $1', [sess.id]);
+        if (check.rows.length === 0) {
+          await globalPool.query(
+            `INSERT INTO mixpanel_sessions (id, user_id, device_serial, device_name, spec_id, spec_version, status, distinct_id, project_id, started_at, stopped_at, last_polled_at, events_count, error_message, created_at)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)`,
+            [
+              sess.id, sess.user_id, sess.device_serial, sess.device_name, sess.spec_id,
+              sess.spec_version || 1, sess.status || 'STOPPED', sess.distinct_id, sess.project_id,
+              sess.started_at, sess.stopped_at, sess.last_polled_at, sess.events_count || 0,
+              sess.error_message, sess.created_at
+            ]
+          );
+        }
+      }
+    }
+
+    // 9. Restore Mixpanel Events
+    if (Array.isArray(data.mixpanel_events) && data.mixpanel_events.length > 0) {
+      for (const ev of data.mixpanel_events) {
+        const check = await globalPool.query('SELECT id FROM mixpanel_events WHERE id = $1', [ev.id]);
+        if (check.rows.length === 0) {
+          await globalPool.query(
+            `INSERT INTO mixpanel_events (id, session_id, user_id, event_name, distinct_id, insert_id, event_time, raw_payload, is_correlated, validation_status, validation_summary, source, created_at)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
+            [
+              ev.id, ev.session_id, ev.user_id, ev.event_name, ev.distinct_id, ev.insert_id,
+              ev.event_time, JSON.stringify(ev.raw_payload || {}), ev.is_correlated !== false,
+              ev.validation_status || 'PENDING', JSON.stringify(ev.validation_summary || {}),
+              ev.source || 'LEGACY_UNSPECIFIED',
+              ev.created_at
+            ]
+          );
+        }
       }
     }
   } catch (err) {

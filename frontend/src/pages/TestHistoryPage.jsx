@@ -16,6 +16,7 @@ import { api } from '../services/api';
 import { socketService } from '../services/socket';
 import { formatDeviceDisplayName, formatDeviceOsVersion } from '../utils/deviceFormatter';
 import DeviceThumbnail from '../components/DeviceThumbnail';
+import BuildThumbnail from '../components/BuildThumbnail';
 
 export default function TestHistoryPage({ currentUser }) {
   const [history, setHistory] = useState([]);
@@ -44,8 +45,11 @@ export default function TestHistoryPage({ currentUser }) {
     fetchHistory();
   }, [filterResult, currentUser?.id]);
 
-  // Real-time synchronization when a test completes or is deleted
+  // Real-time synchronization when a test completes, history updates, or a record is deleted
   useEffect(() => {
+    const unsubUpdate = socketService.on('TEST_HISTORY_UPDATED', () => {
+      fetchHistory();
+    });
     const unsubFinish = socketService.on('TEST_FINISHED', () => {
       fetchHistory();
     });
@@ -53,6 +57,7 @@ export default function TestHistoryPage({ currentUser }) {
       fetchHistory();
     });
     return () => {
+      if (typeof unsubUpdate === 'function') unsubUpdate();
       if (typeof unsubFinish === 'function') unsubFinish();
       if (typeof unsubDelete === 'function') unsubDelete();
     };
@@ -177,8 +182,18 @@ export default function TestHistoryPage({ currentUser }) {
                       {new Date(t.createdAt).toLocaleString()}
                     </td>
                     <td className="py-3 px-4">
-                      <div className="font-semibold text-white truncate max-w-[200px]" title={t.fileName || t.packageName}>{t.fileName || t.packageName || 'App'}</div>
-                      <div className="text-[10px] text-[#64748B] font-mono">{t.packageName} (ID: {t.id?.substring(0, 6)})</div>
+                      <div className="flex items-center gap-2.5">
+                        <BuildThumbnail
+                          iconUrl={t.iconUrl}
+                          packageName={t.packageName}
+                          applicationName={t.applicationName}
+                          size="sm"
+                        />
+                        <div className="min-w-0">
+                          <div className="font-semibold text-white truncate max-w-[200px]" title={t.fileName || t.packageName}>{t.fileName || t.packageName || 'App'}</div>
+                          <div className="text-[10px] text-[#64748B] font-mono truncate max-w-[200px]">{t.packageName} (ID: {t.id?.substring(0, 6)})</div>
+                        </div>
+                      </div>
                     </td>
                     <td className="py-3 px-4 font-mono text-[#CBD5E1]">{t.version || '1.0'}</td>
                     <td className="py-3 px-4 font-medium text-[#CBD5E1]">

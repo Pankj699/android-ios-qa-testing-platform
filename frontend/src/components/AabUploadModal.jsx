@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { UploadCloud, FileArchive, CheckCircle2, AlertCircle, Loader2, X, Package } from 'lucide-react';
 import { api } from '../services/api';
+import BuildThumbnail from './BuildThumbnail';
 
 export default function AabUploadModal({ isOpen, onClose, onBuildUploaded }) {
   const [dragActive, setDragActive] = useState(false);
@@ -149,18 +150,21 @@ export default function AabUploadModal({ isOpen, onClose, onBuildUploaded }) {
           )}
 
           {uploadedBuild && (
-            <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30 space-y-2">
+            <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30 space-y-3">
               <div className="flex items-center gap-2 text-xs font-semibold text-emerald-300">
                 <CheckCircle2 className="w-4 h-4 text-emerald-400" />
                 <span>Build Analyzed & Ready for Testing!</span>
               </div>
-              <div className="text-xs text-slate-300 space-y-1">
-                <div><span className="text-slate-400">Format:</span> <span className="font-mono uppercase font-bold text-[#F59E0B]">{uploadedBuild.fileType || 'AAB'}</span></div>
-                <div><span className="text-slate-400">Package:</span> <span className="font-mono text-emerald-200">{uploadedBuild.packageName}</span></div>
-                <div><span className="text-slate-400">Version:</span> {uploadedBuild.versionName} ({uploadedBuild.versionCode})</div>
-                {uploadedBuild.assetPacks?.length > 0 && (
-                  <div><span className="text-slate-400">Asset Packs:</span> {uploadedBuild.assetPacks.length} detected</div>
-                )}
+              <div className="flex items-center gap-3 pt-1">
+                <BuildThumbnail build={uploadedBuild} size="md" />
+                <div className="text-xs text-slate-300 space-y-0.5 min-w-0">
+                  <div className="font-semibold text-white truncate">{uploadedBuild.applicationName || uploadedBuild.fileName}</div>
+                  <div><span className="text-slate-400">Package:</span> <span className="font-mono text-emerald-200">{uploadedBuild.packageName}</span></div>
+                  <div><span className="text-slate-400">Version:</span> {uploadedBuild.versionName} ({uploadedBuild.versionCode})</div>
+                  {uploadedBuild.assetPacks?.length > 0 && (
+                    <div><span className="text-slate-400">Asset Packs:</span> {uploadedBuild.assetPacks.length} detected</div>
+                  )}
+                </div>
               </div>
             </div>
           )}

@@ -3,6 +3,7 @@ import { CheckCircle2, XCircle, Clock, Smartphone, Package, Download, X, Chevron
 import { api } from '../services/api';
 import { formatDeviceDisplayName, formatDeviceOsVersion } from '../utils/deviceFormatter';
 import DeviceThumbnail from './DeviceThumbnail';
+import BuildThumbnail from './BuildThumbnail';
 
 export default function TestResultModal({ test, isOpen, onClose, onRunAgain }) {
   const [showTechnical, setShowTechnical] = useState(false);
@@ -74,8 +75,14 @@ export default function TestResultModal({ test, isOpen, onClose, onRunAgain }) {
                 <Package className="w-3.5 h-3.5 text-[#F59E0B]" />
                 <span>Build / Package</span>
               </div>
-              <p className="font-semibold text-white truncate" title={test.fileName || test.packageName}>
-                {test.fileName || test.packageName || 'App'}
+              <p className="font-semibold text-white truncate flex items-center gap-1.5" title={test.fileName || test.packageName}>
+                <BuildThumbnail
+                  iconUrl={test.iconUrl}
+                  packageName={test.packageName}
+                  applicationName={test.applicationName}
+                  size="xs"
+                />
+                <span className="truncate">{test.fileName || test.packageName || 'App'}</span>
               </p>
               <p className="text-[11px] text-slate-400 font-mono truncate">
                 {test.packageName} ({test.version || '1.0'})

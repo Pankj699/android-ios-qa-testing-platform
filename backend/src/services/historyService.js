@@ -79,6 +79,12 @@ class HistoryService {
           list = list.filter(t => t.userId === filters.userId);
         }
 
+        // Populate iconUrl for historical test records
+        list = list.map(t => ({
+          ...t,
+          iconUrl: t.iconUrl || (t.buildId ? `/api/build/${t.buildId}/icon` : (t.packageName ? `/api/app-icon/${encodeURIComponent(t.packageName)}` : null))
+        }));
+
         // Sanitize and filter by execution result (PASS, FAIL, etc.)
         if (filters.result && typeof filters.result === 'string') {
           const res = filters.result.trim().toUpperCase();

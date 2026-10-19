@@ -851,7 +851,7 @@ async function getFileMetadata(userId, fileId, injectedClient = null) {
   const res = await withRetry(() =>
     drive.files.get({
       fileId,
-      fields: 'id, name, mimeType, size, modifiedTime, createdTime, parents, webViewLink, webContentLink, shared',
+      fields: 'id, name, mimeType, size, modifiedTime, createdTime, parents, webViewLink, webContentLink, shared, trashed',
       supportsAllDrives: true
     })
   );
@@ -1095,10 +1095,13 @@ const createShareableLink = publishFile;
 
 /**
  * Retrieves the user's default upload folder ID and name.
+ * If defaultFolderName is not stored in DB, or if resolve is requested,
+ * resolves the real name from Google Drive.
  * @param {string} userId
- * @returns {Promise<{ defaultFolderId: string|null, defaultFolderName: string|null }>}
+ * @param {object} [options]
+ * @returns {Promise<{ defaultFolderId: string|null, defaultFolderName: string|null, unavailable?: boolean }>}
  */
-async function getDefaultFolder(userId) {
+async function getDefaultFolder(userId, options = {}) {
   const res = await db.query(
     'SELECT default_folder_id, default_folder_name FROM google_drive_tokens WHERE user_id = $1',
     [userId]
@@ -1108,10 +1111,39 @@ async function getDefaultFolder(userId) {
     return { defaultFolderId: null, defaultFolderName: null };
   }
 
-  return {
-    defaultFolderId: res.rows[0].default_folder_id || null,
-    defaultFolderName: res.rows[0].default_folder_name || null
+  let defaultFolderId = res.rows[0].default_folder_id || null;
+  let defaultFolderName = res.rows[0].default_folder_name || null;
+  let isUnavailable = false;
+
+  const shouldResolve = Boolean(options.resolve || (!defaultFolderName && defaultFolderId && defaultFolderId !== 'root'));
+
+  if (shouldResolve && defaultFolderId && defaultFolderId !== 'root') {
+    try {
+      const meta = await getFileMetadata(userId, defaultFolderId, options.injectedClient);
+      if (meta?.trashed) {
+        isUnavailable = true;
+      } else if (meta?.name) {
+        defaultFolderName = meta.name;
+        await db.query(
+          'UPDATE google_drive_tokens SET default_folder_name = $1 WHERE user_id = $2',
+          [defaultFolderName, userId]
+        );
+      }
+    } catch (err) {
+      if (err.statusCode === 404 || err.statusCode === 403 || err.message?.includes('not found')) {
+        isUnavailable = true;
+      }
+    }
+  }
+
+  const result = {
+    defaultFolderId,
+    defaultFolderName
   };
+  if (isUnavailable) {
+    result.unavailable = true;
+  }
+  return result;
 }
 
 /**

@@ -200,6 +200,13 @@ export const api = {
   takeScreenshot: (serial) => request(`/device/${encodeURIComponent(serial)}/screenshot`, {
     method: 'POST'
   }),
+  getUiHierarchy: (serial) => request(`/device/${encodeURIComponent(serial)}/ui-hierarchy`, {
+    method: 'POST'
+  }),
+  getRuntimeTypography: (serial, data) => request(`/device/${encodeURIComponent(serial)}/runtime-typography`, {
+    method: 'POST',
+    body: data
+  }),
   sendDeviceInput: (serial, event) => request(`/device/${encodeURIComponent(serial)}/input`, {
     method: 'POST',
     body: event
@@ -304,7 +311,10 @@ export const api = {
     method: 'POST',
     body: options
   }),
-  getDriveDefaultFolder: () => request('/drive/default-folder'),
+  getDriveDefaultFolder: (params = {}) => {
+    const qs = buildQueryString(params);
+    return request(`/drive/default-folder${qs ? `?${qs}` : ''}`);
+  },
   setDriveDefaultFolder: (folderId, folderName) => request('/drive/default-folder', {
     method: 'POST',
     body: { folderId, folderName }
@@ -315,6 +325,10 @@ export const api = {
         const xhr = new XMLHttpRequest();
         xhr.open('POST', `${API_BASE}/drive/upload-recording`);
         xhr.withCredentials = true;
+        const token = getAuthToken();
+        if (token) {
+          xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+        }
 
         if (xhr.upload) {
           xhr.upload.onprogress = (event) => {
@@ -371,6 +385,34 @@ export const api = {
       method: 'DELETE'
     });
   },
+
+  // Mixpanel Event Validator
+  getMixpanelStatus: () => request('/mixpanel/status'),
+  getMixpanelSpecifications: () => request('/mixpanel/specifications'),
+  uploadMixpanelSpecification: (file, name) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    if (name) formData.append('name', name);
+    return request('/mixpanel/specifications', {
+      method: 'POST',
+      body: formData,
+      isFormData: true
+    });
+  },
+  getMixpanelSpecification: (id) => request(`/mixpanel/specifications/${encodeURIComponent(id)}`),
+  deleteMixpanelSpecification: (id) => request(`/mixpanel/specifications/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  startMixpanelSession: (data) => request('/mixpanel/sessions', { method: 'POST', body: data }),
+  getMixpanelSessions: () => request('/mixpanel/sessions'),
+  getMixpanelSession: (id) => request(`/mixpanel/sessions/${encodeURIComponent(id)}`),
+  stopMixpanelSession: (id) => request(`/mixpanel/sessions/${encodeURIComponent(id)}/stop`, { method: 'POST' }),
+  getMixpanelEvents: (sessionId, params = {}) => {
+    const qs = buildQueryString(params);
+    return request(`/mixpanel/sessions/${encodeURIComponent(sessionId)}/events${qs ? `?${qs}` : ''}`);
+  },
+  clearMixpanelEvents: (sessionId) => request(`/mixpanel/sessions/${encodeURIComponent(sessionId)}/events`, { method: 'DELETE' }),
+  injectMixpanelEvent: (sessionId, payload) => request(`/mixpanel/sessions/${encodeURIComponent(sessionId)}/events/inject`, { method: 'POST', body: payload }),
+  revalidateMixpanelEvent: (sessionId, eventId, specId) => request(`/mixpanel/sessions/${encodeURIComponent(sessionId)}/events/${encodeURIComponent(eventId)}/validate`, { method: 'POST', body: { specId } }),
+  validateMixpanelRaw: (rawPayload, specId, rules) => request('/mixpanel/validate-raw', { method: 'POST', body: { rawPayload, specId, rules } }),
 
   // System
   getDiagnostics: () => request('/system/diagnostics'),

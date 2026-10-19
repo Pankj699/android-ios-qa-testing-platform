@@ -5,10 +5,29 @@ const iosService = require('../services/iosService');
 const iosMirrorService = require('../services/iosMirrorService');
 const deviceLockService = require('../services/deviceLockService');
 const screenMirrorService = require('../services/screenMirrorService');
+const uiInspectorService = require('../services/uiInspectorService');
+const typographyInspectionService = require('../services/typographyInspectionService');
 const agentService = require('../services/agentService');
 const agentMirrorService = require('../services/agentMirrorService');
 const { broadcastEvent } = require('../websocket/testSocket');
 const logger = require('../utils/logger');
+const { formatDeviceDisplayName } = require('../utils/deviceFormatter');
+
+function isValidIpv4(ip) {
+  if (typeof ip !== 'string') return false;
+  const parts = ip.trim().split('.');
+  if (parts.length !== 4) return false;
+  return parts.every(p => {
+    if (!/^\d+$/.test(p)) return false;
+    const num = parseInt(p, 10);
+    return num >= 0 && num <= 255 && String(num) === p;
+  });
+}
+
+function isValidPort(port) {
+  const p = typeof port === 'number' ? port : parseInt(String(port).trim(), 10);
+  return Number.isInteger(p) && p >= 1 && p <= 65535;
+}
 
 class DeviceController {
   async listDevices(req, res, next) {
@@ -33,7 +52,7 @@ class DeviceController {
       const agentDevices = agentService.listAgentDevices(req.user);
 
       const rawDevices = [...rawAndroidDevices, ...rawIosDevices, ...agentDevices];
-      const devices = deviceLockService.decorateDevices(rawDevices, req.user);
+      const devices = deviceLockService.decorateDevices(rawDevices, req.user, { ownedOnly: true });
       res.json({ success: true, count: devices.length, devices });
     } catch (err) {
       next(err);
@@ -43,17 +62,30 @@ class DeviceController {
   async pairDevice(req, res, next) {
     try {
       const { ip, port, code } = req.body;
-      if (!ip || !port || !code) {
+      if (!ip || port === undefined || port === null || port === '' || !code) {
         return res.status(400).json({
           success: false,
           error: 'Device IP, Pairing Port, and 6-digit Pairing Code are required.'
         });
       }
 
+      if (!isValidIpv4(ip)) {
+        return res.status(400).json({
+          success: false,
+          error: 'Invalid IP address. Must be a valid IPv4 address (e.g. 192.168.0.100).'
+        });
+      }
+
+      if (!isValidPort(port)) {
+        return res.status(400).json({
+          success: false,
+          error: 'Invalid port. Port must be an integer between 1 and 65535.'
+        });
+      }
+
       const result = await adbService.pairDevice(ip, port, code);
       if (result.success && req.user) {
         deviceLockService.setOwner(`${ip}:${port}`, req.user);
-        deviceLockService.setOwner(ip, req.user);
         broadcastEvent('DEVICES_UPDATED');
       }
       res.json(result);
@@ -64,18 +96,80 @@ class DeviceController {
 
   async connectDevice(req, res, next) {
     try {
-      const { ip, port } = req.body;
-      if (!ip || !port) {
+      let { ip, port, serial } = req.body;
+      if (serial && (!ip || port === undefined || port === null || port === '')) {
+        if (serial.includes(':')) {
+          const parts = serial.split(':');
+          ip = parts[0];
+          port = parts[1];
+        } else {
+          // Direct USB/physical serial acquisition
+          const rawAndroidDevices = await adbService.listDevices({ connectedOnly: true }).catch(() => []);
+          const matchedDev = rawAndroidDevices.find(d => d.serial === serial || d.hardwareSerial === serial);
+          if (!matchedDev) {
+            return res.status(404).json({ success: false, error: `Device ${serial} is not connected.` });
+          }
+
+          if (deviceLockService.isOperationActive(serial)) {
+            return res.status(409).json({
+              success: false,
+              status: 'BUSY_PENDING',
+              error: `Device ${serial} is currently running an active operation. Transfer deferred.`
+            });
+          }
+
+          const transferRes = await deviceLockService.transferDeviceOwnership(serial, req.user);
+          broadcastEvent('DEVICES_UPDATED');
+          return res.json({
+            success: true,
+            serial,
+            message: `Device ownership acquired by ${req.user.name}.`,
+            device: deviceLockService.decorateDevice(matchedDev, req.user),
+            ...transferRes
+          });
+        }
+      }
+
+      if (!ip || port === undefined || port === null || port === '') {
         return res.status(400).json({
           success: false,
           error: 'Device IP and Connection Port are required.'
         });
       }
 
+      if (!isValidIpv4(ip)) {
+        return res.status(400).json({
+          success: false,
+          error: 'Invalid IP address. Must be a valid IPv4 address (e.g. 192.168.0.100).'
+        });
+      }
+
+      if (!isValidPort(port)) {
+        return res.status(400).json({
+          success: false,
+          error: 'Invalid port. Port must be an integer between 1 and 65535.'
+        });
+      }
+
+      const targetSerial = `${ip}:${port}`;
+
+      // Check active operation guard
+      if (deviceLockService.isOperationActive(targetSerial)) {
+        return res.status(409).json({
+          success: false,
+          status: 'BUSY_PENDING',
+          error: `Device ${targetSerial} is currently running an active operation. Connection cannot interrupt active tests.`
+        });
+      }
+
       const result = await adbService.connectDevice(ip, port);
       if (result.success && req.user) {
-        const serial = result.serial || `${ip}:${port}`;
-        const hardwareSerial = result.device?.hardwareSerial || deviceLockService.hardwareMap.get(serial) || deviceLockService.hardwareMap.get(ip) || null;
+        const serial = result.serial || targetSerial;
+        const hardwareSerial = result.device?.hardwareSerial || await adbService.resolveHardwareSerial(serial).catch(() => null);
+
+        if (hardwareSerial) {
+          deviceLockService.registerHardwareSerial(serial, hardwareSerial);
+        }
 
         // Transport Priority: Check if physical device is already connected via authoritative USB
         if (hardwareSerial) {
@@ -97,7 +191,7 @@ class DeviceController {
             // Disconnect redundant wireless transport
             await adbService.disconnectDevice(serial).catch(() => {});
 
-            deviceLockService.setOwner(existingUsb.serial, req.user);
+            await deviceLockService.transferDeviceOwnership(existingUsb.serial, req.user);
 
             broadcastEvent('DEVICES_UPDATED');
             return res.json({
@@ -111,10 +205,31 @@ class DeviceController {
           }
         }
 
-        deviceLockService.setOwner(serial, req.user);
+        await deviceLockService.transferDeviceOwnership(serial, req.user);
         broadcastEvent('DEVICES_UPDATED');
       }
       res.json(result);
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  async acquireDevice(req, res, next) {
+    try {
+      const serial = req.params.id || req.body.serial;
+      if (!serial) {
+        return res.status(400).json({ success: false, error: 'Device serial is required.' });
+      }
+
+      if (!req.user) {
+        return res.status(401).json({ success: false, error: 'Authentication required.' });
+      }
+
+      const result = await deviceLockService.transferDeviceOwnership(serial, req.user);
+      if (!result.success && result.status === 'BUSY_PENDING') {
+        return res.status(409).json(result);
+      }
+      return res.json(result);
     } catch (err) {
       next(err);
     }
@@ -166,7 +281,38 @@ class DeviceController {
       } else if (iosService.isIosDevice(serial)) {
         rawInfo = await iosService.getDeviceInfo(serial);
       } else {
-        rawInfo = await adbService.getDeviceInfo(serial);
+        try {
+          rawInfo = await adbService.getDeviceInfo(serial);
+        } catch (e) {
+          logger.warn(`[DeviceController] getDeviceInfo transient error for ${serial}: ${e.message}`);
+          const cachedMeta = adbService._getCachedMeta ? adbService._getCachedMeta(serial) : null;
+          const cachedTel = adbService._getCachedTelemetry ? adbService._getCachedTelemetry(serial) : null;
+          if (cachedMeta || cachedTel) {
+            rawInfo = {
+              serial,
+              displayName: formatDeviceDisplayName(cachedMeta || { serial }),
+              name: cachedMeta?.model || 'Android Device',
+              model: cachedMeta?.model || 'Unknown Model',
+              manufacturer: cachedMeta?.manufacturer || 'Android',
+              osVersion: cachedMeta?.osVersion || null,
+              androidVersion: cachedMeta?.osVersion ? `Android ${cachedMeta.osVersion}` : 'Android',
+              sdkVersion: cachedMeta?.sdkVersion || 'Unknown',
+              battery: cachedTel?.battery || 'Unknown',
+              batteryStatus: cachedTel?.batteryStatus || 'Unknown',
+              batteryTemp: cachedTel?.batteryTemp || '',
+              storageFree: cachedTel?.storageFree || 'Unknown',
+              storageTotal: cachedTel?.storageTotal || 'Unknown',
+              storageUsedPct: cachedTel?.storageUsedPct || '',
+              screenResolution: cachedTel?.screenResolution || 'Unknown',
+              connected: true,
+              state: 'device',
+              isWireless: serial.includes(':'),
+              platform: 'android'
+            };
+          } else {
+            throw e;
+          }
+        }
       }
 
       const info = deviceLockService.decorateDevice(rawInfo, req.user);
@@ -438,6 +584,48 @@ class DeviceController {
       res.json({ success: true, count: apps.length, packages: apps, apps });
     } catch (err) {
       next(err);
+    }
+  }
+
+  async getUiHierarchy(req, res, next) {
+    try {
+      const serial = decodeURIComponent(req.params.id || '');
+      if (!serial) {
+        return res.status(400).json({ success: false, error: 'Device serial is required.' });
+      }
+
+      const result = await uiInspectorService.captureInspection(serial, req.user);
+      res.json(result);
+    } catch (err) {
+      const status = err.statusCode || 400;
+      res.status(status).json({ success: false, error: err.message });
+    }
+  }
+
+  async getRuntimeTypography(req, res, next) {
+    try {
+      const serial = decodeURIComponent(req.params.id || '');
+      if (!serial) {
+        return res.status(400).json({ success: false, error: 'Device serial is required.' });
+      }
+
+      if (!deviceLockService.isDeviceAccessible(serial, req.user)) {
+        return res.status(403).json({ success: false, error: 'Device is claimed by another user.' });
+      }
+
+      const { packageName, node } = req.body || {};
+      if (!packageName) {
+        return res.status(400).json({ success: false, error: 'Package name is required.' });
+      }
+      if (!node) {
+        return res.status(400).json({ success: false, error: 'Node information is required.' });
+      }
+
+      const result = await typographyInspectionService.inspectRuntimeViewTypography(serial, packageName, node);
+      res.json(result);
+    } catch (err) {
+      const status = err.statusCode || 400;
+      res.status(status).json({ success: false, error: err.message });
     }
   }
 }

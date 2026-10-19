@@ -29,6 +29,10 @@ class ScreenMirrorService {
       throw new Error(`Device ${serial} is not accessible by ${user.name}`);
     }
 
+    if (user && !deviceLockService.isUserDevice(serial, user)) {
+      deviceLockService.setOwner(serial, user);
+    }
+
     if (iosService.isIosDevice(serial)) {
       const iosMirrorService = require('./iosMirrorService');
       return iosMirrorService.startMirror(serial, user, options);
@@ -58,6 +62,10 @@ class ScreenMirrorService {
       cachedSps: null,
       cachedPps: null,
       cachedKeyframe: null,
+      _accumulatingNalType: -1,
+      _accumulatingChunks: [],
+      _accumulatedLength: 0,
+      _pendingStartCodeBytes: null,
       stats: {
         fps: 0,
         frameCount: 0,
@@ -108,6 +116,7 @@ class ScreenMirrorService {
 
     const proc = spawn(config.ADB_PATH, args, { windowsHide: true });
     session.proc = proc;
+    session.procStartTime = Date.now();
 
     let chunkCounter = 0;
     let bytesInWindow = 0;
@@ -120,38 +129,8 @@ class ScreenMirrorService {
       chunkCounter++;
       bytesInWindow += chunk.length;
 
-      // Accurately parse individual NAL units from H.264 Annex B chunk
-      let lastNalPos = -1;
-      let lastNalType = -1;
-
-      for (let i = 0; i < chunk.length - 3; i++) {
-        let startLen = 0;
-        if (chunk[i] === 0 && chunk[i + 1] === 0) {
-          if (chunk[i + 2] === 1) {
-            startLen = 3;
-          } else if (i < chunk.length - 3 && chunk[i + 2] === 0 && chunk[i + 3] === 1) {
-            startLen = 4;
-          }
-        }
-
-        if (startLen > 0) {
-          if (lastNalPos !== -1) {
-            const nalBuf = chunk.slice(lastNalPos, i);
-            if (lastNalType === 7) session.cachedSps = nalBuf;
-            else if (lastNalType === 8) session.cachedPps = nalBuf;
-            else if (lastNalType === 5) session.cachedKeyframe = nalBuf;
-          }
-          lastNalType = chunk[i + startLen] & 0x1f;
-          lastNalPos = i;
-        }
-      }
-
-      if (lastNalPos !== -1) {
-        const nalBuf = chunk.slice(lastNalPos);
-        if (lastNalType === 7) session.cachedSps = nalBuf;
-        else if (lastNalType === 8) session.cachedPps = nalBuf;
-        else if (lastNalType === 5) session.cachedKeyframe = nalBuf;
-      }
+      // Accurately parse and assemble complete NAL units across chunk boundaries
+      this._processH264Chunk(session, chunk);
 
       // Update FPS & bitrate stats every 1 second
       const now = Date.now();
@@ -177,14 +156,37 @@ class ScreenMirrorService {
 
     proc.on('close', (code) => {
       logger.info(`[ScreenMirror Process Exited] Device: ${serial}, Code: ${code}`);
+
+      const runDuration = Date.now() - (session.procStartTime || 0);
+      if (runDuration > 10000) {
+        session.consecutiveErrors = 0;
+      } else if (code !== 0) {
+        session.consecutiveErrors = (session.consecutiveErrors || 0) + 1;
+      }
+
       // If session is still alive and has subscribers, automatically restart screenrecord (handles 180s limit)
       if (!session.isStopping && session.subscribers.size > 0) {
-        logger.info(`[ScreenMirror] Seamlessly restarting screen stream for ${serial}...`);
+        if (session.consecutiveErrors >= 5) {
+          logger.warn(`[ScreenMirror] Screen recording failed repeatedly (${session.consecutiveErrors} consecutive errors) on device ${serial}. Stopping mirror session.`);
+          this._broadcastJson(session, {
+            type: 'MIRROR_ERROR',
+            serial,
+            error: `Screen recording failed repeatedly: device ${serial} is offline or not responding.`
+          });
+          this.stopMirror(serial);
+          return;
+        }
+
+        const backoffMs = session.consecutiveErrors > 0
+          ? Math.min(500 * Math.pow(1.5, session.consecutiveErrors), 5000)
+          : 100;
+
+        logger.info(`[ScreenMirror] Seamlessly restarting screen stream for ${serial} (retry in ${backoffMs}ms, error streak: ${session.consecutiveErrors})...`);
         setTimeout(() => {
           if (!session.isStopping && this.activeSessions.has(serial)) {
             this._spawnStreamProcess(session);
           }
-        }, 100);
+        }, backoffMs);
       } else if (session.subscribers.size === 0) {
         this.stopMirror(serial);
       }
@@ -198,6 +200,157 @@ class ScreenMirrorService {
         error: `Screen recording process error: ${err.message}`
       });
     });
+  }
+ 
+  /**
+   * Parse H.264 Annex-B stream chunks and accurately assemble complete SPS, PPS, and IDR keyframe units
+   * across arbitrary TCP/process chunk boundaries.
+   */
+  _processH264Chunk(session, chunk) {
+    if (!session || !chunk || chunk.length === 0) return;
+
+    let buf = chunk;
+    if (session._pendingStartCodeBytes && session._pendingStartCodeBytes.length > 0) {
+      buf = Buffer.concat([session._pendingStartCodeBytes, chunk]);
+      session._pendingStartCodeBytes = null;
+    }
+
+    // Check if buffer ends with trailing zeros that could be part of a split start code (up to 3 zeros)
+    let trailingZeroCount = 0;
+    for (let j = buf.length - 1; j >= Math.max(0, buf.length - 3); j--) {
+      if (buf[j] === 0) trailingZeroCount++;
+      else break;
+    }
+
+    let processableBuf = buf;
+    if (trailingZeroCount > 0 && trailingZeroCount < buf.length) {
+      processableBuf = buf.slice(0, buf.length - trailingZeroCount);
+      session._pendingStartCodeBytes = buf.slice(buf.length - trailingZeroCount);
+    } else if (trailingZeroCount === buf.length) {
+      session._pendingStartCodeBytes = buf;
+      return;
+    }
+
+    // Check if processableBuf ends with a start code prefix whose NAL type byte hasn't arrived yet
+    if (processableBuf.length >= 3) {
+      const pLen = processableBuf.length;
+      if (processableBuf[pLen - 3] === 0 && processableBuf[pLen - 2] === 0 && processableBuf[pLen - 1] === 1) {
+        session._pendingStartCodeBytes = Buffer.concat([
+          processableBuf.slice(pLen - 3),
+          session._pendingStartCodeBytes || Buffer.alloc(0)
+        ]);
+        processableBuf = processableBuf.slice(0, pLen - 3);
+      } else if (pLen >= 4 && processableBuf[pLen - 4] === 0 && processableBuf[pLen - 3] === 0 && processableBuf[pLen - 2] === 0 && processableBuf[pLen - 1] === 1) {
+        session._pendingStartCodeBytes = Buffer.concat([
+          processableBuf.slice(pLen - 4),
+          session._pendingStartCodeBytes || Buffer.alloc(0)
+        ]);
+        processableBuf = processableBuf.slice(0, pLen - 4);
+      }
+    }
+
+    const startCodes = [];
+    let i = 0;
+    while (i <= processableBuf.length - 3) {
+      if (processableBuf[i] === 0 && processableBuf[i + 1] === 0) {
+        if (processableBuf[i + 2] === 1) {
+          if (i + 3 < processableBuf.length) {
+            const type = processableBuf[i + 3] & 0x1f;
+            startCodes.push({ index: i, len: 3, type });
+            i += 3;
+            continue;
+          }
+        } else if (i <= processableBuf.length - 4 && processableBuf[i + 2] === 0 && processableBuf[i + 3] === 1) {
+          if (i + 4 < processableBuf.length) {
+            const type = processableBuf[i + 4] & 0x1f;
+            startCodes.push({ index: i, len: 4, type });
+            i += 4;
+            continue;
+          }
+        }
+      }
+      i++;
+    }
+
+    // If no start codes found in this chunk
+    if (startCodes.length === 0) {
+      if (session._accumulatingNalType === 5) {
+        session._accumulatingChunks.push(processableBuf);
+        session._accumulatedLength = (session._accumulatedLength || 0) + processableBuf.length;
+        if (session._accumulatedLength > 4 * 1024 * 1024) {
+          session._accumulatingChunks = [];
+          session._accumulatingNalType = -1;
+          session._accumulatedLength = 0;
+        }
+      } else if (session._accumulatingNalType === 7 || session._accumulatingNalType === 8) {
+        session._accumulatingChunks.push(processableBuf);
+      }
+      return;
+    }
+
+    // Prefix bytes before first start code belong to previous accumulating NAL unit
+    const prefixBytes = processableBuf.slice(0, startCodes[0].index);
+    if (prefixBytes.length > 0) {
+      if (session._accumulatingNalType === 5) {
+        session._accumulatingChunks.push(prefixBytes);
+        session.cachedKeyframe = Buffer.concat(session._accumulatingChunks);
+        session._accumulatingChunks = [];
+        session._accumulatingNalType = -1;
+        session._accumulatedLength = 0;
+      } else if (session._accumulatingNalType === 7) {
+        session._accumulatingChunks.push(prefixBytes);
+        session.cachedSps = Buffer.concat(session._accumulatingChunks);
+        session._accumulatingChunks = [];
+        session._accumulatingNalType = -1;
+      } else if (session._accumulatingNalType === 8) {
+        session._accumulatingChunks.push(prefixBytes);
+        session.cachedPps = Buffer.concat(session._accumulatingChunks);
+        session._accumulatingChunks = [];
+        session._accumulatingNalType = -1;
+      }
+    } else if (startCodes[0].index === 0) {
+      if (session._accumulatingNalType === 5) {
+        session.cachedKeyframe = Buffer.concat(session._accumulatingChunks);
+        session._accumulatingChunks = [];
+        session._accumulatingNalType = -1;
+        session._accumulatedLength = 0;
+      } else if (session._accumulatingNalType === 7) {
+        session.cachedSps = Buffer.concat(session._accumulatingChunks);
+        session._accumulatingChunks = [];
+        session._accumulatingNalType = -1;
+      } else if (session._accumulatingNalType === 8) {
+        session.cachedPps = Buffer.concat(session._accumulatingChunks);
+        session._accumulatingChunks = [];
+        session._accumulatingNalType = -1;
+      }
+    }
+
+    // Process each start code in this chunk
+    for (let k = 0; k < startCodes.length; k++) {
+      const curr = startCodes[k];
+      const isLast = (k === startCodes.length - 1);
+
+      if (!isLast) {
+        const next = startCodes[k + 1];
+        const nalSlice = processableBuf.slice(curr.index, next.index);
+        if (curr.type === 7) session.cachedSps = nalSlice;
+        else if (curr.type === 8) session.cachedPps = nalSlice;
+        else if (curr.type === 5) session.cachedKeyframe = nalSlice;
+      } else {
+        const tail = processableBuf.slice(curr.index);
+        if (curr.type === 7 || curr.type === 8 || curr.type === 5) {
+          session._accumulatingNalType = curr.type;
+          session._accumulatingChunks = [tail];
+          session._accumulatedLength = tail.length;
+          if (curr.type === 7 && tail.length >= 10) session.cachedSps = tail;
+          if (curr.type === 8 && tail.length >= 4) session.cachedPps = tail;
+        } else {
+          session._accumulatingNalType = -1;
+          session._accumulatingChunks = [];
+          session._accumulatedLength = 0;
+        }
+      }
+    }
   }
 
   /**
@@ -274,32 +427,36 @@ class ScreenMirrorService {
     }
 
     if (session) {
+      const alreadySubscribed = session.subscribers.has(ws);
       session.subscribers.add(ws);
       ws.subscribedSerial = serial;
-      logger.info(`[ScreenMirror] Client subscribed to device ${serial} (total subscribers: ${session.subscribers.size})`);
 
-      ws.send(JSON.stringify({
-        type: 'MIRROR_STARTED',
-        serial,
-        resolution: session.stats.resolution,
-        bitrateKbps: session.stats.bitrateKbps,
-        fps: session.stats.fps || 30
-      }));
+      if (!alreadySubscribed) {
+        logger.info(`[ScreenMirror] Client subscribed to device ${serial} (total subscribers: ${session.subscribers.size})`);
 
-      // Immediately send cached SPS/PPS initialization chunks to ensure decoder starts without delay
-      if (ws.readyState === 1 /* OPEN */) {
-        try {
-          if (session.cachedSps) {
-            ws.send(session.cachedSps, { binary: true });
+        ws.send(JSON.stringify({
+          type: 'MIRROR_STARTED',
+          serial,
+          resolution: session.stats.resolution,
+          bitrateKbps: session.stats.bitrateKbps,
+          fps: session.stats.fps || 30
+        }));
+
+        // Immediately send cached SPS/PPS/Keyframe initialization chunks to ensure decoder starts without delay
+        if (ws.readyState === 1 /* OPEN */) {
+          try {
+            if (session.cachedSps) {
+              ws.send(session.cachedSps, { binary: true });
+            }
+            if (session.cachedPps) {
+              ws.send(session.cachedPps, { binary: true });
+            }
+            if (session.cachedKeyframe) {
+              ws.send(session.cachedKeyframe, { binary: true });
+            }
+          } catch (err) {
+            logger.warn(`[ScreenMirror] Error delivering cached SPS/PPS headers: ${err.message}`);
           }
-          if (session.cachedPps) {
-            ws.send(session.cachedPps, { binary: true });
-          }
-          if (session.cachedKeyframe) {
-            ws.send(session.cachedKeyframe, { binary: true });
-          }
-        } catch (err) {
-          logger.warn(`[ScreenMirror] Error delivering cached SPS/PPS headers: ${err.message}`);
         }
       }
     }
@@ -363,6 +520,10 @@ class ScreenMirrorService {
     session.cachedSps = null;
     session.cachedPps = null;
     session.cachedKeyframe = null;
+    session._accumulatingNalType = -1;
+    session._accumulatingChunks = [];
+    session._accumulatedLength = 0;
+    session._pendingStartCodeBytes = null;
 
     this.activeSessions.delete(serial);
     logger.info(`[ScreenMirror] Screen mirror session stopped and fully cleaned up for device ${serial}`);

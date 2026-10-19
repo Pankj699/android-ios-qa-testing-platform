@@ -22,22 +22,22 @@ export default function DevicesPage({
   return (
     <div className="space-y-6 fade-in">
       {/* Page Header */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-4 border-b border-[#1C2230]">
-        <div>
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-[#1C2230]">
+        <div className="min-w-0">
           <h2 className="text-xl font-bold text-[#FFFFFF] flex items-center gap-2.5">
             <Smartphone className="w-5 h-5 text-[#F59E0B]" />
-            Connected Test Devices
+            <span>Connected Test Devices</span>
           </h2>
           <p className="text-xs text-[#94A3B8] mt-1">
             Connect physical Android devices (USB/Wi-Fi) or pair your QA Device Agent for physical iOS USB streaming.
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2.5 shrink-0">
           <button
             onClick={onRefreshDevices}
             disabled={loading}
-            className="p-2 rounded-lg bg-[#10131B] hover:bg-[#161B26] text-[#CBD5E1] transition-colors border border-[#1C2230] cursor-pointer"
+            className="h-9 w-9 p-0 inline-flex items-center justify-center rounded-lg bg-[#10131B] hover:bg-[#161B26] text-[#CBD5E1] hover:text-[#FFFFFF] transition-colors border border-[#1C2230] shrink-0 cursor-pointer"
             title="Refresh Devices List"
           >
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
@@ -46,7 +46,7 @@ export default function DevicesPage({
           {onOpenAgentPairModal && (
             <button
               onClick={onOpenAgentPairModal}
-              className="px-3.5 py-2 rounded-lg bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-xs font-bold text-white shadow-md shadow-blue-900/30 transition-all flex items-center gap-2 border border-blue-400/30 cursor-pointer"
+              className="h-9 px-3.5 inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-xs font-bold text-white shadow-md shadow-blue-900/30 transition-all border border-blue-400/30 shrink-0 cursor-pointer whitespace-nowrap"
               title="Pair QA Device Agent to connect physical iPhones/iPads over USB"
             >
               <Laptop className="w-4 h-4 text-blue-200" />
@@ -54,20 +54,10 @@ export default function DevicesPage({
             </button>
           )}
 
-          {onOpenUsbDiagnostics && (
-            <button
-              onClick={onOpenUsbDiagnostics}
-              className="p-2 rounded-lg bg-[#10131B] hover:bg-[#161B26] text-purple-300 hover:text-purple-200 transition-colors border border-purple-500/30 cursor-pointer"
-              title="Inspect WebUSB & Secure Context Diagnostics"
-            >
-              <Usb className="w-4 h-4" />
-            </button>
-          )}
-
           {onConnectBrowserUsb && (
             <button
               onClick={onConnectBrowserUsb}
-              className="px-3.5 py-2 rounded-lg bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-xs font-bold text-white shadow-md shadow-purple-900/30 transition-all flex items-center gap-2 border border-purple-400/30 cursor-pointer"
+              className="h-9 px-3.5 inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-xs font-bold text-white shadow-md shadow-purple-900/30 transition-all border border-purple-400/30 shrink-0 cursor-pointer whitespace-nowrap"
               title="Connect physical Android device directly to this browser via USB cable"
             >
               <Usb className="w-4 h-4 text-purple-200" />
@@ -77,7 +67,8 @@ export default function DevicesPage({
 
           <button
             onClick={onOpenPairModal}
-            className="px-3.5 py-2 rounded-lg bg-[#F59E0B] hover:bg-[#D97706] text-xs font-bold text-[#000000] shadow-md shadow-[#F59E0B]/20 transition-all flex items-center gap-2 cursor-pointer"
+            className="h-9 px-3.5 inline-flex items-center gap-2 rounded-lg bg-[#F59E0B] hover:bg-[#D97706] text-xs font-bold text-[#000000] shadow-md shadow-[#F59E0B]/20 transition-all border border-amber-500/30 shrink-0 cursor-pointer whitespace-nowrap"
+            title="Pair and connect physical Android device wirelessly over Wi-Fi"
           >
             <Wifi className="w-4 h-4 text-[#000000]" />
             <span>Pair New Device (Wi-Fi)</span>

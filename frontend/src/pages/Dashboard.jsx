@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { formatDeviceDisplayName, formatDeviceOsVersion } from '../utils/deviceFormatter';
 import DeviceThumbnail from '../components/DeviceThumbnail';
+import BuildThumbnail from '../components/BuildThumbnail';
 
 export default function Dashboard({
   devices,
@@ -188,13 +189,18 @@ export default function Dashboard({
           </div>
 
           {selectedBuild ? (
-            <div className="p-4 rounded-lg bg-[#080B10] border border-[#1C2230] space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="font-semibold text-sm text-[#FFFFFF] break-all">{selectedBuild.fileName || selectedBuild.applicationName || 'App Build'}</span>
-                <span className="text-[11px] font-mono text-[#94A3B8]">{selectedBuild.versionName} ({selectedBuild.versionCode})</span>
+            <div className="p-4 rounded-lg bg-[#080B10] border border-[#1C2230] space-y-3">
+              <div className="flex items-center gap-3">
+                <BuildThumbnail build={selectedBuild} size="md" />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between">
+                    <span className="font-semibold text-sm text-[#FFFFFF] truncate">{selectedBuild.fileName || selectedBuild.applicationName || 'App Build'}</span>
+                    <span className="text-[11px] font-mono text-[#94A3B8] shrink-0 ml-2">{selectedBuild.versionName} ({selectedBuild.versionCode})</span>
+                  </div>
+                  <p className="text-xs text-[#94A3B8] font-mono truncate">{selectedBuild.packageName}{selectedBuild.applicationName && ` • ${selectedBuild.applicationName}`}</p>
+                </div>
               </div>
-              <p className="text-xs text-[#94A3B8] font-mono">{selectedBuild.packageName}{selectedBuild.applicationName && ` • ${selectedBuild.applicationName}`}</p>
-              <div className="flex items-center gap-2 pt-1 text-xs text-[#94A3B8]">
+              <div className="flex items-center gap-2 pt-1 border-t border-[#1C2230]/60 text-xs text-[#94A3B8]">
                 <Layers className="w-3.5 h-3.5 text-[#F59E0B]" />
                 <span>{selectedBuild.assetPacks?.length || 0} Asset Packs detected</span>
               </div>
@@ -250,8 +256,18 @@ export default function Dashboard({
                       {new Date(t.createdAt).toLocaleString()}
                     </td>
                     <td className="py-2.5 px-3 text-[#FFFFFF] font-sans">
-                      <div>{t.packageName || 'App'}</div>
-                      <div className="text-[10px] text-[#64748B]">{t.version}</div>
+                      <div className="flex items-center gap-2">
+                        <BuildThumbnail
+                          iconUrl={t.iconUrl}
+                          packageName={t.packageName}
+                          applicationName={t.applicationName}
+                          size="xs"
+                        />
+                        <div>
+                          <div>{t.packageName || 'App'}</div>
+                          <div className="text-[10px] text-[#64748B]">{t.version}</div>
+                        </div>
+                      </div>
                     </td>
                     <td className="py-2.5 px-3 font-sans text-[#CBD5E1]">
                       <div className="flex items-center gap-1.5">

@@ -11,7 +11,10 @@ import {
   BookOpen,
   Compass,
   ShieldCheck,
-  HardDrive
+  HardDrive,
+  Scan,
+  FileSpreadsheet,
+  Bug
 } from 'lucide-react';
 
 const NAV_GROUPS = [
@@ -21,8 +24,10 @@ const NAV_GROUPS = [
       { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
       { id: 'devices', label: 'Devices', icon: Smartphone },
       { id: 'screen-mirror', label: 'Screen Mirror', icon: Tv },
+      { id: 'ui-inspector', label: 'UI Inspector', icon: Scan },
       { id: 'builds', label: 'Builds & AAB', icon: Package },
-      { id: 'google-drive', label: 'Google Drive', icon: HardDrive }
+      { id: 'google-drive', label: 'Google Drive', icon: HardDrive },
+      { id: 'bug-desk', label: 'Bug Desk', icon: Bug }
     ]
   },
   {
@@ -30,6 +35,7 @@ const NAV_GROUPS = [
     title: 'EXECUTION',
     items: [
       { id: 'run-test', label: 'Run PAD Test', icon: PlayCircle, highlight: true },
+      { id: 'mixpanel-validator', label: 'Mixpanel Validator', icon: FileSpreadsheet },
       { id: 'history', label: 'Test History', icon: History },
       { id: 'adb-ops', label: 'ADB Operations', icon: Terminal }
     ]

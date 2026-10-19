@@ -2,6 +2,7 @@ import React from 'react';
 import { CheckCircle2, XCircle, Clock, Smartphone, Package, Download, X, RotateCcw } from 'lucide-react';
 import { formatDeviceDisplayName } from '../utils/deviceFormatter';
 import DeviceThumbnail from './DeviceThumbnail';
+import BuildThumbnail from './BuildThumbnail';
 
 export default function TestResultToast({ test, onClose, onRunAgain }) {
   if (!test) return null;
@@ -85,7 +86,12 @@ export default function TestResultToast({ test, onClose, onRunAgain }) {
           </div>
 
           <div className="col-span-2 flex items-center gap-1.5 truncate">
-            <Package className="w-3.5 h-3.5 text-[#F59E0B] shrink-0" />
+            <BuildThumbnail
+              iconUrl={test.iconUrl}
+              packageName={test.packageName}
+              applicationName={test.applicationName}
+              size="xs"
+            />
             <span className="truncate">{test.fileName || test.packageName}</span>
           </div>
         </div>

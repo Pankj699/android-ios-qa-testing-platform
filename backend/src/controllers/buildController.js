@@ -1,7 +1,9 @@
 const { v4: uuidv4 } = require('uuid');
 const path = require('path');
+const fs = require('fs');
 const aabAnalyzerService = require('../services/aabAnalyzerService');
 const historyService = require('../services/historyService');
+const appIconService = require('../services/appIconService');
 const config = require('../config');
 const logger = require('../utils/logger');
 
@@ -36,6 +38,16 @@ class BuildController {
       }
 
       const buildId = uuidv4();
+
+      // Automatically extract and cache application launcher icon
+      let hasIcon = false;
+      try {
+        const iconRes = await appIconService.extractAndCacheIcon(buildId, filePath);
+        hasIcon = !!iconRes;
+      } catch (e) {
+        logger.warn(`Icon extraction error: ${e.message}`);
+      }
+
       const buildRecord = {
         id: buildId,
         userId,
@@ -54,6 +66,8 @@ class BuildController {
         targetSdkVersion: analysis ? analysis.targetSdkVersion : '34',
         assetPacks: analysis ? analysis.assetPacks : [],
         modulesCount: analysis ? analysis.modulesCount : 1,
+        hasIcon,
+        iconUrl: `/api/build/${buildId}/icon`,
         analysisError,
         uploadedAt: new Date().toISOString()
       };
@@ -86,7 +100,14 @@ class BuildController {
         builds = builds.filter(b => b.userId === userId);
       }
 
-      res.json({ success: true, count: builds.length, builds });
+      // Ensure each build has hasIcon and iconUrl populated
+      const enhancedBuilds = builds.map(b => ({
+        ...b,
+        hasIcon: b.hasIcon !== undefined ? b.hasIcon : !!appIconService.getCachedIcon(b.id),
+        iconUrl: b.iconUrl || `/api/build/${b.id}/icon`
+      }));
+
+      res.json({ success: true, count: enhancedBuilds.length, builds: enhancedBuilds });
     } catch (err) {
       next(err);
     }
@@ -109,7 +130,13 @@ class BuildController {
         return res.status(403).json({ success: false, error: 'Forbidden. You do not own this build.' });
       }
 
-      res.json({ success: true, build });
+      const enhancedBuild = {
+        ...build,
+        hasIcon: build.hasIcon !== undefined ? build.hasIcon : !!appIconService.getCachedIcon(build.id),
+        iconUrl: build.iconUrl || `/api/build/${build.id}/icon`
+      };
+
+      res.json({ success: true, build: enhancedBuild });
     } catch (err) {
       next(err);
     }
@@ -133,6 +160,8 @@ class BuildController {
         targetSdkVersion: analysis.targetSdkVersion,
         assetPacks: analysis.assetPacks,
         modulesCount: analysis.modulesCount,
+        hasIcon: build.hasIcon !== undefined ? build.hasIcon : !!appIconService.getCachedIcon(build.id),
+        iconUrl: build.iconUrl || `/api/build/${build.id}/icon`,
         analysisError: null
       };
 
@@ -160,8 +189,73 @@ class BuildController {
         return res.status(403).json({ success: false, error: 'Forbidden. You do not have permission to delete this build.' });
       }
 
+      appIconService.deleteCachedIcon(req.params.id);
       historyService.deleteBuild(req.params.id);
       res.json({ success: true, message: 'Build deleted successfully' });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  /**
+   * Serve application launcher icon with ETag & HTTP caching.
+   * On-demand extracts and caches icon if missing from cache.
+   */
+  async getBuildIcon(req, res, next) {
+    try {
+      const { id } = req.params;
+      if (!id || id.includes('..') || id.includes('/') || id.includes('\\')) {
+        return res.status(400).json({ success: false, error: 'Invalid build ID.' });
+      }
+
+      let cached = appIconService.getCachedIcon(id);
+      if (!cached) {
+        // Attempt on-demand extraction from build file
+        const build = historyService.getBuildById(id);
+        if (build && build.filePath && fs.existsSync(build.filePath)) {
+          await appIconService.extractAndCacheIcon(id, build.filePath);
+          cached = appIconService.getCachedIcon(id);
+        }
+      }
+
+      if (!cached || !fs.existsSync(cached.filePath)) {
+        return res.status(404).json({ success: false, error: 'Icon not available for this build.' });
+      }
+
+      const stat = fs.statSync(cached.filePath);
+      const eTag = `"${id}-${stat.mtimeMs}"`;
+      if (req.headers['if-none-match'] === eTag) {
+        return res.status(304).end();
+      }
+
+      res.setHeader('ETag', eTag);
+      res.setHeader('Cache-Control', 'public, max-age=86400, must-revalidate');
+      res.setHeader('Content-Type', cached.mimeType || 'image/png');
+      res.sendFile(cached.filePath);
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  /**
+   * Serve icon by package name (matches newest build containing that package)
+   */
+  async getPackageIcon(req, res, next) {
+    try {
+      const { packageName } = req.params;
+      if (!packageName || packageName.includes('..') || packageName.includes('/') || packageName.includes('\\')) {
+        return res.status(400).json({ success: false, error: 'Invalid package name.' });
+      }
+
+      const builds = historyService.getBuilds();
+      const matchingBuild = builds.find(b => b.packageName === packageName && (b.hasIcon || (b.filePath && fs.existsSync(b.filePath))));
+
+      if (!matchingBuild) {
+        return res.status(404).json({ success: false, error: 'No icon found for package.' });
+      }
+
+      req.params.id = matchingBuild.id;
+      return this.getBuildIcon(req, res, next);
     } catch (err) {
       next(err);
     }

@@ -27,7 +27,14 @@ import {
   Check
 } from 'lucide-react';
 import { formatDeviceDisplayName, formatDeviceOsVersion, formatDeviceSelectorLabel } from '../utils/deviceFormatter';
+import {
+  isActionShortcut,
+  isEditableElement,
+  formatShortcutLabel,
+  getShortcutModifierLabel
+} from '../utils/shortcutUtils';
 import DeviceThumbnail from '../components/DeviceThumbnail';
+import BuildThumbnail from '../components/BuildThumbnail';
 import ProgressBar from '../components/ProgressBar';
 import LiveLogViewer from '../components/LiveLogViewer';
 import TestResultToast from '../components/TestResultToast';
@@ -74,6 +81,8 @@ export default function RunTestPage({
   const [loadingAdbAction, setLoadingAdbAction] = useState(false);
   const [adbActionSuccess, setAdbActionSuccess] = useState(null);
   const [adbActionError, setAdbActionError] = useState(null);
+  const isStartingRef = useRef(false);
+  const shortcutMod = getShortcutModifierLabel();
 
   // Auto-sync package name when build or installed app changes
   useEffect(() => {
@@ -107,17 +116,24 @@ export default function RunTestPage({
   const isBrowserUsb = effectiveSelectedDevice?.connectionMode === 'browser-usb' || effectiveSelectedDevice?.serial?.startsWith('browser_usb_');
 
   // WebSocket event subscriptions
+  // WebSocket event subscriptions - strictly scoped to activeTestId
   useEffect(() => {
     socketService.connect();
 
     const unsubStep = socketService.on('STEP_UPDATE', (data) => {
-      if (activeTestId && data.testId && data.testId !== activeTestId) return;
+      if (!activeTestId || !data.testId || data.testId !== activeTestId) return;
       if (data.steps) setSteps(data.steps);
     });
 
     const unsubLog = socketService.on('LOG', (data) => {
-      if (activeTestId && data.testId && data.testId !== activeTestId) return;
-      if (data.serial && effectiveSelectedDevice && data.serial !== effectiveSelectedDevice.serial) return;
+      // If this log belongs to a test, enforce strict activeTestId matching
+      if (data.testId) {
+        if (!activeTestId || data.testId !== activeTestId) return;
+      } else {
+        // Raw device logcat line - only accept if a test or session is actively running on the selected device
+        if (!activeTestId && !isRunning) return;
+        if (!selectedDevice || !data.serial || data.serial !== selectedDevice.serial) return;
+      }
       if (data.log) {
         setLogs((prev) => {
           // Bounded buffer for browser performance while permanently retaining API transaction & Crash history
@@ -166,14 +182,15 @@ export default function RunTestPage({
     });
 
     const unsubProgress = socketService.on('PROGRESS', (data) => {
-      if (activeTestId && data.testId && data.testId !== activeTestId) return;
+      if (!activeTestId || !data.testId || data.testId !== activeTestId) return;
       setProgress(data.progress || 0);
       if (data.assetPackName) setAssetPackName(data.assetPackName);
     });
 
     const unsubFinished = socketService.on('TEST_FINISHED', (data) => {
-      if (activeTestId && data.testId && data.testId !== activeTestId) return;
-      if (activeTestId && data.test?.id && data.test.id !== activeTestId) return;
+      const eventTestId = data.testId || data.test?.id;
+      // Strict guard: ignore any completion event that does not match this page's active test session
+      if (!activeTestId || !eventTestId || eventTestId !== activeTestId) return;
       if (isBrowserUsb && isRunning) return;
       setIsRunning(false);
       setCompletedTest(data.test);
@@ -181,7 +198,9 @@ export default function RunTestPage({
     });
 
     const unsubSnapshot = socketService.on('SNAPSHOT', (data) => {
-      if (activeTestId && data.test?.id && data.test.id !== activeTestId) return;
+      const snapTestId = data.testId || data.test?.id;
+      // Strict guard: ignore snapshots from other test sessions
+      if (!activeTestId || !snapTestId || snapTestId !== activeTestId) return;
       if (isBrowserUsb && isRunning) return;
       if (data.test) {
         if (data.test.status === 'COMPLETED') setCompletedTest(data.test);
@@ -196,7 +215,7 @@ export default function RunTestPage({
       unsubFinished();
       unsubSnapshot();
     };
-  }, [activeTestId, isBrowserUsb, isRunning, effectiveSelectedDevice?.serial]);
+  }, [activeTestId, isBrowserUsb, isRunning, selectedDevice?.serial, effectiveSelectedDevice?.serial]);
 
   // Context change tracking to reset displayed log buffer and isolate testing contexts
   const prevContextRef = useRef({
@@ -229,8 +248,9 @@ export default function RunTestPage({
   }, [appSource, selectedInstalledApp, selectedBuild?.id, effectiveSelectedDevice?.serial, isRunning]);
 
   // Live Device Logcat subscription for Server ADB devices
+  // Strictly requires an explicitly selected device AND an active test or monitoring session
   useEffect(() => {
-    if (!effectiveSelectedDevice || isBrowserUsb) return;
+    if (!selectedDevice || isBrowserUsb || (!isRunning && !activeTestId)) return;
 
     const targetPkg = appSource === 'installed'
       ? (selectedInstalledApp || adbPackageName || '')
@@ -238,17 +258,17 @@ export default function RunTestPage({
 
     socketService.send({
       action: 'DEVICE_LOGCAT_START',
-      serial: effectiveSelectedDevice.serial,
+      serial: selectedDevice.serial,
       packageName: targetPkg
     });
 
     return () => {
       socketService.send({
         action: 'DEVICE_LOGCAT_STOP',
-        serial: effectiveSelectedDevice.serial
+        serial: selectedDevice.serial
       });
     };
-  }, [effectiveSelectedDevice?.serial, appSource, selectedInstalledApp, selectedBuild?.packageName, adbPackageName, isBrowserUsb]);
+  }, [selectedDevice?.serial, appSource, selectedInstalledApp, selectedBuild?.packageName, adbPackageName, isBrowserUsb, isRunning, activeTestId]);
 
   // Fetch installed packages from connected target device
   const fetchInstalledApps = async () => {
@@ -456,11 +476,14 @@ export default function RunTestPage({
   };
 
   const handleStartTest = async (uninstallConfirmed = false) => {
-    const targetDevice = effectiveSelectedDevice;
-    if (!targetDevice || targetDevice.platform === 'ios') {
-      setError('Please select a target Android device. PAD testing and app monitoring are only supported on Android devices.');
-      return;
-    }
+    if (isRunning || isStartingRef.current) return;
+    isStartingRef.current = true;
+    try {
+      const targetDevice = effectiveSelectedDevice;
+      if (!targetDevice || targetDevice.platform === 'ios') {
+        setError('Please select a target Android device. PAD testing and app monitoring are only supported on Android devices.');
+        return;
+      }
 
     if (appSource === 'installed') {
       if (!selectedInstalledApp) {
@@ -556,7 +579,10 @@ export default function RunTestPage({
         setError(err.message || 'Failed to start test.');
       }
     }
-  };
+  } finally {
+    isStartingRef.current = false;
+  }
+};
 
   const handleCancelTest = async () => {
     if (isBrowserUsb) {
@@ -614,48 +640,45 @@ export default function RunTestPage({
     }
   };
 
-  // Keyboard Shortcuts for Run PAD Test (Alt+Q) & Controlled ADB Operations (Alt+R, Alt+D, Alt+C, Alt+U)
+  // Cross-Platform Keyboard Shortcuts for Run PAD Test (Alt/Option + Q) & Controlled ADB Operations (R, D, C, U)
   useEffect(() => {
     const handleKeyDown = (event) => {
-      // Must have Alt pressed and no other modifier (Ctrl/Meta)
+      // Must have Alt/Option pressed and no Ctrl or Meta/Cmd
       if (!event.altKey || event.ctrlKey || event.metaKey) {
         return;
       }
 
-      // Ignore when typing or interacting with an editable field
-      const target = event.target;
-      if (
-        target instanceof HTMLInputElement ||
-        target instanceof HTMLTextAreaElement ||
-        target instanceof HTMLSelectElement ||
-        target instanceof HTMLOptionElement ||
-        target?.isContentEditable
-      ) {
+      // Ignore repeated keydown events from holding key down
+      if (event.repeat) {
         return;
       }
 
-      const key = event.key?.toLowerCase();
-      if (key === 'q') {
+      // Ignore when typing or interacting with an editable field
+      if (isEditableElement(event.target)) {
+        return;
+      }
+
+      if (isActionShortcut(event, 'KeyQ', 'q', 'œ')) {
         event.preventDefault();
-        if (!isRunning) {
+        if (!isRunning && !isStartingRef.current) {
           handleStartTest(false);
         }
-      } else if (key === 'r') {
+      } else if (isActionShortcut(event, 'KeyR', 'r', '®')) {
         event.preventDefault();
         if (!loadingAdbAction) {
           handleAdbAction('launch');
         }
-      } else if (key === 'd') {
+      } else if (isActionShortcut(event, 'KeyD', 'd', '∂')) {
         event.preventDefault();
         if (!loadingAdbAction) {
           handleAdbAction('clear-data');
         }
-      } else if (key === 'c') {
+      } else if (isActionShortcut(event, 'KeyC', 'c', 'ç')) {
         event.preventDefault();
         if (!loadingAdbAction) {
           handleAdbAction('clear-cache');
         }
-      } else if (key === 'u') {
+      } else if (isActionShortcut(event, 'KeyU', 'u', '¨')) {
         event.preventDefault();
         if (!loadingAdbAction) {
           handleAdbAction('uninstall');
@@ -822,7 +845,10 @@ export default function RunTestPage({
 
               <div className="relative">
                 <div className="w-full px-3 py-2 rounded-lg bg-[#080B10] border border-[#1C2230] text-xs text-[#E2E8F0] flex items-center justify-between">
-                  <div className="flex items-center gap-2 truncate">
+                  <div className="flex items-center gap-2.5 truncate">
+                    {selectedBuild && (
+                      <BuildThumbnail build={selectedBuild} size="xs" />
+                    )}
                     {selectedBuild && (
                       <span className="px-1.5 py-0.5 rounded bg-[#161B26] border border-[#283244] text-[10px] font-bold font-mono text-[#94A3B8] tracking-wider shrink-0">
                         {(selectedBuild.fileType === 'apk' || selectedBuild.fileName?.endsWith('.apk')) ? 'APK' : 'AAB'}
@@ -889,11 +915,16 @@ export default function RunTestPage({
               </div>
               <div className="relative">
                 <div className="w-full px-3.5 py-2.5 rounded-lg bg-[#080B10] border border-[#1C2230] text-xs text-[#E2E8F0] flex items-center justify-between">
-                  <span className="font-semibold text-white truncate font-mono">
-                    {loadingInstalledApps
-                      ? 'Loading installed packages from device...'
-                      : selectedInstalledApp || (installedApps.length === 0 ? 'No applications found on device' : 'Select installed application')}
-                  </span>
+                  <div className="flex items-center gap-2 truncate">
+                    {selectedInstalledApp && !loadingInstalledApps && (
+                      <BuildThumbnail packageName={selectedInstalledApp} size="xs" />
+                    )}
+                    <span className="font-semibold text-white truncate font-mono">
+                      {loadingInstalledApps
+                        ? 'Loading installed packages from device...'
+                        : selectedInstalledApp || (installedApps.length === 0 ? 'No applications found on device' : 'Select installed application')}
+                    </span>
+                  </div>
                   <ChevronDown className="w-4 h-4 text-[#64748B] shrink-0 ml-2" />
                 </div>
                 <select
@@ -1037,11 +1068,11 @@ export default function RunTestPage({
               onClick={() => handleStartTest(false)}
               disabled={!selectedDevice || (appSource === 'uploaded' ? !selectedBuild : !selectedInstalledApp)}
               className="px-6 py-3 rounded-xl bg-[#F59E0B] hover:bg-[#D97706] disabled:opacity-40 text-xs font-bold text-black shadow-lg shadow-amber-500/10 transition-all flex items-center gap-2.5 cursor-pointer"
-              title={appSource === 'uploaded' ? 'Run Play Asset Delivery test (Alt + Q)' : 'Start live QA monitoring for installed app (Alt + Q)'}
+              title={appSource === 'uploaded' ? `Run Play Asset Delivery test (${shortcutMod} + Q)` : `Start live QA monitoring for installed app (${shortcutMod} + Q)`}
             >
               <Play className="w-3.5 h-3.5 fill-black text-black" />
               <span className="font-bold text-black tracking-tight">{appSource === 'uploaded' ? 'Run PAD Test' : 'Start App Monitoring'}</span>
-              <kbd className="px-1.5 py-0.5 rounded bg-black/10 border border-black/20 text-black text-[10px] font-mono font-bold tracking-tight ml-1">Alt + Q</kbd>
+              <kbd className="px-1.5 py-0.5 rounded bg-black/10 border border-black/20 text-black text-[10px] font-mono font-bold tracking-tight ml-1">{shortcutMod} + Q</kbd>
             </button>
           )}
         </div>
@@ -1100,14 +1131,14 @@ export default function RunTestPage({
             onClick={() => handleAdbAction('launch')}
             disabled={loadingAdbAction || !selectedDevice}
             className="p-3 rounded-lg bg-[#16130C] hover:bg-[#1F190E] border border-[#F59E0B]/60 text-xs text-[#F59E0B] transition-all flex flex-col items-center gap-1.5 shadow-sm cursor-pointer"
-            title="Relaunch application from fresh state (Alt + R)"
+            title={`Relaunch application from fresh state (${shortcutMod} + R)`}
           >
             <Play className="w-4 h-4 text-[#F59E0B] fill-[#F59E0B]/20" />
             <span className="font-bold text-[#F59E0B]">Relaunch</span>
             <div className="flex items-center gap-1.5 text-[10px] text-[#94A3B8] font-mono">
               <span>monkey launcher</span>
               <span>•</span>
-              <kbd className="px-1 py-0.5 rounded bg-black/40 text-[#F59E0B] border border-[#F59E0B]/30 text-[9px] font-sans">Alt+R</kbd>
+              <kbd className="px-1 py-0.5 rounded bg-black/40 text-[#F59E0B] border border-[#F59E0B]/30 text-[9px] font-sans">{shortcutMod}+R</kbd>
             </div>
           </button>
 
@@ -1115,14 +1146,14 @@ export default function RunTestPage({
             onClick={() => handleAdbAction('clear-data')}
             disabled={loadingAdbAction || !selectedDevice}
             className="p-3 rounded-lg bg-[#080B10] hover:bg-[#10131B] hover:border-amber-500/40 border border-[#1C2230] text-xs text-[#CBD5E1] hover:text-[#FFFFFF] transition-all flex flex-col items-center gap-1.5 cursor-pointer"
-            title="Wipe application user and runtime data (Alt + D)"
+            title={`Wipe application user and runtime data (${shortcutMod} + D)`}
           >
             <Eraser className="w-4 h-4 text-[#F59E0B]" />
             <span className="font-semibold text-[#FFFFFF]">Clear App Data</span>
             <div className="flex items-center gap-1.5 text-[10px] text-[#64748B] font-mono">
               <span>pm clear</span>
               <span>•</span>
-              <kbd className="px-1 py-0.5 rounded bg-[#10131B] text-[#94A3B8] border border-[#1C2230] text-[9px] font-sans">Alt+D</kbd>
+              <kbd className="px-1 py-0.5 rounded bg-[#10131B] text-[#94A3B8] border border-[#1C2230] text-[9px] font-sans">{shortcutMod}+D</kbd>
             </div>
           </button>
 
@@ -1130,14 +1161,14 @@ export default function RunTestPage({
             onClick={() => handleAdbAction('clear-cache')}
             disabled={loadingAdbAction || !selectedDevice}
             className="p-3 rounded-lg bg-[#080B10] hover:bg-[#10131B] hover:border-cyan-500/40 border border-[#1C2230] text-xs text-[#CBD5E1] hover:text-[#FFFFFF] transition-all flex flex-col items-center gap-1.5 cursor-pointer"
-            title="Clear application cache without clearing persistent data (Alt + C)"
+            title={`Clear application cache without clearing persistent data (${shortcutMod} + C)`}
           >
             <Sparkles className="w-4 h-4 text-cyan-400" />
             <span className="font-semibold text-[#FFFFFF]">Clear Cache</span>
             <div className="flex items-center gap-1.5 text-[10px] text-[#64748B] font-mono">
               <span>trim caches</span>
               <span>•</span>
-              <kbd className="px-1 py-0.5 rounded bg-[#10131B] text-[#94A3B8] border border-[#1C2230] text-[9px] font-sans">Alt+C</kbd>
+              <kbd className="px-1 py-0.5 rounded bg-[#10131B] text-[#94A3B8] border border-[#1C2230] text-[9px] font-sans">{shortcutMod}+C</kbd>
             </div>
           </button>
 
@@ -1145,14 +1176,14 @@ export default function RunTestPage({
             onClick={() => handleAdbAction('uninstall')}
             disabled={loadingAdbAction || !selectedDevice}
             className="p-3 rounded-lg bg-[#080B10] hover:bg-[#10131B] hover:border-rose-500/40 border border-[#1C2230] text-xs text-[#CBD5E1] hover:text-[#FFFFFF] transition-all flex flex-col items-center gap-1.5 cursor-pointer"
-            title="Uninstall application from device (Alt + U)"
+            title={`Uninstall application from device (${shortcutMod} + U)`}
           >
             <Trash2 className="w-4 h-4 text-rose-400" />
             <span className="font-semibold text-[#FFFFFF]">Uninstall App</span>
             <div className="flex items-center gap-1.5 text-[10px] text-[#64748B] font-mono">
               <span>adb uninstall</span>
               <span>•</span>
-              <kbd className="px-1 py-0.5 rounded bg-[#10131B] text-[#94A3B8] border border-[#1C2230] text-[9px] font-sans">Alt+U</kbd>
+              <kbd className="px-1 py-0.5 rounded bg-[#10131B] text-[#94A3B8] border border-[#1C2230] text-[9px] font-sans">{shortcutMod}+U</kbd>
             </div>
           </button>
         </div>

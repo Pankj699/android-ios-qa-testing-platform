@@ -1,5 +1,6 @@
 import React from 'react';
-import { Package, Layers, Sparkles, CheckCircle2, Trash2 } from 'lucide-react';
+import { Layers, Sparkles, CheckCircle2, Trash2 } from 'lucide-react';
+import BuildThumbnail from './BuildThumbnail';
 
 export default function BuildInfoCard({ build, isSelected, onSelect, onDelete }) {
   if (!build) return null;
@@ -26,9 +27,7 @@ export default function BuildInfoCard({ build, isSelected, onSelect, onDelete })
       {/* Header */}
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-3">
-          <div className="p-2.5 rounded-lg bg-[#16130C] border border-[#F59E0B]/40 text-[#F59E0B]">
-            <Package className="w-5 h-5" />
-          </div>
+          <BuildThumbnail build={build} size="md" />
           <div>
             <div className="flex items-center gap-2">
               <h3 className="font-bold text-[#FFFFFF] text-sm break-all">{build.fileName || build.applicationName || 'Application Build'}</h3>

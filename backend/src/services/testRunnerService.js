@@ -3,24 +3,19 @@ const fs = require('fs');
 const { v4: uuidv4 } = require('uuid');
 const config = require('../config');
 const logger = require('../utils/logger');
-const adbService = require('./adbService');
-const bundletoolService = require('./bundletoolService');
-const aabAnalyzerService = require('./aabAnalyzerService');
-const historyService = require('./historyService');
-const deviceLockService = require('./deviceLockService');
+
+// Lazy/post-export loaded services to avoid circular dependencies
+let adbService;
+let bundletoolService;
+let aabAnalyzerService;
+let historyService;
+let deviceLockService;
 
 class TestRunnerService {
   constructor() {
     this.activeTests = new Map(); // testId -> { process, logcatProc, status, abortController }
     this.subscribers = new Map(); // testId -> Set of ws client callbacks
     this.globalBroadcastCallback = null;
-
-    // Register active test checker callback on adbService without circular dependency
-    if (adbService && typeof adbService.setActiveTestChecker === 'function') {
-      adbService.setActiveTestChecker((serial, hardwareSerial) => {
-        return this.isTestActiveForDevice(serial, hardwareSerial);
-      });
-    }
   }
 
   setGlobalBroadcastCallback(cb) {
@@ -30,9 +25,21 @@ class TestRunnerService {
   notifyGlobalFinished(testRecord) {
     if (this.globalBroadcastCallback && testRecord) {
       try {
-        this.globalBroadcastCallback('TEST_FINISHED', { testId: testRecord.id, test: testRecord });
+        // Scoped test history notification without broadcasting full test payload
+        this.globalBroadcastCallback('TEST_HISTORY_UPDATED', {
+          testId: testRecord.id,
+          userId: testRecord.userId
+        });
       } catch (e) {
         logger.debug(`[TestRunner] Global broadcast error: ${e.message}`);
+      }
+    }
+
+    if (deviceLockService && typeof deviceLockService.notifyOperationFinished === 'function' && testRecord?.deviceSerial) {
+      try {
+        deviceLockService.notifyOperationFinished(testRecord.deviceSerial);
+      } catch (e) {
+        logger.debug(`[TestRunner] DeviceLock notifyOperationFinished error: ${e.message}`);
       }
     }
   }
@@ -82,10 +89,19 @@ class TestRunnerService {
     this.subscribers.get(testId).add(ws);
 
     // Send initial snapshot if active
-    if (active && active.snapshot) {
-      this.sendToWs(ws, active.snapshot);
+    if (active) {
+      this.sendToWs(ws, {
+        type: 'SNAPSHOT',
+        testId,
+        test: {
+          ...active.testData,
+          steps: active.steps,
+          status: active.status || 'RUNNING',
+          progress: active.progress || 0
+        }
+      });
     } else if (saved) {
-      this.sendToWs(ws, { type: 'SNAPSHOT', test: saved });
+      this.sendToWs(ws, { type: 'SNAPSHOT', testId, test: saved });
     }
     return true;
   }
@@ -96,11 +112,14 @@ class TestRunnerService {
   unsubscribe(testId, ws) {
     if (this.subscribers.has(testId)) {
       this.subscribers.get(testId).delete(ws);
+      if (this.subscribers.get(testId).size === 0) {
+        this.subscribers.delete(testId);
+      }
     }
   }
 
   /**
-   * Broadcast message to all subscribers of a test
+   * Broadcast message to all subscribers of a test with dead socket pruning
    */
   broadcast(testId, message) {
     const clients = this.subscribers.get(testId);
@@ -108,8 +127,17 @@ class TestRunnerService {
       const dataStr = JSON.stringify(message);
       for (const client of clients) {
         if (client.readyState === 1) { // OPEN
-          client.send(dataStr);
+          try {
+            client.send(dataStr);
+          } catch (e) {
+            clients.delete(client);
+          }
+        } else if (client.readyState > 1) { // CLOSING or CLOSED
+          clients.delete(client);
         }
+      }
+      if (clients.size === 0) {
+        this.subscribers.delete(testId);
       }
     }
   }
@@ -136,6 +164,17 @@ class TestRunnerService {
 
     logger.info(`Cancelling test ${testId}...`);
     active.isCancelled = true;
+
+    if (active.currentProc) {
+      try { active.currentProc.kill('SIGKILL'); } catch (e) {}
+      active.currentProc = null;
+    }
+
+    if (active.stayAwakeState) {
+      const stateToRestore = active.stayAwakeState;
+      active.stayAwakeState = null;
+      adbService.restoreStayAwake(active.testData?.deviceSerial, stateToRestore.originalStayOn).catch(() => {});
+    }
 
     if (active.pidWatchInterval) {
       clearInterval(active.pidWatchInterval);
@@ -296,6 +335,7 @@ class TestRunnerService {
         source: 'installed-app',
         packageName,
         applicationName: packageName.split('.').pop() || packageName,
+        iconUrl: `/api/app-icon/${encodeURIComponent(packageName)}`,
         deviceSerial,
         deviceName: 'Android Device',
         installMode: 'Installed App Monitor',
@@ -464,6 +504,8 @@ class TestRunnerService {
       currentStepId: 'check_prereqs',
       progress: 0,
       isCancelled: false,
+      currentProc: null,
+      stayAwakeState: null,
       logcatProc: null,
       mainAssetPack: '',
       user: currentUser,
@@ -512,6 +554,17 @@ class TestRunnerService {
       this.emitLog(testId, `[ERROR] ${reason}`, 'ERROR');
       if (techDetails) {
         this.emitLog(testId, `Technical Details: ${techDetails}`, 'ERROR');
+      }
+
+      if (active.currentProc) {
+        try { active.currentProc.kill('SIGKILL'); } catch (e) {}
+        active.currentProc = null;
+      }
+
+      if (active.stayAwakeState) {
+        const stateToRestore = active.stayAwakeState;
+        active.stayAwakeState = null;
+        adbService.restoreStayAwake(deviceSerial, stateToRestore.originalStayOn).catch(() => {});
       }
 
       if (active.logcatProc) {
@@ -604,6 +657,17 @@ class TestRunnerService {
       this.emitLog(testId, `✓ Connected: ${displayLabel}`);
       this.updateStep(testId, 'check_device', 'PASSED', displayLabel);
 
+      // Engage screen stay-awake for duration of test execution
+      try {
+        const stayAwake = await adbService.acquireStayAwake(deviceSerial);
+        if (stayAwake) {
+          active.stayAwakeState = stayAwake;
+          this.emitLog(testId, `✓ Device screen stay-awake engaged for test duration (original setting: ${stayAwake.originalStayOn ?? 'none'}).`);
+        }
+      } catch (wakeErr) {
+        logger.debug(`[TestRunner] Stay-awake notice: ${wakeErr.message}`);
+      }
+
       if (active.isCancelled) return;
 
       // STEP 3: Analyze AAB (Reuse cached upload analysis when available)
@@ -626,6 +690,8 @@ class TestRunnerService {
         aabInfo = await aabAnalyzerService.analyzeAab(aabPath);
       }
 
+      active.testData.buildId = buildId || (cachedBuild ? cachedBuild.id : null);
+      active.testData.iconUrl = cachedBuild?.iconUrl || (active.testData.buildId ? `/api/build/${active.testData.buildId}/icon` : `/api/app-icon/${encodeURIComponent(aabInfo.packageName)}`);
       active.testData.fileName = (cachedBuild && cachedBuild.fileName) ? cachedBuild.fileName : path.basename(aabPath);
       active.testData.applicationName = aabInfo.applicationName;
       active.testData.packageName = aabInfo.packageName;
@@ -643,6 +709,12 @@ class TestRunnerService {
 
       // STEP 4: Handle Install Mode & Existing Package
       this.updateStep(testId, 'handle_install_mode', 'RUNNING');
+      try {
+        await adbService.assertDeviceOnline(deviceSerial);
+      } catch (onlineErr) {
+        return failTest('handle_install_mode', `Device ${deviceSerial} is offline or unreachable before installation.`, onlineErr.message);
+      }
+
       const isInstalled = await adbService.isPackageInstalled(deviceSerial, aabInfo.packageName);
 
       if (isInstalled) {
@@ -664,6 +736,12 @@ class TestRunnerService {
 
       // STEP 5: Generate APKs with Bundletool Local Testing (Skipped for standalone APK)
       this.updateStep(testId, 'generate_apks', 'RUNNING');
+      try {
+        await adbService.assertDeviceOnline(deviceSerial);
+      } catch (onlineErr) {
+        return failTest('generate_apks', `Device ${deviceSerial} is offline or unreachable before generating APKs.`, onlineErr.message);
+      }
+
       const isApk = aabPath.toLowerCase().endsWith('.apk') || cachedBuild?.fileType === 'apk';
       const cachedApksName = `${buildId || path.basename(aabPath, path.extname(aabPath))}.apks`;
       const outputApksPath = path.join(config.APKS_OUTPUT_DIR, cachedApksName);
@@ -681,6 +759,7 @@ class TestRunnerService {
           try {
             await bundletoolService.buildApks(aabPath, outputApksPath, {
               deviceId: deviceSerial,
+              onSpawn: (proc) => { active.currentProc = proc; },
               onLog: (chunk) => {
                 const trimmed = chunk.trim();
                 if (trimmed) this.emitLog(testId, `[Bundletool] ${trimmed}`, 'DEBUG');
@@ -690,6 +769,8 @@ class TestRunnerService {
             this.updateStep(testId, 'generate_apks', 'PASSED', 'APKS generated with --local-testing');
           } catch (err) {
             return failTest('generate_apks', 'Bundletool APK generation failed.', err.message);
+          } finally {
+            active.currentProc = null;
           }
         }
       }
@@ -699,12 +780,25 @@ class TestRunnerService {
       // STEP 6: Install Application (Direct APK or Bundletool APKS)
       this.updateStep(testId, 'install_app', 'RUNNING');
       try {
+        await adbService.assertDeviceOnline(deviceSerial);
+      } catch (onlineErr) {
+        return failTest('install_app', `Device ${deviceSerial} is offline or unreachable before installing application.`, onlineErr.message);
+      }
+
+      try {
         if (isApk) {
           this.emitLog(testId, `Installing standalone APK (${path.basename(aabPath)}) to device ${deviceSerial}...`);
-          await adbService.installApk(deviceSerial, aabPath);
+          await adbService.installApk(deviceSerial, aabPath, {
+            onSpawn: (proc) => { active.currentProc = proc; },
+            onLog: (chunk) => {
+              const trimmed = chunk.trim();
+              if (trimmed) this.emitLog(testId, `[Install] ${trimmed}`, 'DEBUG');
+            }
+          });
         } else {
           this.emitLog(testId, `Installing generated APKs to device ${deviceSerial}...`);
           await bundletoolService.installApks(outputApksPath, deviceSerial, {
+            onSpawn: (proc) => { active.currentProc = proc; },
             onLog: (chunk) => {
               const trimmed = chunk.trim();
               if (trimmed) this.emitLog(testId, `[Install] ${trimmed}`, 'DEBUG');
@@ -720,6 +814,8 @@ class TestRunnerService {
         this.updateStep(testId, 'install_app', 'PASSED', 'Installed & verified');
       } catch (err) {
         return failTest('install_app', 'Failed to install application on device.', err.message);
+      } finally {
+        active.currentProc = null;
       }
 
       if (active.isCancelled) return;
@@ -727,6 +823,12 @@ class TestRunnerService {
       // STEP 7: Launch Application & Clear Logcat (if enabled)
       if (launchApp) {
         this.updateStep(testId, 'launch_app', 'RUNNING');
+        try {
+          await adbService.assertDeviceOnline(deviceSerial);
+        } catch (onlineErr) {
+          return failTest('launch_app', `Device ${deviceSerial} is offline or unreachable before launching application.`, onlineErr.message);
+        }
+
         this.emitLog(testId, 'Clearing logcat buffer before launch...');
         await adbService.clearLogcat(deviceSerial);
 
@@ -786,6 +888,13 @@ class TestRunnerService {
       this.emitLog(testId, '==================================================');
       this.updateStep(testId, 'verify_result', 'PASSED', 'Test Passed');
 
+      // Cleanly restore screen stay-awake on successful completion
+      if (active.stayAwakeState) {
+        const stateToRestore = active.stayAwakeState;
+        active.stayAwakeState = null;
+        await adbService.restoreStayAwake(deviceSerial, stateToRestore.originalStayOn);
+      }
+
       const durationSeconds = Math.round((Date.now() - active.startTime) / 1000);
       const finalRecord = {
         ...active.testData,
@@ -808,6 +917,17 @@ class TestRunnerService {
 
     } catch (unexpectedError) {
       failTest('verify_result', `Unexpected test failure: ${unexpectedError.message}`, unexpectedError.stack);
+    } finally {
+      if (active) {
+        if (active.stayAwakeState) {
+          const stateToRestore = active.stayAwakeState;
+          active.stayAwakeState = null;
+          adbService.restoreStayAwake(deviceSerial, stateToRestore.originalStayOn).catch(() => {});
+        }
+        if (active.currentProc) {
+          active.currentProc = null;
+        }
+      }
     }
   }
 
@@ -1036,4 +1156,26 @@ class TestRunnerService {
   }
 }
 
-module.exports = new TestRunnerService();
+const testRunnerService = new TestRunnerService();
+module.exports = testRunnerService;
+
+// Load dependent services after module.exports is assigned to prevent circular dependencies
+adbService = require('./adbService');
+bundletoolService = require('./bundletoolService');
+aabAnalyzerService = require('./aabAnalyzerService');
+historyService = require('./historyService');
+deviceLockService = require('./deviceLockService');
+
+// Register active test checker callback on adbService without circular dependency
+if (adbService && typeof adbService.setActiveTestChecker === 'function') {
+  adbService.setActiveTestChecker((serial, hardwareSerial) => {
+    return testRunnerService.isTestActiveForDevice(serial, hardwareSerial);
+  });
+}
+
+// Register active test checker callback on deviceLockService without circular dependency
+if (deviceLockService && typeof deviceLockService.setActiveTestChecker === 'function') {
+  deviceLockService.setActiveTestChecker((serial, hardwareSerial) => {
+    return testRunnerService.isTestActiveForDevice(serial, hardwareSerial);
+  });
+}

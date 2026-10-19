@@ -30,10 +30,20 @@ function setupWebSocket(server, extraServer = null) {
   const agentWss = setupAgentWebSocket(server);
   globalWss = clientWss;
 
-  // Wire global test completion notifications to client broadcast
+  // Wire global test completion/history notifications to user-scoped delivery
   if (testRunnerService && typeof testRunnerService.setGlobalBroadcastCallback === 'function') {
     testRunnerService.setGlobalBroadcastCallback((type, payload) => {
-      broadcastEvent(type, payload);
+      if (type === 'TEST_HISTORY_UPDATED' && payload?.userId) {
+        // Scoped delivery: only notify the user who owns the test without leaking test payload
+        sendToUser(payload.userId, { type: 'TEST_HISTORY_UPDATED', testId: payload.testId }, { exactUserOnly: true });
+      } else if (type === 'TEST_FINISHED') {
+        // Guard against unscoped leakage: raw TEST_FINISHED with test payloads must never be broadcast globally
+        if (payload?.userId) {
+          sendToUser(payload.userId, { type: 'TEST_HISTORY_UPDATED', testId: payload.testId }, { exactUserOnly: true });
+        }
+      } else {
+        broadcastEvent(type, payload);
+      }
     });
   }
 
@@ -79,8 +89,12 @@ function setupWebSocket(server, extraServer = null) {
     ws.user = user || { id: 'default_user', name: 'QA Tester', role: 'admin' };
     logger.debug(`[WS] Client connected for ${ws.user.name}. Test ID: ${testId || 'general'}, Mirror: ${mirrorSerial || 'none'}`);
 
+    ws.subscribedTestIds = new Set();
     if (testId) {
-      testRunnerService.subscribe(testId, ws, ws.user);
+      const authorized = testRunnerService.subscribe(testId, ws, ws.user);
+      if (authorized) {
+        ws.subscribedTestIds.add(testId);
+      }
     }
 
     if (mirrorSerial) {
@@ -112,9 +126,12 @@ function setupWebSocket(server, extraServer = null) {
         if (data.action === 'SUBSCRIBE' && data.testId) {
           const authorized = testRunnerService.subscribe(data.testId, ws, ws.user);
           if (authorized) {
+            if (!ws.subscribedTestIds) ws.subscribedTestIds = new Set();
+            ws.subscribedTestIds.add(data.testId);
             ws.send(JSON.stringify({ type: 'SUBSCRIBED', testId: data.testId }));
           }
         } else if (data.action === 'UNSUBSCRIBE' && data.testId) {
+          if (ws.subscribedTestIds) ws.subscribedTestIds.delete(data.testId);
           testRunnerService.unsubscribe(data.testId, ws);
         }
 
@@ -340,7 +357,12 @@ function setupWebSocket(server, extraServer = null) {
 
     ws.on('close', () => {
       logger.debug(`[WS] Client disconnected. Test ID: ${testId || 'general'}, Mirror: ${ws.subscribedSerial || 'none'}`);
-      if (testId) {
+      if (ws.subscribedTestIds && ws.subscribedTestIds.size > 0) {
+        for (const tid of ws.subscribedTestIds) {
+          testRunnerService.unsubscribe(tid, ws);
+        }
+        ws.subscribedTestIds.clear();
+      } else if (testId) {
         testRunnerService.unsubscribe(testId, ws);
       }
       if (ws.subscribedSerial) {
@@ -367,11 +389,14 @@ function setupWebSocket(server, extraServer = null) {
 /**
  * Scoped dispatch to a specific user
  */
-function sendToUser(userId, message) {
+function sendToUser(userId, message, options = {}) {
   if (!globalWss || !userId) return;
   const messageStr = typeof message === 'string' ? message : JSON.stringify(message);
   for (const client of globalWss.clients) {
-    if (client.readyState === 1 && client.user && (client.user.id === userId || (client.user.role || '').toLowerCase() === 'admin')) {
+    const isTarget = options.exactUserOnly
+      ? client.user && client.user.id === userId
+      : client.user && (client.user.id === userId || (client.user.role || '').toLowerCase() === 'admin');
+    if (client.readyState === 1 && isTarget) {
       try {
         client.send(messageStr);
       } catch (err) {

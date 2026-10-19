@@ -135,6 +135,10 @@ export function formatDeviceOsVersion(device) {
       rawVer = device.androidVersion;
     } else if (device.releaseVersion) {
       rawVer = device.releaseVersion;
+    } else if (device.version && !/^android$/i.test(String(device.version).trim())) {
+      rawVer = device.version;
+    } else if (device.buildVersion && !/^android$/i.test(String(device.buildVersion).trim())) {
+      rawVer = device.buildVersion;
     }
   }
 

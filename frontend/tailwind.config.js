@@ -15,9 +15,40 @@ export default {
           nav: '#0D111A',
         },
         border: {
+          DEFAULT: 'var(--border, #1E2638)',
           default: '#1E2638',
           subtle: '#263248',
         },
+        background: 'var(--background, #080A0F)',
+        foreground: 'var(--foreground, #FFFFFF)',
+        card: {
+          DEFAULT: 'var(--card, #0F1420)',
+          foreground: 'var(--card-foreground, #FFFFFF)',
+        },
+        popover: {
+          DEFAULT: 'var(--popover, #0F1420)',
+          foreground: 'var(--popover-foreground, #FFFFFF)',
+        },
+        primary: {
+          DEFAULT: 'var(--primary, #F59E0B)',
+          foreground: 'var(--primary-foreground, #000000)',
+        },
+        secondary: {
+          DEFAULT: 'var(--secondary, #141B2D)',
+          foreground: 'var(--secondary-foreground, #FFFFFF)',
+        },
+        muted: {
+          DEFAULT: 'var(--muted, #161D2D)',
+          foreground: 'var(--muted-foreground, #94A3B8)',
+        },
+        destructive: {
+          DEFAULT: 'var(--destructive, #EF4444)',
+          foreground: 'var(--destructive-foreground, #FFFFFF)',
+        },
+        input: 'var(--input, #1E2638)',
+        ring: 'var(--ring, #F59E0B)',
+        success: 'var(--success, #10B981)',
+        warning: 'var(--warning, #F59E0B)',
         accent: {
           DEFAULT: '#F59E0B',
           hover: '#D97706',

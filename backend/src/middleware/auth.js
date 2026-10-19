@@ -87,7 +87,8 @@ function extractTokenFromRequest(req) {
 function authenticate(req, res, next) {
   const token = extractTokenFromRequest(req);
   const path = req.path || '';
-  const isPublic = PUBLIC_PATHS.some(p => path === p || path.startsWith(p + '/'));
+  const isIconPath = /^\/?(api\/)?build\/[^/]+\/icon$/i.test(path) || /^\/?(api\/)?app-icon\/[^/]+$/i.test(path);
+  const isPublic = isIconPath || PUBLIC_PATHS.some(p => path === p || path.startsWith(p + '/'));
 
   if (isPublic) {
     if (!token) {

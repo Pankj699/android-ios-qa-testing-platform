@@ -1,4 +1,4 @@
-const { test, describe, beforeEach } = require('node:test');
+const { test, describe, beforeEach, after } = require('node:test');
 const assert = require('node:assert');
 const deviceLockService = require('../src/services/deviceLockService');
 const wirelessPairingService = require('../src/services/wirelessPairingService');
@@ -269,5 +269,13 @@ describe('Phase 5 — QR / Browser Wireless Connection Lifecycle Suite', () => {
     const owner = deviceLockService.getOwner(hwVivo);
     assert.ok(owner, 'Established device ownership must remain intact');
     assert.strictEqual(owner.userId, userA.id, 'Session cancellation must never release existing device ownership');
+  });
+
+  after(() => {
+    deviceLockService.releaseDevice(hwVivo, admin, true);
+    deviceLockService.releaseDevice(usbVivo, admin, true);
+    deviceLockService.releaseDevice(qrSerialA, admin, true);
+    deviceLockService.releaseDevice(qrSerialB, admin, true);
+    deviceLockService.releaseDevice('192.168.0.146', admin, true);
   });
 });

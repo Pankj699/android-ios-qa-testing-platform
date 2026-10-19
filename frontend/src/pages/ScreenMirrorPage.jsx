@@ -21,7 +21,8 @@ export default function ScreenMirrorPage({
   devices = [],
   selectedDevice,
   onSelectDevice,
-  onOpenPairModal
+  onOpenPairModal,
+  isActive = true
 }) {
   const currentDevice = selectedDevice || devices[0] || null;
 
@@ -74,7 +75,9 @@ export default function ScreenMirrorPage({
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
           {/* Main Mirror Viewport */}
           <div className="lg:col-span-8 flex justify-center">
-            <ScreenMirrorView device={currentDevice} />
+            {isActive ? (
+              <ScreenMirrorView device={currentDevice} isActive={isActive} />
+            ) : null}
           </div>
 
           {/* Side Telemetry & Instructions Panel */}

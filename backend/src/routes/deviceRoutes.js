@@ -11,6 +11,8 @@ router.get('/device/:id/info', (req, res, next) => deviceController.getDeviceInf
 router.get('/device/:id/storage', (req, res, next) => deviceController.getStorage(req, res, next));
 router.post('/device/:id/claim', (req, res, next) => deviceController.claimDevice(req, res, next));
 router.post('/device/:id/release', (req, res, next) => deviceController.releaseDevice(req, res, next));
+router.post('/device/:id/acquire', (req, res, next) => deviceController.acquireDevice(req, res, next));
+router.post('/device/acquire', (req, res, next) => deviceController.acquireDevice(req, res, next));
 router.post('/device/:id/command', (req, res, next) => deviceController.executeAgentCommand(req, res, next));
 router.get('/device/:id/installed-apps', (req, res, next) => deviceController.getInstalledApps(req, res, next));
 
@@ -20,6 +22,8 @@ router.post('/device/:id/mirror/stop', (req, res, next) => deviceController.stop
 router.get('/device/:id/mirror/status', (req, res, next) => deviceController.getMirrorStatus(req, res, next));
 router.all('/device/:id/mirror/stream*', (req, res, next) => deviceController.proxyIosStream(req, res, next));
 router.post('/device/:id/screenshot', (req, res, next) => deviceController.captureScreenshot(req, res, next));
+router.post('/device/:id/ui-hierarchy', (req, res, next) => deviceController.getUiHierarchy(req, res, next));
+router.post('/device/:id/runtime-typography', (req, res, next) => deviceController.getRuntimeTypography(req, res, next));
 router.post('/device/:id/input', (req, res, next) => deviceController.sendInput(req, res, next));
 router.get('/device/:id/screenshot/:filename', (req, res, next) => deviceController.getScreenshotFile(req, res, next));
 

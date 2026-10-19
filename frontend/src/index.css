@@ -2,6 +2,30 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --background: #080A0F;
+  --foreground: #FFFFFF;
+  --card: #0F1420;
+  --card-foreground: #FFFFFF;
+  --popover: #0F1420;
+  --popover-foreground: #FFFFFF;
+  --primary: #F59E0B;
+  --primary-foreground: #000000;
+  --secondary: #141B2D;
+  --secondary-foreground: #FFFFFF;
+  --muted: #161D2D;
+  --muted-foreground: #94A3B8;
+  --accent: #F59E0B;
+  --accent-foreground: #000000;
+  --destructive: #EF4444;
+  --destructive-foreground: #FFFFFF;
+  --border: #1E2638;
+  --input: #1E2638;
+  --ring: #F59E0B;
+  --success: #10B981;
+  --warning: #F59E0B;
+}
+
 @layer base {
   body {
     @apply bg-[#080A0F] text-[#FFFFFF] antialiased font-sans;

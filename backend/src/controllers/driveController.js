@@ -629,7 +629,8 @@ const publishRecording = publishFile;
 async function getDefaultFolder(req, res) {
   try {
     const userId = req.user.id;
-    const folder = await googleDriveService.getDefaultFolder(userId);
+    const shouldResolve = req.query.resolve === 'true' || req.query.refresh === 'true';
+    const folder = await googleDriveService.getDefaultFolder(userId, { resolve: shouldResolve });
     return res.json({
       success: true,
       ...folder

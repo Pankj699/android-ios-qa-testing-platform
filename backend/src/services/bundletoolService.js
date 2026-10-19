@@ -125,7 +125,7 @@ class BundletoolService {
    */
   execute(args, options = {}) {
     return new Promise((resolve, reject) => {
-      const timeoutMs = options.timeout || 300000; // 5 minutes default
+      const timeoutMs = options.timeout || 180000; // 3 minutes bounded default
       const fullArgs = ['-jar', this.bundletoolJarPath, ...args];
       const cmdStr = `${this.javaPath} ${fullArgs.join(' ')}`;
       logger.debug(`[Bundletool Exec] ${cmdStr}`);
@@ -134,6 +134,10 @@ class BundletoolService {
         windowsHide: true,
         shell: false
       });
+
+      if (options.onSpawn && typeof options.onSpawn === 'function') {
+        options.onSpawn(proc);
+      }
 
       let stdout = '';
       let stderr = '';
@@ -146,7 +150,7 @@ class BundletoolService {
 
       const timer = setTimeout(() => {
         timedOut = true;
-        proc.kill('SIGKILL');
+        try { proc.kill('SIGKILL'); } catch (e) {}
         reject(new Error(`Bundletool command timed out after ${timeoutMs}ms`));
       }, timeoutMs);
 
@@ -200,7 +204,7 @@ class BundletoolService {
     ];
 
     logger.info(`Building APKs for local testing: ${outputApksPath}`);
-    return this.execute(args, { onLog: options.onLog, timeout: 300000 });
+    return this.execute(args, { onLog: options.onLog, onSpawn: options.onSpawn, timeout: options.timeout || 180000 });
   }
 
   /**
@@ -228,7 +232,7 @@ class BundletoolService {
     }
 
     logger.info(`Installing APKs to device ${deviceId}...`);
-    return this.execute(args, { onLog: options.onLog, timeout: 300000 });
+    return this.execute(args, { onLog: options.onLog, onSpawn: options.onSpawn, timeout: options.timeout || 120000 });
   }
 
   /**

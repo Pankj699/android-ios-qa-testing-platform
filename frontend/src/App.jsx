@@ -8,10 +8,12 @@ import AuthModal from './components/AuthModal';
 import PairAgentModal from './components/PairAgentModal';
 import WebUsbDiagnosticsModal from './components/WebUsbDiagnosticsModal';
 import ErrorBoundary from './components/ErrorBoundary';
+import ScreenMirrorView from './components/ScreenMirrorView';
 
 import Dashboard from './pages/Dashboard';
 import DevicesPage from './pages/DevicesPage';
 import ScreenMirrorPage from './pages/ScreenMirrorPage';
+import UiInspectorPage from './pages/UiInspectorPage';
 import BuildsPage from './pages/BuildsPage';
 import RunTestPage from './pages/RunTestPage';
 import TestHistoryPage from './pages/TestHistoryPage';
@@ -21,16 +23,28 @@ import DiagnosticsPage from './pages/DiagnosticsPage';
 import AdminUsersPage from './pages/AdminUsersPage';
 import AdminDeviceManagementPage from './pages/AdminDeviceManagementPage';
 import GoogleDrivePage from './pages/GoogleDrivePage';
+import MixpanelValidatorPage from './pages/MixpanelValidatorPage';
+import BugDeskApp from './bugdesk/BugDeskApp';
+import { getModuleSettings } from './bugdesk/lib/scoped-storage';
+import { Toaster } from 'sonner';
 
 import { api } from './services/api';
 import { socketService } from './services/socket';
 import { webUsbAdbService } from './services/webUsbAdbService';
+import { screenMirrorStreamManager } from './services/screenMirrorStreamManager';
 import { Lock, LogIn, ShieldAlert } from 'lucide-react';
 
 export default function App() {
   const [currentTab, setCurrentTab] = useState('dashboard');
   const [currentUser, setCurrentUser] = useState(() => api.getCurrentUser());
   const [isAuthenticated, setIsAuthenticated] = useState(() => !!api.getCurrentUser());
+
+  // Bug Desk sub-navigation & active module state
+  const [bugDeskTab, setBugDeskTab] = useState('dashboard');
+  const [bugDeskModuleSettings, setBugDeskModuleSettings] = useState(null);
+  const [bugDeskSwitchOpen, setBugDeskSwitchOpen] = useState(false);
+  const [mirrorModalOpen, setMirrorModalOpen] = useState(false);
+  const [mirrorSessionActive, setMirrorSessionActive] = useState(false);
 
   const [devices, setDevices] = useState([]);
   const [browserUsbDevice, setBrowserUsbDevice] = useState(null);
@@ -85,8 +99,33 @@ export default function App() {
         api.getSummaryStats().catch(() => ({ stats: null }))
       ]);
 
-      const deviceList = devicesRes.devices || [];
-      setDevices(deviceList);
+      // Strictly ensure each user sees only their own devices across all pages
+      const rawDeviceList = (devicesRes.devices || []).filter(
+        (d) => d && (d.owner ? Boolean(d.owner.isOwner) : true)
+      );
+
+      // Defensively preserve last-known-valid metadata/telemetry across refreshes
+      setDevices((prevDevices) => {
+        return rawDeviceList.map((d) => {
+          const prevDev = prevDevices.find(
+            (p) => p.serial === d.serial || (d.hardwareSerial && p.hardwareSerial === d.hardwareSerial)
+          );
+          if (!prevDev) return d;
+          return {
+            ...prevDev,
+            ...d,
+            battery: (d.battery && d.battery !== 'Unknown' && d.battery !== 'N/A') ? d.battery : (prevDev.battery || d.battery),
+            batteryStatus: (d.batteryStatus && d.batteryStatus !== 'Unknown' && d.batteryStatus !== 'N/A') ? d.batteryStatus : (prevDev.batteryStatus || d.batteryStatus),
+            storageFree: (d.storageFree && d.storageFree !== 'Unknown' && d.storageFree !== 'N/A') ? d.storageFree : (prevDev.storageFree || d.storageFree),
+            storageTotal: (d.storageTotal && d.storageTotal !== 'Unknown' && d.storageTotal !== 'N/A') ? d.storageTotal : (prevDev.storageTotal || d.storageTotal),
+            storageUsedPct: d.storageUsedPct || prevDev.storageUsedPct,
+            screenResolution: (d.screenResolution && d.screenResolution !== 'Unknown' && d.screenResolution !== 'N/A') ? d.screenResolution : (prevDev.screenResolution || d.screenResolution),
+            osVersion: (d.osVersion && d.osVersion !== 'Unknown' && d.osVersion !== 'N/A') ? d.osVersion : (prevDev.osVersion || d.osVersion),
+            androidVersion: (d.androidVersion && !/^android$/i.test(String(d.androidVersion).trim())) ? d.androidVersion : (prevDev.androidVersion || d.androidVersion)
+          };
+        });
+      });
+
       setSelectedDevice((prev) => {
         const currentUsb = browserUsbDeviceRef.current;
         // If current selected device is the active browser USB device, keep it!
@@ -95,16 +134,29 @@ export default function App() {
         }
         // If previous was a server device, check if it is still connected (by serial or physical hardwareSerial)
         if (prev) {
-          const stillConnected = deviceList.find(
+          const stillConnected = rawDeviceList.find(
             (d) =>
               d.serial === prev.serial ||
               (prev.hardwareSerial && (d.hardwareSerial === prev.hardwareSerial || d.serial === prev.hardwareSerial)) ||
               (d.hardwareSerial && (d.hardwareSerial === prev.serial))
           );
-          if (stillConnected) return stillConnected;
+          if (stillConnected) {
+            return {
+              ...prev,
+              ...stillConnected,
+              battery: (stillConnected.battery && stillConnected.battery !== 'Unknown' && stillConnected.battery !== 'N/A') ? stillConnected.battery : (prev.battery || stillConnected.battery),
+              batteryStatus: (stillConnected.batteryStatus && stillConnected.batteryStatus !== 'Unknown' && stillConnected.batteryStatus !== 'N/A') ? stillConnected.batteryStatus : (prev.batteryStatus || stillConnected.batteryStatus),
+              storageFree: (stillConnected.storageFree && stillConnected.storageFree !== 'Unknown' && stillConnected.storageFree !== 'N/A') ? stillConnected.storageFree : (prev.storageFree || stillConnected.storageFree),
+              storageTotal: (stillConnected.storageTotal && stillConnected.storageTotal !== 'Unknown' && stillConnected.storageTotal !== 'N/A') ? stillConnected.storageTotal : (prev.storageTotal || stillConnected.storageTotal),
+              storageUsedPct: stillConnected.storageUsedPct || prev.storageUsedPct,
+              screenResolution: (stillConnected.screenResolution && stillConnected.screenResolution !== 'Unknown' && stillConnected.screenResolution !== 'N/A') ? stillConnected.screenResolution : (prev.screenResolution || stillConnected.screenResolution),
+              osVersion: (stillConnected.osVersion && stillConnected.osVersion !== 'Unknown' && stillConnected.osVersion !== 'N/A') ? stillConnected.osVersion : (prev.osVersion || stillConnected.osVersion),
+              androidVersion: (stillConnected.androidVersion && !/^android$/i.test(String(stillConnected.androidVersion).trim())) ? stillConnected.androidVersion : (prev.androidVersion || stillConnected.androidVersion)
+            };
+          }
         }
         // Fallback: prefer active browser USB device, otherwise first available server device, or null
-        return currentUsb || deviceList[0] || null;
+        return currentUsb || rawDeviceList[0] || null;
       });
 
       const buildList = buildsRes.builds || [];
@@ -197,6 +249,87 @@ export default function App() {
       unsubUsb();
     };
   }, [fetchData]);
+
+  // Sync Bug Desk module settings with currentUser and storage events
+  useEffect(() => {
+    if (currentUser?.id) {
+      setBugDeskModuleSettings(getModuleSettings(currentUser.id));
+    } else {
+      setBugDeskModuleSettings(null);
+    }
+  }, [currentUser]);
+
+  useEffect(() => {
+    const handleSettingsUpdated = (e) => {
+      if (e.detail) {
+        setBugDeskModuleSettings(e.detail);
+      }
+    };
+    window.addEventListener('bugdesk:settings-updated', handleSettingsUpdated);
+    return () => window.removeEventListener('bugdesk:settings-updated', handleSettingsUpdated);
+  }, []);
+
+  // Sync window URL path with Bug Desk tabs
+  useEffect(() => {
+    const parseUrlTab = () => {
+      const path = window.location.pathname.toLowerCase();
+      if (path.startsWith('/bug-desk')) {
+        setCurrentTab('bug-desk');
+        if (path.includes('/new-bug') || path.endsWith('/new')) {
+          setBugDeskTab('new-bug');
+        } else if (path.includes('/history')) {
+          setBugDeskTab('history');
+        } else if (path.includes('/settings')) {
+          setBugDeskTab('settings');
+        } else {
+          setBugDeskTab('dashboard');
+        }
+      }
+    };
+
+    parseUrlTab();
+    window.addEventListener('popstate', parseUrlTab);
+    return () => window.removeEventListener('popstate', parseUrlTab);
+  }, []);
+
+  const handleTabChange = (newTab) => {
+    setCurrentTab(newTab);
+    if (newTab === 'screen-mirror') {
+      setMirrorModalOpen(false);
+    }
+    if (newTab === 'bug-desk') {
+      window.history.pushState({}, '', `/bug-desk/${bugDeskTab}`);
+    } else if (window.location.pathname.startsWith('/bug-desk')) {
+      window.history.pushState({}, '', '/');
+    }
+  };
+
+  // If no selectedDevice, ensure mirror session & modal are deactivated
+  useEffect(() => {
+    if (!selectedDevice) {
+      setMirrorSessionActive(false);
+      setMirrorModalOpen(false);
+      screenMirrorStreamManager.unregisterStream();
+    }
+  }, [selectedDevice]);
+
+  // Reconcile backend mirror status on device selection or initial mount
+  useEffect(() => {
+    if (selectedDevice?.serial && !mirrorSessionActive) {
+      api.getMirrorStatus(selectedDevice.serial)
+        .then((res) => {
+          if (res?.status?.active) {
+            setMirrorSessionActive(true);
+          }
+        })
+        .catch(() => {});
+    }
+  }, [selectedDevice?.serial, mirrorSessionActive]);
+
+  const handleBugDeskTabChange = (newSubTab) => {
+    setBugDeskTab(newSubTab);
+    window.history.pushState({}, '', `/bug-desk/${newSubTab}`);
+  };
 
   const handleLoginSuccess = (user) => {
     setCurrentUser(user);
@@ -332,14 +465,14 @@ export default function App() {
       {/* Sidebar Navigation */}
       <Sidebar
         currentTab={currentTab}
-        setTab={setCurrentTab}
+        setTab={handleTabChange}
         runningTestCount={summaryStats?.running || 0}
         onOpenTourModal={() => setTourModalOpen(true)}
         currentUser={currentUser}
       />
 
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden bg-qa-isometric">
+      <div className={`flex-1 flex flex-col min-w-0 overflow-hidden ${currentTab === 'bug-desk' ? 'bg-[#0A0D14]' : 'bg-qa-isometric'}`}>
         {/* Header with live status & User Profile */}
         <Header
           currentUser={currentUser}
@@ -353,11 +486,23 @@ export default function App() {
             setAuthModalOpen(true);
           }}
           onLogout={handleLogout}
-          onNavigate={setCurrentTab}
+          onNavigate={handleTabChange}
+          currentTab={currentTab}
+          bugDeskTab={bugDeskTab}
+          onSelectBugDeskTab={handleBugDeskTabChange}
+          bugDeskModuleSettings={bugDeskModuleSettings}
+          onOpenSwitchModule={() => setBugDeskSwitchOpen(true)}
+          onOpenMirror={() => {
+            if (!selectedDevice && combinedDevices.length > 0) {
+              setSelectedDevice(combinedDevices[0]);
+            }
+            setMirrorSessionActive(true);
+            setMirrorModalOpen(true);
+          }}
         />
 
         {/* Scrollable Page Views */}
-        <main className="flex-1 overflow-y-auto p-6 lg:p-8 max-w-7xl w-full mx-auto">
+        <main className={`flex-1 overflow-y-auto ${currentTab === 'mixpanel-validator' ? 'p-4 lg:p-5 w-full flex flex-col min-h-0' : currentTab === 'bug-desk' ? 'p-0 w-full flex flex-col min-h-0' : 'p-6 lg:p-8 max-w-7xl w-full mx-auto'}`}>
           {/* Unauthenticated Security Banner */}
           {!isAuthenticated && (
             <div className="mb-6 p-4 rounded-xl bg-[#261D10]/80 border border-[#78350F] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-lg animate-fadeIn">
@@ -420,13 +565,23 @@ export default function App() {
               />
             )}
 
-            {currentTab === 'screen-mirror' && (
+            <div className={currentTab === 'screen-mirror' ? 'block' : 'hidden'}>
               <ScreenMirrorPage
                 devices={combinedDevices}
                 selectedDevice={selectedDevice}
                 onSelectDevice={setSelectedDevice}
                 onOpenPairModal={() => guardAction(() => setPairModalOpen(true))}
                 onConnectBrowserUsb={handleConnectBrowserUsb}
+                isActive={currentTab === 'screen-mirror'}
+              />
+            </div>
+
+            {currentTab === 'ui-inspector' && (
+              <UiInspectorPage
+                devices={combinedDevices}
+                selectedDevice={selectedDevice}
+                onSelectDevice={setSelectedDevice}
+                onOpenPairModal={() => guardAction(() => setPairModalOpen(true))}
               />
             )}
 
@@ -459,6 +614,15 @@ export default function App() {
                   webUsbAdbService.getDiagnostics().then(d => { setUsbDiagnostics(d); setUsbDiagModalOpen(true); });
                 }}
                 onOpenUploadModal={() => guardAction(() => setUploadModalOpen(true))}
+              />
+            )}
+
+            {currentTab === 'mixpanel-validator' && (
+              <MixpanelValidatorPage
+                devices={combinedDevices}
+                selectedDevice={selectedDevice}
+                setSelectedDevice={setSelectedDevice}
+                currentUser={currentUser}
               />
             )}
 
@@ -515,6 +679,40 @@ export default function App() {
                 </div>
               )
             )}
+
+            {isAuthenticated ? (
+              <div className={currentTab === 'bug-desk' ? 'block' : 'hidden'}>
+                <BugDeskApp
+                  currentUser={currentUser}
+                  onLogout={handleLogout}
+                  activeSubTab={bugDeskTab}
+                  onSelectSubTab={handleBugDeskTabChange}
+                  switchModuleOpen={bugDeskSwitchOpen}
+                  setSwitchModuleOpen={setBugDeskSwitchOpen}
+                />
+              </div>
+            ) : (
+              currentTab === 'bug-desk' && (
+                <div className="p-12 text-center text-slate-400 max-w-md mx-auto my-12 bg-[#0F1420] border border-[#1E2638] rounded-2xl shadow-xl">
+                  <div className="w-12 h-12 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400 mx-auto mb-4">
+                    <Lock className="w-6 h-6" />
+                  </div>
+                  <h3 className="text-lg font-bold text-white">Sign In Required</h3>
+                  <p className="text-xs text-slate-400 mt-2 leading-relaxed">
+                    Please sign in to your QA Platform account to access your personal Bug Desk workspace, saved API keys, and bug reports.
+                  </p>
+                  <button
+                    onClick={() => {
+                      setAuthModalMode('login');
+                      setAuthModalOpen(true);
+                    }}
+                    className="mt-5 px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-black font-bold text-xs uppercase tracking-wider transition-all shadow-md cursor-pointer"
+                  >
+                    Sign In to QA Platform
+                  </button>
+                </div>
+              )
+            )}
           </ErrorBoundary>
         </main>
       </div>
@@ -553,7 +751,7 @@ export default function App() {
       <AppTourModal
         isOpen={tourModalOpen}
         onClose={() => setTourModalOpen(false)}
-        onNavigate={setCurrentTab}
+        onNavigate={handleTabChange}
       />
 
       {/* WebUSB Device Diagnostics & Insecure Context Modal */}
@@ -563,6 +761,33 @@ export default function App() {
         onConnectUsb={handleConnectBrowserUsb}
         initialDiagnostics={usbDiagnostics}
       />
+
+      {/* Screen Mirror Modal (Accessible from BugDesk and across the QA Platform) */}
+      {mirrorSessionActive && selectedDevice && currentTab !== 'screen-mirror' && (
+        <div
+          className={`fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md transition-opacity duration-200 ${
+            mirrorModalOpen
+              ? 'opacity-100 pointer-events-auto'
+              : 'opacity-0 pointer-events-none -top-[99999px] -left-[99999px]'
+          }`}
+          aria-hidden={!mirrorModalOpen}
+        >
+          <div className="relative w-full max-w-4xl max-h-[92vh] flex flex-col">
+            <ScreenMirrorView
+              device={selectedDevice}
+              onClose={() => setMirrorModalOpen(false)}
+              onStopMirror={() => {
+                setMirrorSessionActive(false);
+                setMirrorModalOpen(false);
+              }}
+              isActive={mirrorModalOpen}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Sonner toast provider for notifications across Bug Desk */}
+      <Toaster position="top-right" richColors theme="dark" closeButton />
     </div>
   );
 }

@@ -12,6 +12,8 @@ class AdbService {
     this.wirelessFallbacks = new Map();
     this._hardwareSerialCache = new Map();
     this._deviceMetaCache = new Map();
+    this._deviceTelemetryCache = new Map();
+    this._telemetryFetching = new Set();
     this._disconnectingSerials = new Set();
     this.deferredCleanups = new Map(); // hwSerial -> { wSerial, usbSerial, hwSerial }
     this._activeTestChecker = null;
@@ -368,23 +370,133 @@ class AdbService {
   }
 
   /**
+   * Safe retrieval of cached device build metadata
+   */
+  _getCachedMeta(serial, hwSerial = null) {
+    if (!this._deviceMetaCache) this._deviceMetaCache = new Map();
+    const resolvedHw = hwSerial || (serial ? this._hardwareSerialCache?.get(serial) : null);
+    if (resolvedHw && this._deviceMetaCache.has(resolvedHw)) {
+      return this._deviceMetaCache.get(resolvedHw);
+    }
+    if (serial && this._deviceMetaCache.has(serial)) {
+      return this._deviceMetaCache.get(serial);
+    }
+    return null;
+  }
+
+  /**
+   * Safe storage of device build metadata (never overwrites valid values with null/empty)
+   */
+  _setCachedMeta(serial, hwSerial = null, newMeta = {}) {
+    if (!this._deviceMetaCache) this._deviceMetaCache = new Map();
+    const resolvedHw = hwSerial || (serial ? this._hardwareSerialCache?.get(serial) : null);
+    const existing = this._getCachedMeta(serial, resolvedHw) || {};
+
+    const merged = {
+      manufacturer: (newMeta.manufacturer && newMeta.manufacturer !== 'Android' && newMeta.manufacturer !== 'Unknown')
+        ? newMeta.manufacturer
+        : (existing.manufacturer || newMeta.manufacturer || 'Android'),
+      model: (newMeta.model && newMeta.model !== 'Unknown Model' && newMeta.model !== 'Device')
+        ? newMeta.model
+        : (existing.model || newMeta.model || 'Device'),
+      osVersion: (newMeta.osVersion && newMeta.osVersion !== 'Unknown' && newMeta.osVersion !== 'N/A')
+        ? newMeta.osVersion
+        : (existing.osVersion || null),
+      sdkVersion: (newMeta.sdkVersion && newMeta.sdkVersion !== 'Unknown')
+        ? newMeta.sdkVersion
+        : (existing.sdkVersion || ''),
+      cachedAt: Date.now()
+    };
+
+    if (serial) this._deviceMetaCache.set(serial, merged);
+    if (resolvedHw) this._deviceMetaCache.set(resolvedHw, merged);
+    return merged;
+  }
+
+  /**
+   * Safe retrieval of cached device telemetry (battery, storage, screen)
+   */
+  _getCachedTelemetry(serial, hwSerial = null) {
+    if (!this._deviceTelemetryCache) this._deviceTelemetryCache = new Map();
+    const resolvedHw = hwSerial || (serial ? this._hardwareSerialCache?.get(serial) : null);
+    if (resolvedHw && this._deviceTelemetryCache.has(resolvedHw)) {
+      return this._deviceTelemetryCache.get(resolvedHw);
+    }
+    if (serial && this._deviceTelemetryCache.has(serial)) {
+      return this._deviceTelemetryCache.get(serial);
+    }
+    return null;
+  }
+
+  /**
+   * Safe storage of device telemetry (never overwrites valid values with Unknown/null/N/A)
+   */
+  _setCachedTelemetry(serial, hwSerial = null, newTelemetry = {}) {
+    if (!this._deviceTelemetryCache) this._deviceTelemetryCache = new Map();
+    const resolvedHw = hwSerial || (serial ? this._hardwareSerialCache?.get(serial) : null);
+    const existing = this._getCachedTelemetry(serial, resolvedHw) || {};
+
+    const merged = {
+      battery: (newTelemetry.battery && newTelemetry.battery !== 'Unknown' && newTelemetry.battery !== 'N/A')
+        ? newTelemetry.battery
+        : (existing.battery || null),
+      batteryStatus: (newTelemetry.batteryStatus && newTelemetry.batteryStatus !== 'Unknown' && newTelemetry.batteryStatus !== 'N/A')
+        ? newTelemetry.batteryStatus
+        : (existing.batteryStatus || null),
+      batteryTemp: newTelemetry.batteryTemp || existing.batteryTemp || null,
+      storageFree: (newTelemetry.storageFree && newTelemetry.storageFree !== 'Unknown' && newTelemetry.storageFree !== 'N/A')
+        ? newTelemetry.storageFree
+        : (existing.storageFree || null),
+      storageTotal: (newTelemetry.storageTotal && newTelemetry.storageTotal !== 'Unknown' && newTelemetry.storageTotal !== 'N/A')
+        ? newTelemetry.storageTotal
+        : (existing.storageTotal || null),
+      storageUsedPct: newTelemetry.storageUsedPct || existing.storageUsedPct || null,
+      screenResolution: (newTelemetry.screenResolution && newTelemetry.screenResolution !== 'Unknown' && newTelemetry.screenResolution !== 'N/A')
+        ? newTelemetry.screenResolution
+        : (existing.screenResolution || null),
+      cachedAt: Date.now()
+    };
+
+    if (serial) this._deviceTelemetryCache.set(serial, merged);
+    if (resolvedHw) this._deviceTelemetryCache.set(resolvedHw, merged);
+    return merged;
+  }
+
+  /**
+   * Non-blocking background telemetry refresh
+   */
+  async refreshDeviceTelemetry(serial, hwSerial = null) {
+    if (!serial) return null;
+    if (!this._telemetryFetching) this._telemetryFetching = new Set();
+    if (this._telemetryFetching.has(serial)) return null;
+
+    try {
+      this._telemetryFetching.add(serial);
+      return await this.getDeviceInfo(serial);
+    } catch (e) {
+      logger.debug(`[AdbService] refreshDeviceTelemetry for ${serial}: ${e.message}`);
+      return null;
+    } finally {
+      this._telemetryFetching.delete(serial);
+    }
+  }
+
+  /**
    * Fast resolution and caching of immutable Android device build metadata
    */
   async resolveDeviceMetadata(serial, hwSerial = null) {
     if (!serial) return null;
-    const cacheKey = hwSerial || serial;
-    if (this._deviceMetaCache && this._deviceMetaCache.has(cacheKey)) {
-      return this._deviceMetaCache.get(cacheKey);
-    }
-    if (this._deviceMetaCache && this._deviceMetaCache.has(serial)) {
-      return this._deviceMetaCache.get(serial);
+    const cached = this._getCachedMeta(serial, hwSerial);
+    // If cached meta already has valid osVersion and model, return it immediately!
+    if (cached && cached.osVersion && cached.model && cached.model !== 'Device') {
+      return cached;
     }
 
     try {
       const res = await this.execute([
         '-s', serial, 'shell',
         'getprop ro.product.manufacturer; getprop ro.product.model; getprop ro.build.version.release; getprop ro.build.version.sdk'
-      ], { timeout: 2500 });
+      ], { timeout: 5000 });
 
       if (res && res.stdout) {
         const lines = res.stdout.split('\n').map(l => l.trim()).filter(Boolean);
@@ -394,33 +506,30 @@ class AdbService {
           const osVersion = lines[2] || '';
           const sdkVersion = lines[3] || '';
 
-          const meta = {
+          return this._setCachedMeta(serial, hwSerial, {
             manufacturer,
             model,
             osVersion,
-            sdkVersion,
-            cachedAt: Date.now()
-          };
-
-          if (!this._deviceMetaCache) this._deviceMetaCache = new Map();
-          this._deviceMetaCache.set(serial, meta);
-          if (hwSerial) this._deviceMetaCache.set(hwSerial, meta);
-
-          return meta;
+            sdkVersion
+          });
         }
       }
     } catch (e) {
       logger.debug(`[AdbService] resolveDeviceMetadata notice for ${serial}: ${e.message}`);
     }
 
-    return null;
+    // Never return null if we have any cached data!
+    return cached || null;
   }
 
   /**
-   * Enrich raw connected device with cached metadata and standard display names
+   * Enrich raw connected device with cached metadata, telemetry, and standard display names
    */
   async enrichDeviceMetadata(dev) {
     if (!dev || !dev.serial) return dev;
+    if (!dev.hardwareSerial) {
+      dev.hardwareSerial = await this.resolveHardwareSerial(dev.serial).catch(() => null);
+    }
     const meta = await this.resolveDeviceMetadata(dev.serial, dev.hardwareSerial);
     
     let manufacturer = meta?.manufacturer;
@@ -434,7 +543,7 @@ class AdbService {
 
     const model = meta?.model || dev.model || 'Unknown Model';
     const osVersion = meta?.osVersion || dev.osVersion || null;
-    const androidVersion = osVersion ? `Android ${osVersion}` : 'Android';
+    const androidVersion = osVersion ? `Android ${osVersion}` : (dev.androidVersion || 'Android');
     const sdkVersion = meta?.sdkVersion || dev.sdkVersion || '';
 
     const cleanModelName = formatDeviceModelName({ manufacturer, model }) || dev.model || 'Android Device';
@@ -455,6 +564,23 @@ class AdbService {
       serial: dev.serial,
       platform: 'android'
     });
+
+    // Attach cached telemetry (battery, storage, screen resolution)
+    const telemetry = this._getCachedTelemetry(dev.serial, dev.hardwareSerial);
+    if (telemetry) {
+      if (telemetry.battery) dev.battery = telemetry.battery;
+      if (telemetry.batteryStatus) dev.batteryStatus = telemetry.batteryStatus;
+      if (telemetry.batteryTemp) dev.batteryTemp = telemetry.batteryTemp;
+      if (telemetry.storageFree) dev.storageFree = telemetry.storageFree;
+      if (telemetry.storageTotal) dev.storageTotal = telemetry.storageTotal;
+      if (telemetry.storageUsedPct) dev.storageUsedPct = telemetry.storageUsedPct;
+      if (telemetry.screenResolution) dev.screenResolution = telemetry.screenResolution;
+    }
+
+    // If telemetry is not yet cached and device is in healthy connected state, trigger background refresh
+    if (!telemetry && dev.connected && dev.state === 'device') {
+      this.refreshDeviceTelemetry(dev.serial, dev.hardwareSerial).catch(() => {});
+    }
 
     return dev;
   }
@@ -652,6 +778,12 @@ class AdbService {
    */
   async deduplicateAndPrioritizeTransports(rawDevices = []) {
     if (!rawDevices || rawDevices.length <= 1) {
+      if (rawDevices && rawDevices.length === 1) {
+        const d = rawDevices[0];
+        const s = d.serial || d.id;
+        const hw = await this.resolveHardwareSerial(s).catch(() => null);
+        if (hw) d.hardwareSerial = hw;
+      }
       return rawDevices;
     }
 
@@ -781,7 +913,7 @@ class AdbService {
     const runShell = async (cmd) => {
       try {
         const res = await this.execute(['-s', serial, 'shell', cmd], { timeout: 5000 });
-        return res.stdout;
+        return (res.stdout || '').trim();
       } catch (e) {
         return '';
       }
@@ -791,8 +923,8 @@ class AdbService {
     const [
       modelManufacturer,
       modelName,
-      osVersion,
-      sdkVersion,
+      rawOsVersion,
+      rawSdkVersion,
       batteryDump,
       storageDump,
       screenDump,
@@ -810,18 +942,24 @@ class AdbService {
       runShell('getprop ro.boot.serialno')
     ]);
 
-    const hardwareSerial = (hwSerial1 || hwSerial2 || '').trim() || null;
+    const hardwareSerial = (hwSerial1 || hwSerial2 || '').trim() || (this._hardwareSerialCache?.get(serial)) || null;
     if (hardwareSerial) {
       try {
         const deviceLockService = require('./deviceLockService');
         deviceLockService.registerHardwareSerial(serial, hardwareSerial);
+        if (!this._hardwareSerialCache) this._hardwareSerialCache = new Map();
+        this._hardwareSerialCache.set(serial, hardwareSerial);
       } catch (e) {}
     }
 
+    // Retrieve previous cached values to prevent overwriting valid values on transient failure
+    const prevMeta = this._getCachedMeta(serial, hardwareSerial) || {};
+    const prevTelemetry = this._getCachedTelemetry(serial, hardwareSerial) || {};
+
     // Parse Battery
-    let batteryLevel = 'Unknown';
-    let batteryStatus = 'Unknown';
-    let batteryTemp = '';
+    let batteryLevel = prevTelemetry.battery || 'Unknown';
+    let batteryStatus = prevTelemetry.batteryStatus || 'Unknown';
+    let batteryTemp = prevTelemetry.batteryTemp || '';
     if (batteryDump) {
       const levelMatch = batteryDump.match(/level:\s*(\d+)/i);
       const statusMatch = batteryDump.match(/status:\s*(\d+)/i);
@@ -838,9 +976,9 @@ class AdbService {
     }
 
     // Parse Storage
-    let storageFree = 'Unknown';
-    let storageTotal = 'Unknown';
-    let storageUsedPct = '';
+    let storageFree = prevTelemetry.storageFree || 'Unknown';
+    let storageTotal = prevTelemetry.storageTotal || 'Unknown';
+    let storageUsedPct = prevTelemetry.storageUsedPct || '';
     if (storageDump) {
       const lines = storageDump.split('\n').map(l => l.trim()).filter(Boolean);
       if (lines.length >= 2) {
@@ -848,14 +986,14 @@ class AdbService {
         // Filesystem Size Used Avail Use% Mounted on
         if (parts.length >= 5) {
           storageTotal = parts[1];
-          storageFree = parts[3];
+          storageFree = `${parts[3]} free`;
           storageUsedPct = parts[4];
         }
       }
     }
 
     // Parse Screen Resolution
-    let screenResolution = 'Unknown';
+    let screenResolution = prevTelemetry.screenResolution || 'Unknown';
     if (screenDump) {
       const sizeMatch = screenDump.match(/Physical size:\s*(\d+x\d+)/i) || screenDump.match(/(\d+x\d+)/i);
       if (sizeMatch) {
@@ -863,8 +1001,19 @@ class AdbService {
       }
     }
 
-    const model = modelName || 'Unknown Model';
-    const manufacturer = modelManufacturer || 'Android';
+    // Model and Manufacturer
+    const model = (modelName && modelName.trim()) || prevMeta.model || 'Unknown Model';
+    let manufacturer = (modelManufacturer && modelManufacturer.trim()) || prevMeta.manufacturer || 'Android';
+    if (!manufacturer || manufacturer.toLowerCase() === 'android') {
+      if (model && /^SM[-_ ]/i.test(model)) {
+        manufacturer = 'samsung';
+      }
+    }
+
+    // OS and SDK version (preserve previous valid version if transiently empty)
+    const osVersion = (rawOsVersion && rawOsVersion.trim()) || prevMeta.osVersion || null;
+    const sdkVersion = (rawSdkVersion && rawSdkVersion.trim()) || prevMeta.sdkVersion || '';
+
     const cleanModelName = formatDeviceModelName({ manufacturer, model }) || 'Android Device';
     const formattedAndroidVersion = osVersion ? `Android ${osVersion}` : 'Android';
     const rawDev = {
@@ -879,10 +1028,23 @@ class AdbService {
     };
     const displayName = formatDeviceDisplayName(rawDev);
 
-    if (!this._deviceMetaCache) this._deviceMetaCache = new Map();
-    const meta = { manufacturer, model, osVersion: osVersion || null, sdkVersion: sdkVersion || '', cachedAt: Date.now() };
-    this._deviceMetaCache.set(serial, meta);
-    if (hardwareSerial) this._deviceMetaCache.set(hardwareSerial, meta);
+    // Save into both Meta and Telemetry caches
+    this._setCachedMeta(serial, hardwareSerial, {
+      manufacturer,
+      model,
+      osVersion: osVersion || null,
+      sdkVersion
+    });
+
+    this._setCachedTelemetry(serial, hardwareSerial, {
+      battery: batteryLevel !== 'Unknown' ? batteryLevel : null,
+      batteryStatus: batteryStatus !== 'Unknown' ? batteryStatus : null,
+      batteryTemp,
+      storageFree: storageFree !== 'Unknown' ? storageFree : null,
+      storageTotal: storageTotal !== 'Unknown' ? storageTotal : null,
+      storageUsedPct,
+      screenResolution: screenResolution !== 'Unknown' ? screenResolution : null
+    });
 
     return {
       serial,
@@ -897,7 +1059,7 @@ class AdbService {
       battery: batteryLevel,
       batteryStatus,
       batteryTemp,
-      storageFree: storageFree !== 'Unknown' ? `${storageFree} free` : 'Unknown',
+      storageFree: storageFree !== 'Unknown' ? storageFree : 'Unknown',
       storageTotal,
       storageUsedPct,
       screenResolution,
@@ -1277,19 +1439,172 @@ class AdbService {
   }
 
   /**
-   * Install standalone .apk file directly to target device
+   * Fast device liveness check (fails fast if device entered offline or disconnected state)
+   */
+  async assertDeviceOnline(serial) {
+    if (!serial) throw new Error('Device serial is required for liveness check');
+    try {
+      const res = await this.execute(['-s', serial, 'get-state'], { timeout: 3000 });
+      const state = (res.stdout || '').trim().toLowerCase();
+      if (state === 'device') {
+        return { online: true, state: 'device' };
+      }
+      throw new Error(`Device '${serial}' is not ready (State: ${state || 'offline'}).`);
+    } catch (err) {
+      throw new Error(`Device '${serial}' is offline or disconnected: ${err.message}`);
+    }
+  }
+
+  /**
+   * Check if device is online without throwing
+   */
+  async isDeviceOnline(serial) {
+    try {
+      await this.assertDeviceOnline(serial);
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  /**
+   * Acquire screen stay-awake for a device during test execution.
+   * Wakes up the screen, dismisses the keyguard, reads and captures the original
+   * stay_on_while_plugged_in setting, and engages stay-awake.
+   * Returns metadata including original setting for guaranteed restoration.
+   */
+  async acquireStayAwake(serial) {
+    if (!serial) return null;
+    try {
+      // 1. Wake up screen and dismiss keyguard
+      await this.execute(['-s', serial, 'shell', 'input', 'keyevent', '224'], { timeout: 3000 }).catch(() => {});
+      await this.execute(['-s', serial, 'shell', 'wm', 'dismiss-keyguard'], { timeout: 3000 }).catch(() => {});
+
+      // 2. Capture original stay_on_while_plugged_in setting
+      let originalStayOn = null;
+      try {
+        const getRes = await this.execute(['-s', serial, 'shell', 'settings', 'get', 'global', 'stay_on_while_plugged_in'], { timeout: 3000 });
+        const val = (getRes.stdout || '').trim();
+        if (val && val !== 'null') {
+          originalStayOn = val;
+        }
+      } catch (err) {
+        logger.debug(`[AdbService] Error querying stay_on_while_plugged_in for ${serial}: ${err.message}`);
+      }
+
+      // 3. Engage stay-awake (AC, USB, Wireless charging mask = 7)
+      await this.execute(['-s', serial, 'shell', 'svc', 'power', 'stayon', 'true'], { timeout: 4000 }).catch(() => {});
+      await this.execute(['-s', serial, 'shell', 'settings', 'put', 'global', 'stay_on_while_plugged_in', '7'], { timeout: 4000 }).catch(() => {});
+
+      logger.info(`[AdbService] Engaged temporary screen stay-awake on ${serial} (original setting: ${originalStayOn ?? 'none'}).`);
+      return {
+        serial,
+        originalStayOn,
+        acquiredAt: Date.now()
+      };
+    } catch (err) {
+      logger.warn(`[AdbService] Failed to acquire stay-awake on ${serial}: ${err.message}`);
+      return null;
+    }
+  }
+
+  /**
+   * Restore captured screen stay-awake setting on target device.
+   * Guaranteed safe execution (never throws).
+   */
+  async restoreStayAwake(serial, originalStayOn) {
+    if (!serial) return false;
+    try {
+      if (originalStayOn === null || originalStayOn === undefined || originalStayOn === 'null' || originalStayOn === '') {
+        await this.execute(['-s', serial, 'shell', 'svc', 'power', 'stayon', 'false'], { timeout: 4000 }).catch(() => {});
+        await this.execute(['-s', serial, 'shell', 'settings', 'put', 'global', 'stay_on_while_plugged_in', '0'], { timeout: 4000 }).catch(() => {});
+      } else {
+        await this.execute(['-s', serial, 'shell', 'settings', 'put', 'global', 'stay_on_while_plugged_in', String(originalStayOn)], { timeout: 4000 }).catch(() => {});
+        if (String(originalStayOn) === '0') {
+          await this.execute(['-s', serial, 'shell', 'svc', 'power', 'stayon', 'false'], { timeout: 4000 }).catch(() => {});
+        } else if (String(originalStayOn) === '7') {
+          await this.execute(['-s', serial, 'shell', 'svc', 'power', 'stayon', 'true'], { timeout: 4000 }).catch(() => {});
+        }
+      }
+      logger.info(`[AdbService] Restored screen stay-awake on ${serial} to ${originalStayOn ?? '0'}.`);
+      return true;
+    } catch (err) {
+      logger.warn(`[AdbService] Failed to restore stay-awake on ${serial}: ${err.message}`);
+      return false;
+    }
+  }
+
+  /**
+   * Install standalone .apk file directly to target device with process tracking and bounded timeout
    */
   async installApk(serial, apkPath, options = {}) {
     if (!fs.existsSync(apkPath)) {
       throw new Error(`APK file not found at ${apkPath}`);
     }
-    const args = ['-s', serial, 'install', '-r', '-d', '-t', apkPath];
+
+    // 1. Fast liveness check before starting heavy install
+    await this.assertDeviceOnline(serial);
+
+    const args = ['-s', serial, 'install', '-r', '-d', '-t', '-g'];
+
+    // For Android 11+ (API 30+), prevent adb streaming server hangs on Wi-Fi
+    try {
+      const sdkRes = await this.execute(['-s', serial, 'shell', 'getprop', 'ro.build.version.sdk'], { timeout: 2000 });
+      const sdk = parseInt((sdkRes.stdout || '').trim(), 10);
+      if (sdk >= 30) {
+        args.push('--no-incremental');
+      }
+    } catch (e) {}
+
+    args.push(apkPath);
     logger.info(`[ADB Install APK] ${this.adbPath} ${args.join(' ')}`);
-    const res = await this.execute(args, { timeout: 300000 });
-    if (res.code !== 0 || res.raw.includes('Failure')) {
-      throw new Error(`APK installation failed: ${res.raw}`);
-    }
-    return res;
+
+    const timeoutMs = options.timeout || 120000; // 2 minutes bounded timeout
+
+    return new Promise((resolve, reject) => {
+      const proc = spawn(this.adbPath, args, { windowsHide: true });
+      if (options.onSpawn && typeof options.onSpawn === 'function') {
+        options.onSpawn(proc);
+      }
+
+      let stdout = '';
+      let stderr = '';
+      let timedOut = false;
+
+      const timer = setTimeout(() => {
+        timedOut = true;
+        try { proc.kill('SIGKILL'); } catch (e) {}
+        reject(new Error(`APK installation timed out after ${timeoutMs}ms on device ${serial}`));
+      }, timeoutMs);
+
+      proc.stdout.on('data', (chunk) => {
+        const str = chunk.toString();
+        stdout += str;
+        if (options.onLog) options.onLog(str);
+      });
+
+      proc.stderr.on('data', (chunk) => {
+        const str = chunk.toString();
+        stderr += str;
+        if (options.onLog) options.onLog(str);
+      });
+
+      proc.on('error', (err) => {
+        clearTimeout(timer);
+        reject(new Error(`APK install execution error: ${err.message}`));
+      });
+
+      proc.on('close', (code) => {
+        clearTimeout(timer);
+        if (timedOut) return;
+        const raw = (stdout + '\n' + stderr).trim();
+        if (code === 0 && (stdout.includes('Success') || !raw.toLowerCase().includes('failure'))) {
+          resolve({ code, stdout: stdout.trim(), stderr: stderr.trim(), raw });
+        } else {
+          reject(new Error(`APK installation failed (code ${code}): ${raw || 'Unknown error'}`));
+        }
+      });
+    });
   }
 }
 

@@ -27,6 +27,8 @@ const adminRoutes = require('./routes/adminRoutes');
 const deviceImageRoutes = require('./routes/deviceImageRoutes');
 const driveRoutes = require('./routes/driveRoutes');
 const recordingRoutes = require('./routes/recordingRoutes');
+const mixpanelRoutes = require('./routes/mixpanelRoutes');
+const bugDeskRoutes = require('./routes/bugDeskRoutes');
 const bundletoolService = require('./services/bundletoolService');
 
 const healthRoutes = require('./routes/healthRoutes');
@@ -61,6 +63,8 @@ app.use('/api', adminRoutes);
 app.use('/api/devices/image', deviceImageRoutes);
 app.use('/api/drive', driveRoutes);
 app.use('/api', recordingRoutes);
+app.use('/api/mixpanel', mixpanelRoutes);
+app.use('/api', bugDeskRoutes);
 
 // Serve Frontend build in production if present
 const frontendDist = path.join(__dirname, '../../frontend/dist');
@@ -112,8 +116,10 @@ async function startServer() {
     await runMigrations();
     const userService = require('./services/userService');
     await userService.seedInitialAdmin();
+    const mixpanelCollectorService = require('./services/mixpanelCollectorService');
+    await mixpanelCollectorService.resumeActiveSessions();
   } catch (dbErr) {
-    logger.error(`[DB] Failed to run database migrations or initial admin seed: ${dbErr.message}`);
+    logger.error(`[DB] Failed to run database migrations, admin seed, or resume sessions: ${dbErr.message}`);
   }
 
   if (config.USE_HTTPS) {

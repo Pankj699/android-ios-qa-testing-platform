@@ -117,6 +117,75 @@ const MIGRATIONS = [
       CREATE INDEX IF NOT EXISTS idx_oauth_states_user_id ON oauth_states(user_id);
       CREATE UNIQUE INDEX IF NOT EXISTS idx_gdrive_tokens_unique_user ON google_drive_tokens(user_id);
     `
+  },
+  {
+    name: '007_create_mixpanel_validator_tables',
+    up: `
+      CREATE TABLE IF NOT EXISTS mixpanel_specifications (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        name VARCHAR(255) NOT NULL,
+        version INT NOT NULL DEFAULT 1,
+        original_filename VARCHAR(255) NOT NULL,
+        file_hash VARCHAR(64) NOT NULL,
+        sheets_summary JSONB DEFAULT '[]',
+        events_count INT DEFAULT 0,
+        rules JSONB NOT NULL DEFAULT '[]',
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_mp_specs_user_id ON mixpanel_specifications(user_id);
+      CREATE INDEX IF NOT EXISTS idx_mp_specs_created_at ON mixpanel_specifications(created_at);
+
+      CREATE TABLE IF NOT EXISTS mixpanel_sessions (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        device_serial VARCHAR(100) NOT NULL,
+        device_name VARCHAR(255),
+        spec_id UUID REFERENCES mixpanel_specifications(id) ON DELETE SET NULL,
+        spec_version INT DEFAULT 1,
+        status VARCHAR(50) NOT NULL DEFAULT 'ACTIVE',
+        distinct_id VARCHAR(255),
+        project_id VARCHAR(100),
+        started_at TIMESTAMPTZ DEFAULT NOW(),
+        stopped_at TIMESTAMPTZ,
+        last_polled_at TIMESTAMPTZ,
+        events_count INT DEFAULT 0,
+        error_message TEXT,
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_mp_sessions_user_id ON mixpanel_sessions(user_id);
+      CREATE INDEX IF NOT EXISTS idx_mp_sessions_device ON mixpanel_sessions(device_serial);
+      CREATE INDEX IF NOT EXISTS idx_mp_sessions_status ON mixpanel_sessions(status);
+
+      CREATE TABLE IF NOT EXISTS mixpanel_events (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        session_id UUID NOT NULL REFERENCES mixpanel_sessions(id) ON DELETE CASCADE,
+        user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        event_name VARCHAR(255) NOT NULL,
+        distinct_id VARCHAR(255),
+        insert_id VARCHAR(255),
+        event_time TIMESTAMPTZ NOT NULL,
+        raw_payload JSONB NOT NULL DEFAULT '{}',
+        is_correlated BOOLEAN DEFAULT TRUE,
+        validation_status VARCHAR(50) DEFAULT 'PENDING',
+        validation_summary JSONB DEFAULT '{}',
+        source VARCHAR(50) DEFAULT 'LEGACY_UNSPECIFIED',
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_mp_events_session_id ON mixpanel_events(session_id);
+      CREATE INDEX IF NOT EXISTS idx_mp_events_user_id ON mixpanel_events(user_id);
+      CREATE INDEX IF NOT EXISTS idx_mp_events_name ON mixpanel_events(event_name);
+      CREATE INDEX IF NOT EXISTS idx_mp_events_time ON mixpanel_events(event_time);
+    `
+  },
+  {
+    name: '008_add_source_to_mixpanel_events',
+    up: `
+      ALTER TABLE mixpanel_events ADD COLUMN IF NOT EXISTS source VARCHAR(50) DEFAULT 'LEGACY_UNSPECIFIED';
+      UPDATE mixpanel_events SET source = 'LEGACY_UNSPECIFIED' WHERE source IS NULL;
+      CREATE INDEX IF NOT EXISTS idx_mp_events_source ON mixpanel_events(source);
+    `
   }
 ];
 
