@@ -62,12 +62,12 @@ export function BugDeskHistory({ onNavigate }) {
         description="Every report you've generated, scoped securely to your account."
         actions={
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#8F97A6]" />
+            <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 dark:text-[#8F97A6]" />
             <Input
               placeholder="Search reports..."
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              className="w-64 pl-9 bg-[#080B12] border-[#1E2638] text-[13.5px] text-white h-10 rounded-lg placeholder:text-[#525A6C]"
+              className="w-64 pl-9.5 bg-white/80 dark:bg-slate-950/60 border-[var(--line)] text-[13.5px] text-slate-900 dark:text-white h-10 rounded-pill placeholder:text-slate-400 dark:placeholder:text-[#525A6C] shadow-inner focus:border-violet-500 transition-all"
             />
           </div>
         }
@@ -75,20 +75,20 @@ export function BugDeskHistory({ onNavigate }) {
 
       <div className="px-8 pb-8">
         {filtered.length === 0 ? (
-          <Card className="rounded-xl border border-[#1A2234] bg-[#0E131F] shadow-md">
+          <Card className="rounded-card border border-[var(--line)] glass shadow-sm">
             <CardContent className="flex flex-col items-center justify-center gap-3 py-16 text-center">
-              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#141B28] text-slate-400">
-                <Inbox className="h-6 w-6 text-[#8F97A6]" />
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-tr from-violet-500/10 to-pink-500/10 border border-violet-500/20 text-violet-500">
+                <Inbox className="h-6 w-6" />
               </div>
-              <p className="text-[14.5px] font-semibold text-white">{history.length === 0 ? "No bug reports yet" : "No matches found"}</p>
-              <p className="text-[13px] text-[#8F97A6]">
+              <p className="text-[14.5px] font-bold text-slate-900 dark:text-white">{history.length === 0 ? "No bug reports yet" : "No matches found"}</p>
+              <p className="text-[13px] text-slate-500 dark:text-slate-400">
                 {history.length === 0 ? "Generated reports will appear here." : "Try searching with a different keyword."}
               </p>
               {history.length === 0 && onNavigate && (
                 <Button
                   size="sm"
                   onClick={() => onNavigate("new-bug")}
-                  className="bg-[#F59E0B] hover:bg-[#E58E00] text-[#0A0D14] font-bold text-[13.5px] h-9 px-4 rounded-lg mt-2"
+                  className="btn-magic text-white font-bold text-[13.5px] h-9 px-4 rounded-pill mt-2 shadow-md cursor-pointer"
                 >
                   Create First Bug Report
                 </Button>
@@ -98,17 +98,17 @@ export function BugDeskHistory({ onNavigate }) {
         ) : (
           <div className="space-y-3">
             {filtered.map((r) => (
-              <Card key={r.id} className="rounded-xl border border-[#1A2234] bg-[#0E131F] hover:border-[#263248] transition-colors shadow-md">
+              <Card key={r.id} className="rounded-2xl border border-[var(--line)] glass hover:border-violet-500/30 transition-all shadow-sm">
                 <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-[14px] font-semibold text-white">{buildHeading(r)}</p>
+                    <p className="truncate text-[14px] font-bold text-slate-900 dark:text-white">{buildHeading(r)}</p>
                     <div className="mt-1.5 flex flex-wrap items-center gap-2">
                       {r.round && r.round.trim() ? (
-                        <Badge variant="outline" className="font-mono text-[11.5px] border-[#263248] text-amber-400">
+                        <Badge variant="outline" className="font-mono text-[11px] border border-violet-500/25 text-violet-700 dark:text-violet-300 bg-violet-500/10 rounded-pill px-2.5 py-0.5">
                           {r.round.trim()}
                         </Badge>
                       ) : null}
-                      <span className="text-[12.5px] text-[#8F97A6]">{new Date(r.createdAt).toLocaleString()}</span>
+                      <span className="text-[12.5px] text-slate-500 dark:text-slate-400">{new Date(r.createdAt).toLocaleString()}</span>
                     </div>
                   </div>
                   <div className="flex shrink-0 items-center gap-2">
@@ -116,22 +116,22 @@ export function BugDeskHistory({ onNavigate }) {
                       variant="outline"
                       size="sm"
                       onClick={() => setViewing(r)}
-                      className="border-[#1E2638] text-slate-200 hover:bg-[#141B28] text-[13px] h-8.5 rounded-lg px-3"
+                      className="border-[var(--line)] bg-white/80 dark:bg-slate-900/80 text-slate-700 dark:text-slate-200 hover:bg-white dark:hover:bg-slate-800 text-[13px] h-8.5 rounded-pill px-3 shadow-sm font-semibold transition-all"
                     >
-                      <Eye className="h-3.5 w-3.5 mr-1" /> View
+                      <Eye className="h-3.5 w-3.5 mr-1 text-violet-500" /> View
                     </Button>
                     <Button
                       variant="outline"
                       size="sm"
                       onClick={() => handleQuickCopy(r)}
-                      className="border-[#1E2638] text-slate-200 hover:bg-[#141B28] text-[13px] h-8.5 rounded-lg px-3"
+                      className="border-[var(--line)] bg-white/80 dark:bg-slate-900/80 text-slate-700 dark:text-slate-200 hover:bg-white dark:hover:bg-slate-800 text-[13px] h-8.5 rounded-pill px-3 shadow-sm font-semibold transition-all"
                     >
-                      <ClipboardCopy className="h-3.5 w-3.5 mr-1" /> Copy
+                      <ClipboardCopy className="h-3.5 w-3.5 mr-1 text-violet-500" /> Copy
                     </Button>
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="text-rose-400 hover:bg-rose-500/10 hover:text-rose-300 h-8.5 w-8.5 rounded-lg p-0"
+                      className="text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 hover:text-rose-600 h-8.5 w-8.5 rounded-full p-0 transition-colors"
                       onClick={() => setDeleting(r)}
                       title="Delete Bug Report"
                     >
@@ -147,10 +147,10 @@ export function BugDeskHistory({ onNavigate }) {
 
       {/* View Bug Report Dialog */}
       <Dialog open={Boolean(viewing)} onOpenChange={(open) => !open && setViewing(null)}>
-        <DialogContent className="max-h-[85vh] max-w-2xl overflow-y-auto border-[#1A2234] bg-[#0E131F] rounded-xl p-6">
+        <DialogContent className="max-h-[85vh] max-w-2xl overflow-y-auto border border-[var(--line)] glass dark:bg-slate-900/95 bg-white/95 rounded-card p-6 shadow-2xl">
           <DialogHeader>
-            <DialogTitle className="text-[17px] font-bold text-white">Bug Report Details</DialogTitle>
-            <DialogDescription className="text-[13px] text-[#8F97A6]">
+            <DialogTitle className="text-[18px] font-extrabold text-slate-900 dark:text-white tracking-tight">Bug Report Details</DialogTitle>
+            <DialogDescription className="text-[13px] text-slate-500 dark:text-slate-400">
               {viewing && new Date(viewing.createdAt).toLocaleString()}
             </DialogDescription>
           </DialogHeader>
@@ -160,10 +160,10 @@ export function BugDeskHistory({ onNavigate }) {
 
       {/* Delete Confirmation Dialog */}
       <Dialog open={Boolean(deleting)} onOpenChange={(open) => !open && setDeleting(null)}>
-        <DialogContent className="border-[#1A2234] bg-[#0E131F] rounded-xl p-6">
+        <DialogContent className="border border-[var(--line)] glass dark:bg-slate-900/95 bg-white/95 rounded-card p-6 shadow-2xl">
           <DialogHeader>
-            <DialogTitle className="text-[17px] font-bold text-white">Delete this bug report?</DialogTitle>
-            <DialogDescription className="text-[13px] text-[#8F97A6]">
+            <DialogTitle className="text-[18px] font-extrabold text-slate-900 dark:text-white tracking-tight">Delete this bug report?</DialogTitle>
+            <DialogDescription className="text-[13px] text-slate-500 dark:text-slate-400">
               Are you sure you want to delete this bug report? This action cannot be undone.
             </DialogDescription>
           </DialogHeader>
@@ -171,14 +171,14 @@ export function BugDeskHistory({ onNavigate }) {
             <Button
               variant="outline"
               onClick={() => setDeleting(null)}
-              className="border-[#1E2638] text-slate-200 hover:bg-[#141B28] text-[13px] h-9 rounded-lg"
+              className="border-[var(--line)] text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-[#141B28] text-[13px] h-9 rounded-pill font-semibold"
             >
               Cancel
             </Button>
             <Button
               variant="destructive"
               onClick={handleDelete}
-              className="bg-rose-600 hover:bg-rose-700 text-white font-semibold text-[13px] h-9 rounded-lg"
+              className="bg-rose-600 hover:bg-rose-700 text-white font-bold text-[13px] h-9 rounded-pill shadow-sm"
             >
               Delete Report
             </Button>

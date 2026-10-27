@@ -73,8 +73,26 @@ export default {
         }
       },
       fontFamily: {
-        sans: ['Inter', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'sans-serif'],
-        mono: ['JetBrains Mono', 'Fira Code', 'Consolas', 'Courier New', 'monospace']
+        sans: ['Plus Jakarta Sans', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'sans-serif'],
+        mono: ['SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', 'JetBrains Mono', 'Courier New', 'monospace']
+      },
+      borderRadius: {
+        'card': '24px',
+        'stage': '22px',
+        'wrap': '18px',
+        'btn': '16px',
+        'stat': '14px',
+        'action': '12px',
+      },
+      boxShadow: {
+        'glass': '0 20px 60px rgba(76, 61, 160, 0.10), 0 2px 6px rgba(76, 61, 160, 0.05)',
+        'magic': '0 12px 30px rgba(194, 108, 246, 0.35)',
+        'magic-hover': '0 16px 36px rgba(194, 108, 246, 0.45)',
+        'art': '0 18px 40px rgba(124, 108, 246, 0.16)',
+        'brand': '0 8px 22px rgba(124, 108, 246, 0.35)',
+        'poster': '0 30px 70px rgba(76, 61, 160, 0.22)',
+        'history': '0 10px 26px rgba(76, 61, 160, 0.10)',
+        'history-hover': '0 18px 36px rgba(76, 61, 160, 0.18)',
       }
     },
   },

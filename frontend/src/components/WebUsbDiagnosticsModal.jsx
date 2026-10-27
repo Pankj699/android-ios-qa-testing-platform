@@ -146,26 +146,26 @@ export default function WebUsbDiagnosticsModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fadeIn">
-      <div className="relative w-full max-w-2xl rounded-2xl bg-[#0F141F] border border-[#1E2638] shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+      <div className="relative w-full max-w-2xl rounded-2xl glass border border-[var(--line)] shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
         {/* Header */}
-        <div className="flex items-center justify-between p-5 border-b border-[#1E2638] bg-[#131924]">
+        <div className="flex items-center justify-between p-5 border-b border-[var(--line)]">
           <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-xl bg-purple-500/10 border border-purple-500/20 text-purple-400">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-[var(--violet)] to-[var(--pink)] flex items-center justify-center text-white shadow-md shadow-[var(--violet)]/20">
               <Usb className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="text-sm font-bold text-white flex items-center gap-2">
+              <h3 className="text-sm font-bold text-[var(--ink)] flex items-center gap-2">
                 WebUSB Device Diagnostics & Stage Inspector
               </h3>
-              <p className="text-xs text-slate-400">
+              <p className="text-xs text-[var(--muted)]">
                 End-to-end telemetry for USB device discovery, kernel interface claim, and ADB handshake.
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg bg-[#1E2638] hover:bg-[#263248] text-slate-400 hover:text-white transition-colors"
+            className="p-1.5 rounded-xl text-[var(--muted)] hover:text-[var(--ink)] hover:bg-[var(--card)] transition-colors cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
@@ -175,22 +175,22 @@ export default function WebUsbDiagnosticsModal({
         <div className="p-6 space-y-5 overflow-y-auto">
           {/* Main Status Banners */}
           {diag.status === 'host_adb_conflict' && (
-            <div className="p-4 rounded-xl bg-amber-950/40 border border-amber-500/40 space-y-3">
+            <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 space-y-3">
               <div className="flex items-start gap-3">
-                <div className="p-2 rounded-lg bg-amber-500/20 text-amber-400 shrink-0 mt-0.5">
+                <div className="p-2 rounded-lg bg-amber-500/20 text-amber-500 shrink-0 mt-0.5">
                   <AlertTriangle className="w-5 h-5" />
                 </div>
                 <div className="space-y-1">
-                  <h4 className="text-xs font-bold text-amber-200">
+                  <h4 className="text-xs font-bold text-amber-700 dark:text-amber-300">
                     Host ADB Device Contention Detected
                   </h4>
-                  <p className="text-xs text-amber-300 font-medium leading-relaxed">
+                  <p className="text-xs text-amber-800 dark:text-amber-200 font-medium leading-relaxed">
                     This device is currently connected to the host ADB service. Disconnect the device from host ADB before connecting it through Browser USB.
                   </p>
-                  <div className="text-[11px] text-slate-300 pt-1 space-y-1">
+                  <div className="text-[11px] text-[var(--muted)] pt-1 space-y-1">
                     <p>The host server's local ADB process has exclusive access to this physical USB interface.</p>
-                    <p className="font-semibold text-slate-200">To connect this device via Browser USB:</p>
-                    <ul className="list-disc list-inside space-y-0.5 text-slate-400 pl-1">
+                    <p className="font-semibold text-[var(--ink)]">To connect this device via Browser USB:</p>
+                    <ul className="list-disc list-inside space-y-0.5 pl-1">
                       <li>On your Android device: Go to <strong>Settings → Developer Options</strong>, toggle <strong>"USB Debugging" OFF and back ON</strong>.</li>
                       <li>Or disconnect the USB cable from the host server and plug it directly into your client computer.</li>
                     </ul>
@@ -201,41 +201,41 @@ export default function WebUsbDiagnosticsModal({
           )}
 
           {diag.status === 'insecure_context' && (
-            <div className="p-4 rounded-xl bg-amber-950/40 border border-amber-500/40 space-y-3">
+            <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 space-y-3">
               <div className="flex items-start gap-3">
-                <div className="p-2 rounded-lg bg-amber-500/20 text-amber-400 shrink-0 mt-0.5">
+                <div className="p-2 rounded-lg bg-amber-500/20 text-amber-500 shrink-0 mt-0.5">
                   <ShieldAlert className="w-5 h-5" />
                 </div>
                 <div className="space-y-1">
-                  <h4 className="text-xs font-bold text-amber-200">
+                  <h4 className="text-xs font-bold text-amber-700 dark:text-amber-300">
                     Secure Connection (HTTPS) Required
                   </h4>
-                  <p className="text-xs text-amber-300/90 leading-relaxed">
+                  <p className="text-xs text-amber-800 dark:text-amber-200 leading-relaxed">
                     WebUSB is supported by your browser ({diag.browser}), but the WebUSB API is strictly restricted to <strong>Secure Contexts</strong>.
                   </p>
-                  <p className="text-[11px] text-slate-300 pt-1">
-                    When accessing the QA platform via a LAN IP address (<code className="font-mono bg-black/40 px-1 py-0.5 rounded text-amber-300">{diag.currentOrigin}</code>), HTTPS is required to access USB devices.
+                  <p className="text-[11px] text-[var(--muted)] pt-1">
+                    When accessing the QA platform via a LAN IP address (<code className="font-mono bg-[var(--card)] px-1 py-0.5 rounded border border-[var(--line)] text-amber-600 dark:text-amber-400">{diag.currentOrigin}</code>), HTTPS is required to access USB devices.
                   </p>
                 </div>
               </div>
 
               {/* Action: Switch to HTTPS */}
-              <div className="p-3 rounded-lg bg-[#0A0D14] border border-amber-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
-                <div className="text-xs font-mono text-emerald-400 truncate">
+              <div className="p-3 rounded-xl glass border border-[var(--line)] flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                <div className="text-xs font-mono text-emerald-600 dark:text-emerald-400 font-semibold truncate">
                   {diag.httpsOrigin}
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
                   <button
                     onClick={handleCopyHttpsUrl}
-                    className="px-2.5 py-1.5 rounded-lg bg-[#1E2638] hover:bg-[#263248] text-xs text-slate-200 transition-colors flex items-center gap-1 border border-slate-700"
+                    className="btn-soft px-2.5 py-1.5 rounded-xl text-xs flex items-center gap-1 cursor-pointer"
                     title="Copy HTTPS URL"
                   >
-                    {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                    {copied ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
                     <span>{copied ? 'Copied' : 'Copy'}</span>
                   </button>
                   <button
                     onClick={handleSwitchToHttps}
-                    className="px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-black text-xs font-bold transition-all shadow flex items-center gap-1.5 cursor-pointer"
+                    className="btn-magic px-3 py-1.5 rounded-xl text-white text-xs font-bold transition-all shadow-md flex items-center gap-1.5 cursor-pointer"
                   >
                     <ExternalLink className="w-3.5 h-3.5" />
                     <span>Open in HTTPS</span>
@@ -246,15 +246,15 @@ export default function WebUsbDiagnosticsModal({
           )}
 
           {diag.status === 'unsupported_browser' && (
-            <div className="p-4 rounded-xl bg-rose-950/40 border border-rose-500/40 flex items-start gap-3">
-              <div className="p-2 rounded-lg bg-rose-500/20 text-rose-400 shrink-0 mt-0.5">
+            <div className="p-4 rounded-xl bg-rose-500/10 border border-rose-500/30 flex items-start gap-3">
+              <div className="p-2 rounded-lg bg-rose-500/20 text-rose-500 shrink-0 mt-0.5">
                 <XCircle className="w-5 h-5" />
               </div>
               <div className="space-y-1">
-                <h4 className="text-xs font-bold text-rose-200">
+                <h4 className="text-xs font-bold text-rose-700 dark:text-rose-300">
                   Browser Not Supported for WebUSB
                 </h4>
-                <p className="text-xs text-rose-300/90 leading-relaxed">
+                <p className="text-xs text-rose-800 dark:text-rose-200 leading-relaxed">
                   WebUSB is not supported in {diag.browser}. Please open this QA Platform in <strong>Google Chrome</strong> or <strong>Microsoft Edge</strong>.
                 </p>
               </div>
@@ -262,13 +262,13 @@ export default function WebUsbDiagnosticsModal({
           )}
 
           {/* Tab Navigation */}
-          <div className="flex items-center gap-2 border-b border-[#1E2638] pb-2">
+          <div className="flex items-center gap-2 border-b border-[var(--line)] pb-2 overflow-x-auto">
             <button
               onClick={() => setActiveTab('stages')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 ${
+              className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
                 activeTab === 'stages'
-                  ? 'bg-purple-600 text-white'
-                  : 'bg-[#131924] text-slate-400 hover:text-white border border-[#1E2638]'
+                  ? 'btn-magic text-white shadow-xs'
+                  : 'btn-soft text-[var(--muted)] hover:text-[var(--ink)]'
               }`}
             >
               <Activity className="w-3.5 h-3.5" />
@@ -276,10 +276,10 @@ export default function WebUsbDiagnosticsModal({
             </button>
             <button
               onClick={() => setActiveTab('logs')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 ${
+              className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
                 activeTab === 'logs'
-                  ? 'bg-purple-600 text-white'
-                  : 'bg-[#131924] text-slate-400 hover:text-white border border-[#1E2638]'
+                  ? 'btn-magic text-white shadow-xs'
+                  : 'btn-soft text-[var(--muted)] hover:text-[var(--ink)]'
               }`}
             >
               <Terminal className="w-3.5 h-3.5" />
@@ -287,10 +287,10 @@ export default function WebUsbDiagnosticsModal({
             </button>
             <button
               onClick={() => setActiveTab('paired')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 ${
+              className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
                 activeTab === 'paired'
-                  ? 'bg-purple-600 text-white'
-                  : 'bg-[#131924] text-slate-400 hover:text-white border border-[#1E2638]'
+                  ? 'btn-magic text-white shadow-xs'
+                  : 'btn-soft text-[var(--muted)] hover:text-[var(--ink)]'
               }`}
             >
               <Smartphone className="w-3.5 h-3.5" />
@@ -300,83 +300,83 @@ export default function WebUsbDiagnosticsModal({
 
           {/* TAB 1: Connection Stages Breakdown */}
           {activeTab === 'stages' && (
-            <div className="rounded-xl border border-[#1E2638] bg-[#131924] divide-y divide-[#1E2638] text-xs">
+            <div className="rounded-xl border border-[var(--line)] glass divide-y divide-[var(--line)] text-xs overflow-hidden">
               <div className="p-3 flex items-center justify-between">
                 <div>
-                  <div className="font-semibold text-white">1. WebUSB API</div>
-                  <div className="text-[11px] text-slate-400">{diag.browser} environment</div>
+                  <div className="font-semibold text-[var(--ink)]">1. WebUSB API</div>
+                  <div className="text-[11px] text-[var(--muted)]">{diag.browser} environment</div>
                 </div>
                 {getStatusBadge(stages.webusbApi?.status || (diag.hasWebUsbApi ? 'PASSED' : 'FAILED'))}
               </div>
 
               <div className="p-3 flex items-center justify-between">
                 <div>
-                  <div className="font-semibold text-white">2. Secure Context</div>
-                  <div className="text-[11px] text-slate-400 font-mono">{diag.currentOrigin}</div>
+                  <div className="font-semibold text-[var(--ink)]">2. Secure Context</div>
+                  <div className="text-[11px] text-[var(--muted)] font-mono">{diag.currentOrigin}</div>
                 </div>
                 {getStatusBadge(stages.secureContext?.status || (diag.isSecureContext ? 'PASSED' : 'FAILED'))}
               </div>
 
               <div className="p-3 flex items-center justify-between">
                 <div>
-                  <div className="font-semibold text-white">3. Device Permission</div>
-                  <div className="text-[11px] text-slate-400">{stages.devicePermission?.details || diag.devicePermission}</div>
+                  <div className="font-semibold text-[var(--ink)]">3. Device Permission</div>
+                  <div className="text-[11px] text-[var(--muted)]">{stages.devicePermission?.details || diag.devicePermission}</div>
                 </div>
                 {getStatusBadge(stages.devicePermission?.status || (diag.pairedDevices?.length > 0 ? 'PASSED' : 'PENDING'))}
               </div>
 
               <div className="p-3 flex items-center justify-between">
                 <div>
-                  <div className="font-semibold text-white">4. Device Selection & Picker</div>
-                  <div className="text-[11px] text-slate-400">{stages.deviceSelected?.details || 'Standard ADB Filter (Class: 255, Subclass: 66, Protocol: 1)'}</div>
+                  <div className="font-semibold text-[var(--ink)]">4. Device Selection & Picker</div>
+                  <div className="text-[11px] text-[var(--muted)]">{stages.deviceSelected?.details || 'Standard ADB Filter (Class: 255, Subclass: 66, Protocol: 1)'}</div>
                 </div>
                 {getStatusBadge(stages.deviceSelected?.status || (diag.connectedDevice ? 'PASSED' : 'PENDING'))}
               </div>
 
               <div className="p-3 flex items-center justify-between">
                 <div>
-                  <div className="font-semibold text-white">5. USB Device Open</div>
-                  <div className="text-[11px] text-slate-400">{stages.deviceOpen?.details || 'Chromium USB Device Handle'}</div>
+                  <div className="font-semibold text-[var(--ink)]">5. USB Device Open</div>
+                  <div className="text-[11px] text-[var(--muted)]">{stages.deviceOpen?.details || 'Chromium USB Device Handle'}</div>
                 </div>
                 {getStatusBadge(stages.deviceOpen?.status || (diag.connectedDevice ? 'PASSED' : 'PENDING'))}
               </div>
 
               <div className="p-3 flex items-center justify-between">
                 <div>
-                  <div className="font-semibold text-white">6. ADB Interface Discovery</div>
-                  <div className="text-[11px] text-slate-400">{stages.interfaceDiscovery?.details || 'Interface 0 / 1 detection'}</div>
+                  <div className="font-semibold text-[var(--ink)]">6. ADB Interface Discovery</div>
+                  <div className="text-[11px] text-[var(--muted)]">{stages.interfaceDiscovery?.details || 'Interface 0 / 1 detection'}</div>
                 </div>
                 {getStatusBadge(stages.interfaceDiscovery?.status || (diag.connectedDevice ? 'PASSED' : 'PENDING'))}
               </div>
 
               <div className="p-3 flex items-center justify-between">
                 <div>
-                  <div className="font-semibold text-white">7. USB Interface Claim</div>
-                  <div className="text-[11px] text-slate-400">{stages.interfaceClaim?.details || 'Exclusive kernel interface ownership'}</div>
+                  <div className="font-semibold text-[var(--ink)]">7. USB Interface Claim</div>
+                  <div className="text-[11px] text-[var(--muted)]">{stages.interfaceClaim?.details || 'Exclusive kernel interface ownership'}</div>
                 </div>
                 {getStatusBadge(stages.interfaceClaim?.status || (diag.connectedDevice ? 'PASSED' : 'PENDING'))}
               </div>
 
               <div className="p-3 flex items-center justify-between">
                 <div>
-                  <div className="font-semibold text-white">8. ADB Handshake (CNXN)</div>
-                  <div className="text-[11px] text-slate-400">{stages.adbHandshake?.details || 'Protocol handshake & stream setup'}</div>
+                  <div className="font-semibold text-[var(--ink)]">8. ADB Handshake (CNXN)</div>
+                  <div className="text-[11px] text-[var(--muted)]">{stages.adbHandshake?.details || 'Protocol handshake & stream setup'}</div>
                 </div>
                 {getStatusBadge(stages.adbHandshake?.status || (diag.connectedDevice ? 'PASSED' : 'PENDING'))}
               </div>
 
               <div className="p-3 flex items-center justify-between">
                 <div>
-                  <div className="font-semibold text-white">9. RSA Authentication</div>
-                  <div className="text-[11px] text-slate-400">{stages.adbAuth?.details || 'Phone screen "Allow USB debugging" verification'}</div>
+                  <div className="font-semibold text-[var(--ink)]">9. RSA Authentication</div>
+                  <div className="text-[11px] text-[var(--muted)]">{stages.adbAuth?.details || 'Phone screen "Allow USB debugging" verification'}</div>
                 </div>
                 {getStatusBadge(stages.adbAuth?.status || (diag.connectedDevice ? 'PASSED' : 'PENDING'))}
               </div>
 
               <div className="p-3 flex items-center justify-between">
                 <div>
-                  <div className="font-semibold text-white">10. Transport Active & Ready</div>
-                  <div className="text-[11px] text-slate-400 font-mono flex items-center gap-1.5">
+                  <div className="font-semibold text-[var(--ink)]">10. Transport Active & Ready</div>
+                  <div className="text-[11px] text-[var(--muted)] font-mono flex items-center gap-1.5">
                     {diag.connectedDevice && <DeviceThumbnail device={diag.connectedDevice} size="xs" />}
                     <span>{diag.connectedDevice ? formatDeviceSelectorLabel(diag.connectedDevice) : 'No active transport'}</span>
                   </div>
@@ -390,28 +390,28 @@ export default function WebUsbDiagnosticsModal({
           {activeTab === 'logs' && (
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <span className="text-xs text-slate-400">Live Stage Execution Transcript</span>
+                <span className="text-xs text-[var(--muted)]">Live Stage Execution Transcript</span>
                 <button
                   onClick={handleCopyLogs}
                   disabled={!diag.stageLogs || diag.stageLogs.length === 0}
-                  className="px-2 py-1 rounded bg-[#1E2638] hover:bg-[#263248] disabled:opacity-40 text-xs text-slate-300 flex items-center gap-1 border border-slate-700"
+                  className="btn-soft px-2.5 py-1 rounded-xl disabled:opacity-40 text-xs flex items-center gap-1 cursor-pointer"
                 >
-                  {copiedLogs ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                  {copiedLogs ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
                   <span>{copiedLogs ? 'Copied' : 'Copy Logs'}</span>
                 </button>
               </div>
-              <div className="bg-[#0A0D14] border border-[#1E2638] rounded-xl p-4 font-mono text-[11px] text-slate-200 min-h-[220px] max-h-[300px] overflow-y-auto space-y-1">
+              <div className="bg-slate-950 border border-[var(--line)] rounded-xl p-4 font-mono text-[11px] text-slate-200 min-h-[220px] max-h-[300px] overflow-y-auto space-y-1 shadow-inner">
                 {diag.stageLogs && diag.stageLogs.length > 0 ? (
                   diag.stageLogs.map((log, idx) => (
                     <div
                       key={idx}
                       className={
                         log.includes('FAILED') || log.includes('ERROR')
-                          ? 'text-rose-400'
+                          ? 'text-rose-400 font-semibold'
                           : log.includes('PASSED')
-                          ? 'text-emerald-400'
+                          ? 'text-emerald-400 font-semibold'
                           : log.includes('RUNNING')
-                          ? 'text-[#F59E0B]'
+                          ? 'text-amber-400 font-semibold'
                           : 'text-slate-300'
                       }
                     >
@@ -428,24 +428,24 @@ export default function WebUsbDiagnosticsModal({
           {/* TAB 3: Paired Devices */}
           {activeTab === 'paired' && (
             <div className="space-y-3">
-              <span className="text-xs text-slate-400">Previously Paired WebUSB Devices in Chrome</span>
+              <span className="text-xs text-[var(--muted)]">Previously Paired WebUSB Devices in Chrome</span>
               {diag.pairedDevices && diag.pairedDevices.length > 0 ? (
                 <div className="space-y-2">
                   {diag.pairedDevices.map((dev, idx) => (
-                    <div key={idx} className="p-3 rounded-xl bg-[#131924] border border-[#1E2638] flex items-center justify-between text-xs font-mono">
+                    <div key={idx} className="p-3 rounded-xl glass border border-[var(--line)] flex items-center justify-between text-xs font-mono">
                       <div>
-                        <div className="font-bold text-white font-sans">{dev.productName}</div>
-                        <div className="text-[11px] text-slate-400">{dev.manufacturerName} • Serial: {dev.serialNumber}</div>
+                        <div className="font-bold text-[var(--ink)] font-sans">{dev.productName}</div>
+                        <div className="text-[11px] text-[var(--muted)]">{dev.manufacturerName} • Serial: {dev.serialNumber}</div>
                       </div>
-                      <div className="text-right text-[11px] text-slate-400">
-                        <div>VID: <span className="text-emerald-400">{dev.vendorId}</span> PID: <span className="text-emerald-400">{dev.productId}</span></div>
-                        <div>Status: {dev.opened ? <span className="text-emerald-400">Opened</span> : <span className="text-slate-500">Closed</span>}</div>
+                      <div className="text-right text-[11px] text-[var(--muted)]">
+                        <div>VID: <span className="text-emerald-500 font-semibold">{dev.vendorId}</span> PID: <span className="text-emerald-500 font-semibold">{dev.productId}</span></div>
+                        <div>Status: {dev.opened ? <span className="text-emerald-500 font-semibold">Opened</span> : <span className="text-[var(--muted)]">Closed</span>}</div>
                       </div>
                     </div>
                   ))}
                 </div>
               ) : (
-                <div className="p-8 rounded-xl border border-dashed border-[#1E2638] text-center text-xs text-slate-500 bg-[#0A0D14]/40">
+                <div className="p-8 rounded-xl border border-dashed border-[var(--line)] text-center text-xs text-[var(--muted)] glass">
                   No WebUSB devices currently paired with this origin.
                 </div>
               )}
@@ -454,11 +454,11 @@ export default function WebUsbDiagnosticsModal({
         </div>
 
         {/* Footer Actions */}
-        <div className="flex items-center justify-between p-4 border-t border-[#1E2638] bg-[#131924]">
+        <div className="flex items-center justify-between p-4 border-t border-[var(--line)]">
           <button
             onClick={refreshDiagnostics}
             disabled={loading}
-            className="px-3 py-2 rounded-lg bg-[#1E2638] hover:bg-[#263248] text-xs text-slate-300 transition-colors flex items-center gap-1.5 border border-slate-700"
+            className="btn-soft px-3 py-2 rounded-xl text-xs flex items-center gap-1.5 cursor-pointer"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
             <span>Recheck</span>
@@ -468,7 +468,7 @@ export default function WebUsbDiagnosticsModal({
             {diag.status === 'insecure_context' && (
               <button
                 onClick={handleSwitchToHttps}
-                className="px-4 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-black text-xs font-bold transition-all shadow flex items-center gap-1.5"
+                className="btn-magic px-4 py-2 rounded-xl text-white text-xs font-bold transition-all shadow-md flex items-center gap-1.5 cursor-pointer"
               >
                 <ExternalLink className="w-3.5 h-3.5" />
                 <span>Open in HTTPS</span>
@@ -481,7 +481,7 @@ export default function WebUsbDiagnosticsModal({
                   onClose();
                   onConnectUsb();
                 }}
-                className="px-4 py-2 rounded-lg bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white text-xs font-bold transition-all shadow flex items-center gap-1.5"
+                className="btn-magic px-4 py-2 rounded-xl text-white text-xs font-bold transition-all shadow-md flex items-center gap-1.5 cursor-pointer"
               >
                 <Usb className="w-3.5 h-3.5" />
                 <span>Connect Android Device</span>
@@ -490,7 +490,7 @@ export default function WebUsbDiagnosticsModal({
 
             <button
               onClick={onClose}
-              className="px-4 py-2 rounded-lg bg-[#1E2638] hover:bg-[#263248] text-xs font-semibold text-slate-300 hover:text-white transition-colors border border-slate-700"
+              className="btn-soft px-4 py-2 rounded-xl text-xs font-semibold cursor-pointer"
             >
               Close
             </button>

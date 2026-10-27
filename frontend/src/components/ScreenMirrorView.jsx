@@ -43,25 +43,37 @@ import { formatDeviceDisplayName } from '../utils/deviceFormatter';
 import DeviceThumbnail from './DeviceThumbnail';
 import DriveFolderSelectorModal from './DriveFolderSelectorModal';
 import { webUsbAdbService } from '../services/webUsbAdbService';
-import { screenMirrorStreamManager } from '../services/screenMirrorStreamManager';
+import CustomSelect from './ui/select';
+import { toast } from '../utils/toast';
+import { screenMirrorStreamManager, CanvasRecordingBridge, getSupportedRecordingMimeType, generateScreenMirrorFilename } from '../services/screenMirrorStreamManager';
 
-const getSupportedMimeType = () => {
-  const types = [
-    { mime: 'video/mp4;codecs=avc1', ext: 'mp4' },
-    { mime: 'video/mp4', ext: 'mp4' },
-    { mime: 'video/webm;codecs=h264', ext: 'webm' },
-    { mime: 'video/webm;codecs=vp9', ext: 'webm' },
-    { mime: 'video/webm', ext: 'webm' }
-  ];
-  if (typeof window !== 'undefined' && window.MediaRecorder) {
-    for (const t of types) {
-      if (MediaRecorder.isTypeSupported(t.mime)) {
-        return t;
+const getSupportedMimeType = getSupportedRecordingMimeType;
+
+/**
+ * Fast zero-allocation scanner for H.264 VCL NAL units (Type 1: non-IDR slice, Type 5: IDR slice).
+ * Returns true only if chunk contains a slice boundary, preventing JMuxer from dividing
+ * chunk duration by 0 on non-VCL metadata chunks (SPS/PPS/SEI/AUD).
+ */
+function hasVclNalu(uint8) {
+  const len = uint8.length;
+  for (let i = 0; i < len - 4; i++) {
+    if (uint8[i] === 0 && uint8[i + 1] === 0) {
+      let nalIndex = -1;
+      if (uint8[i + 2] === 1) {
+        nalIndex = i + 3;
+      } else if (uint8[i + 2] === 0 && uint8[i + 3] === 1 && i < len - 4) {
+        nalIndex = i + 4;
+      }
+      if (nalIndex !== -1 && nalIndex < len) {
+        const nalType = uint8[nalIndex] & 0x1f;
+        if (nalType === 1 || nalType === 5) {
+          return true;
+        }
       }
     }
   }
-  return { mime: '', ext: 'webm' };
-};
+  return false;
+}
 
 const formatDuration = (totalSeconds) => {
   const hrs = Math.floor(totalSeconds / 3600);
@@ -116,6 +128,12 @@ export default function ScreenMirrorView({ device, onClose, onStopMirror, isActi
   const recordingTimerRef = useRef(null);
   const recordingStartTimeRef = useRef(null);
   const recordingMimeRef = useRef(null);
+  const recordingBridgeRef = useRef(null);
+  const [completedRecording, setCompletedRecording] = useState(null); // { blob, url, filename }
+  const lastVclTimeRef = useRef(null);
+  const mediaAnchorWallClockRef = useRef(null);
+  const mediaAnchorFedMsRef = useRef(0);
+  const playbackMonitorIntervalRef = useRef(null);
 
   // Google Drive Screen Recording Upload State
   const [driveStatus, setDriveStatus] = useState(null);
@@ -192,6 +210,41 @@ export default function ScreenMirrorView({ device, onClose, onStopMirror, isActi
     window.addEventListener('bugdesk:recording-state-changed', handleRecState);
     return () => {
       window.removeEventListener('bugdesk:recording-state-changed', handleRecState);
+    };
+  }, []);
+
+  // Track completed recording for toolbar Download button (Path 1: unified/BugDesk)
+  useEffect(() => {
+    const handleRecordingReady = (e) => {
+      const rec = e.detail?.recording;
+      if (rec && rec.blob && rec.blob.size > 0) {
+        // Revoke previous URL if any
+        setCompletedRecording((prev) => {
+          if (prev?.url) URL.revokeObjectURL(prev.url);
+          return null;
+        });
+        const url = URL.createObjectURL(rec.blob);
+        setCompletedRecording({
+          blob: rec.blob,
+          url,
+          filename: rec.filename || 'screen-recording.webm'
+        });
+      }
+    };
+
+    window.addEventListener('bugdesk:recording-ready', handleRecordingReady);
+    return () => {
+      window.removeEventListener('bugdesk:recording-ready', handleRecordingReady);
+    };
+  }, []);
+
+  // Cleanup completedRecording object URL on unmount
+  useEffect(() => {
+    return () => {
+      setCompletedRecording((prev) => {
+        if (prev?.url) URL.revokeObjectURL(prev.url);
+        return null;
+      });
     };
   }, []);
 
@@ -430,6 +483,14 @@ export default function ScreenMirrorView({ device, onClose, onStopMirror, isActi
     }
 
     // Clean up previous instances
+    if (playbackMonitorIntervalRef.current) {
+      clearInterval(playbackMonitorIntervalRef.current);
+      playbackMonitorIntervalRef.current = null;
+    }
+    lastVclTimeRef.current = null;
+    mediaAnchorWallClockRef.current = null;
+    mediaAnchorFedMsRef.current = 0;
+
     if (jmuxerRef.current) {
       try { jmuxerRef.current.destroy(); } catch (e) {}
       jmuxerRef.current = null;
@@ -458,7 +519,7 @@ export default function ScreenMirrorView({ device, onClose, onStopMirror, isActi
         jmuxerRef.current = new JMuxer({
           node: videoRef.current,
           mode: 'video',
-          flushingTime: 100, // Regular 100ms flush guarantees reliable SourceBuffer appends without updating conflicts
+          flushingTime: 25, // 25ms flush interval (40Hz) cuts ~75ms of buffer queue latency while avoiding SourceBuffer update contention
           clearBuffer: true,
           fps: 30,
           debug: false,
@@ -466,6 +527,72 @@ export default function ScreenMirrorView({ device, onClose, onStopMirror, isActi
             console.warn('[JMuxer Error]', data);
           }
         });
+
+        // Setup gentle playback pacing, live-edge catchup, and confirmed stall recovery (never routine seeking)
+        let lastMonitoredCurrentTime = 0;
+        let stallStartTime = null;
+        let lastLiveEdgeSeekTime = 0;
+
+        playbackMonitorIntervalRef.current = setInterval(() => {
+          const video = videoRef.current;
+          if (!video || !video.buffered || video.buffered.length === 0) return;
+
+          const bufEnd = video.buffered.end(0);
+          const curTime = video.currentTime;
+          const drift = bufEnd - curTime;
+          const now = Date.now();
+
+          // 1. Proportional playback rate regulation to smoothly absorb jitter and bursts
+          if (drift > 2.0) {
+            if (video.playbackRate !== 1.75) video.playbackRate = 1.75;
+          } else if (drift > 1.2) {
+            if (video.playbackRate !== 1.45) video.playbackRate = 1.45;
+          } else if (drift > 0.5) {
+            if (video.playbackRate !== 1.25) video.playbackRate = 1.25;
+          } else if (drift > 0.15) {
+            if (video.playbackRate !== 1.1) video.playbackRate = 1.1;
+          } else if (drift > 0.05) {
+            if (video.playbackRate !== 1.05) video.playbackRate = 1.05;
+          } else if (drift <= 0.03) {
+            if (video.playbackRate !== 1.0) video.playbackRate = 1.0;
+          }
+
+          // 2. Safe live-edge alignment for prolonged backlog (> 2.5s)
+          // Strictly guarded: never seek during active recording; check !video.seeking, !video.paused, and ensure SourceBuffer is not updating
+          const isRecordingActive = isRecording || (screenMirrorStreamManager && screenMirrorStreamManager.state === 'recording');
+          if (drift > 2.5 && !isRecordingActive && !video.paused && !video.seeking && (now - lastLiveEdgeSeekTime > 3000)) {
+            const sb = jmuxerRef.current?.bufferControllers?.video?.sourceBuffer;
+            if (!sb || !sb.updating) {
+              lastLiveEdgeSeekTime = now;
+              video.currentTime = Math.max(0, bufEnd - 0.08);
+            }
+          }
+
+          // 3. Confirmed sustained stall detection (never routine seeking)
+          const isStalled = Math.abs(curTime - lastMonitoredCurrentTime) < 0.001;
+          lastMonitoredCurrentTime = curTime;
+
+          if (isStalled && drift > 0.5) {
+            if (!stallStartTime) {
+              stallStartTime = now;
+            } else if (now - stallStartTime > 2000) {
+              stallStartTime = null;
+              if (video.paused) {
+                video.play().catch(() => {});
+              } else if (!isRecordingActive && drift > 4.0 && jmuxerRef.current) {
+                // Only reset if severely desynced (>4s) and NOT recording
+                try {
+                  jmuxerRef.current.reset();
+                  lastVclTimeRef.current = null;
+                  mediaAnchorWallClockRef.current = null;
+                  mediaAnchorFedMsRef.current = 0;
+                } catch (e) {}
+              }
+            }
+          } else {
+            stallStartTime = null;
+          }
+        }, 200);
       } catch (err) {
         console.error('Failed to initialize JMuxer:', err);
       }
@@ -576,9 +703,40 @@ export default function ScreenMirrorView({ device, onClose, onStopMirror, isActi
         const uint8 = new Uint8Array(event.data);
         if (jmuxerRef.current) {
           try {
-            jmuxerRef.current.feed({
-              video: uint8
-            });
+            const isVcl = hasVclNalu(uint8);
+            const feedPayload = { video: uint8 };
+
+            if (isVcl) {
+              const now = performance.now();
+              if (lastVclTimeRef.current !== null && mediaAnchorWallClockRef.current !== null) {
+                const elapsed = now - lastVclTimeRef.current;
+                if (elapsed > 100) {
+                  // Static screen pause or network stall (>100ms):
+                  // Clamp frame duration to nominal 33ms and re-anchor the wall-clock baseline
+                  feedPayload.duration = 33;
+                  mediaAnchorWallClockRef.current = now;
+                  mediaAnchorFedMsRef.current = 33;
+                } else {
+                  // Motion in progress:
+                  // Calculate target media time since anchor based on real wall-clock elapsed time
+                  const targetWallClockElapsed = now - mediaAnchorWallClockRef.current;
+                  const remainingUntilTarget = targetWallClockElapsed - mediaAnchorFedMsRef.current;
+                  // Allocate duration bounded so cumulative media duration cannot outrun wall-clock time
+                  const allocatedDuration = Math.max(2, Math.min(33, Math.round(remainingUntilTarget)));
+                  feedPayload.duration = allocatedDuration;
+                  mediaAnchorFedMsRef.current += allocatedDuration;
+                }
+              } else {
+                feedPayload.duration = 33;
+                mediaAnchorWallClockRef.current = now;
+                mediaAnchorFedMsRef.current = 33;
+              }
+              lastVclTimeRef.current = now;
+            }
+            // If isVcl is false (non-VCL metadata such as SPS/PPS/SEI/AUD), no duration is passed,
+            // preventing JMuxer from dividing duration by 0 frames.
+
+            jmuxerRef.current.feed(feedPayload);
             ensureVideoPlaying();
           } catch (err) {}
         }
@@ -630,12 +788,26 @@ export default function ScreenMirrorView({ device, onClose, onStopMirror, isActi
       setMirrorStatus((prev) => (prev === 'error' ? 'error' : 'stopped'));
       if (pingIntervalRef.current) clearInterval(pingIntervalRef.current);
       if (startupTimeoutRef.current) clearTimeout(startupTimeoutRef.current);
+      if (playbackMonitorIntervalRef.current) {
+        clearInterval(playbackMonitorIntervalRef.current);
+        playbackMonitorIntervalRef.current = null;
+      }
+      lastVclTimeRef.current = null;
+      mediaAnchorWallClockRef.current = null;
+      mediaAnchorFedMsRef.current = 0;
     };
 
     ws.onerror = () => {
       setMirrorStatus('error');
       setErrorMessage('WebSocket stream connection failed.');
       if (startupTimeoutRef.current) clearTimeout(startupTimeoutRef.current);
+      if (playbackMonitorIntervalRef.current) {
+        clearInterval(playbackMonitorIntervalRef.current);
+        playbackMonitorIntervalRef.current = null;
+      }
+      lastVclTimeRef.current = null;
+      mediaAnchorWallClockRef.current = null;
+      mediaAnchorFedMsRef.current = 0;
     };
   }, [device?.serial, qualityPreset]);
 
@@ -665,6 +837,14 @@ export default function ScreenMirrorView({ device, onClose, onStopMirror, isActi
       usbStreamActiveRef.current = false;
       if (startupTimeoutRef.current) clearTimeout(startupTimeoutRef.current);
       if (pingIntervalRef.current) clearInterval(pingIntervalRef.current);
+      if (playbackMonitorIntervalRef.current) {
+        clearInterval(playbackMonitorIntervalRef.current);
+        playbackMonitorIntervalRef.current = null;
+      }
+      if (recordingBridgeRef.current) {
+        try { recordingBridgeRef.current.destroy(); } catch (e) {}
+        recordingBridgeRef.current = null;
+      }
       if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
       if (copyImageTimerRef.current) clearTimeout(copyImageTimerRef.current);
       if (copyBase64TimerRef.current) clearTimeout(copyBase64TimerRef.current);
@@ -832,7 +1012,7 @@ export default function ScreenMirrorView({ device, onClose, onStopMirror, isActi
         y: start.y,
         endX: endCoords.x,
         endY: endCoords.y,
-        durationMs: Math.max(150, Math.min(600, duration))
+        durationMs: Math.max(80, Math.min(600, duration))
       });
     }
   };
@@ -873,7 +1053,7 @@ export default function ScreenMirrorView({ device, onClose, onStopMirror, isActi
         });
       }
     } catch (err) {
-      alert(`Screenshot failed: ${err.message}`);
+      toast.error(`Screenshot failed: ${err.message}`);
     } finally {
       setIsTakingScreenshot(false);
     }
@@ -884,7 +1064,7 @@ export default function ScreenMirrorView({ device, onClose, onStopMirror, isActi
     if (!screenshotModal?.previewBase64 || copyImageStatus === 'copying') return;
 
     if (typeof ClipboardItem === 'undefined' || !navigator.clipboard || typeof navigator.clipboard.write !== 'function') {
-      alert('Image copying is not supported in this browser. Please use Download PNG instead.');
+      toast.error('Image copying is not supported in this browser. Please use Download PNG instead.');
       return;
     }
 
@@ -961,14 +1141,21 @@ export default function ScreenMirrorView({ device, onClose, onStopMirror, isActi
   const startRecording = () => {
     if (isRecording || mirrorStatus !== 'live' || !videoRef.current) return;
 
-    const stream = videoRef.current.captureStream
-      ? videoRef.current.captureStream(30)
-      : videoRef.current.mozCaptureStream
-      ? videoRef.current.mozCaptureStream(30)
-      : null;
+    if (recordingBridgeRef.current) {
+      try { recordingBridgeRef.current.destroy(); } catch (e) {}
+      recordingBridgeRef.current = null;
+    }
+
+    const bridge = new CanvasRecordingBridge(videoRef.current, 30);
+    recordingBridgeRef.current = bridge;
+    const stream = bridge.getStream();
 
     if (!stream || stream.getVideoTracks().length === 0) {
-      alert('Browser screen recording API is not supported on this video track.');
+      if (recordingBridgeRef.current) {
+        recordingBridgeRef.current.destroy();
+        recordingBridgeRef.current = null;
+      }
+      toast.error('Browser screen recording API is not supported on this video track.');
       return;
     }
 
@@ -989,6 +1176,10 @@ export default function ScreenMirrorView({ device, onClose, onStopMirror, isActi
       };
 
       recorder.onstop = () => {
+        if (recordingBridgeRef.current) {
+          recordingBridgeRef.current.destroy();
+          recordingBridgeRef.current = null;
+        }
         if (recordingTimerRef.current) {
           clearInterval(recordingTimerRef.current);
           recordingTimerRef.current = null;
@@ -1020,11 +1211,23 @@ export default function ScreenMirrorView({ device, onClose, onStopMirror, isActi
               screenResolution: resolution
             }
           });
+
+          // Also populate toolbar Download button state
+          setCompletedRecording((prev) => {
+            if (prev?.url) URL.revokeObjectURL(prev.url);
+            return null;
+          });
+          const dlUrl = URL.createObjectURL(blob);
+          setCompletedRecording({ blob, url: dlUrl, filename });
         }
       };
 
       recorder.onerror = (err) => {
         console.error('[MediaRecorder Error]', err);
+        if (recordingBridgeRef.current) {
+          recordingBridgeRef.current.destroy();
+          recordingBridgeRef.current = null;
+        }
         setIsRecording(false);
         if (recordingTimerRef.current) {
           clearInterval(recordingTimerRef.current);
@@ -1041,7 +1244,11 @@ export default function ScreenMirrorView({ device, onClose, onStopMirror, isActi
       }, 1000);
     } catch (err) {
       console.error('Failed to start recording:', err);
-      alert(`Could not start screen recording: ${err.message}`);
+      toast.error(`Could not start screen recording: ${err.message}`);
+      if (recordingBridgeRef.current) {
+        recordingBridgeRef.current.destroy();
+        recordingBridgeRef.current = null;
+      }
       setIsRecording(false);
     }
   };
@@ -1054,6 +1261,10 @@ export default function ScreenMirrorView({ device, onClose, onStopMirror, isActi
       }
     } catch (err) {
       console.error('Error stopping recorder:', err);
+      if (recordingBridgeRef.current) {
+        recordingBridgeRef.current.destroy();
+        recordingBridgeRef.current = null;
+      }
       setIsRecording(false);
     }
   };
@@ -1061,6 +1272,11 @@ export default function ScreenMirrorView({ device, onClose, onStopMirror, isActi
   // Screen Recording Actions (Unified with ScreenMirrorStreamManager)
   const handleStartRecordingUnified = async () => {
     if (isRecording) return;
+    // Clear previous completed recording
+    setCompletedRecording((prev) => {
+      if (prev?.url) URL.revokeObjectURL(prev.url);
+      return null;
+    });
     try {
       if (screenMirrorStreamManager.isMirrorReady(device)) {
         await screenMirrorStreamManager.startRecording();
@@ -1075,21 +1291,10 @@ export default function ScreenMirrorView({ device, onClose, onStopMirror, isActi
   const handleStopRecordingUnified = async () => {
     if (screenMirrorStreamManager.state === 'recording') {
       try {
-        const recording = await screenMirrorStreamManager.stopRecording();
-        if (recording) {
-          let mod = null;
-          try {
-            const raw = localStorage.getItem('bugdesk_current_module');
-            if (raw) mod = JSON.parse(raw);
-          } catch (e) {}
-
-          await screenMirrorStreamManager.uploadAndPublish({
-            project: mod?.project || 'Project',
-            module: mod?.module || 'Module',
-            round: mod?.round || '',
-            recording
-          });
-        }
+        await screenMirrorStreamManager.stopRecording();
+        // screenMirrorStreamManager.stopRecording() finalizes the video,
+        // stores pendingRecording and dispatches bugdesk:recording-ready.
+        // The authoritative BugDesk upload confirmation dialog prompts the user.
         return;
       } catch (err) {
         console.error('Error stopping unified recording:', err);
@@ -1246,6 +1451,7 @@ export default function ScreenMirrorView({ device, onClose, onStopMirror, isActi
         const copied = await copyTextToClipboard(shareUrl);
         if (copied) {
           setCopyLinkSuccess(true);
+          toast.success('Shareable recording link copied to clipboard!');
           setTimeout(() => setCopyLinkSuccess(false), 3000);
         }
       } else {
@@ -1254,6 +1460,7 @@ export default function ScreenMirrorView({ device, onClose, onStopMirror, isActi
     } catch (err) {
       console.error('[PublishLink Error]', err);
       setPublishError(err.message || 'Failed to publish recording link');
+      toast.error(err.message || 'Failed to publish recording link');
       setPublishStatus('error');
     }
   };
@@ -1263,6 +1470,7 @@ export default function ScreenMirrorView({ device, onClose, onStopMirror, isActi
     const copied = await copyTextToClipboard(publishedUrl);
     if (copied) {
       setCopyLinkSuccess(true);
+      toast.success('Shareable recording link copied to clipboard!');
       setTimeout(() => setCopyLinkSuccess(false), 3000);
     }
   };
@@ -1331,17 +1539,18 @@ export default function ScreenMirrorView({ device, onClose, onStopMirror, isActi
         {/* Action Controls */}
         <div className="flex items-center gap-2">
           {/* Quality Preset */}
-          <select
+          <CustomSelect
             value={qualityPreset}
-            onChange={(e) => handleQualityChange(e.target.value)}
+            onChange={(val) => handleQualityChange(val?.target ? val.target.value : val)}
             disabled={mirrorStatus === 'connecting' || isRecording}
-            className="px-2.5 py-1.5 bg-[#0D111A] border border-[#1E2638] rounded-lg text-xs font-semibold text-[#CBD5E1] focus:outline-none focus:border-[#F59E0B] cursor-pointer"
+            options={[
+              { value: '1080p', label: '1080p (High Res)' },
+              { value: '720p', label: '720p (Low Latency)' },
+              { value: '480p', label: '480p (Fast)' }
+            ]}
+            className="h-8 w-44 text-xs font-semibold"
             title="Streaming Resolution Preset"
-          >
-            <option value="1080p">1080p (High Res)</option>
-            <option value="720p">720p (Low Latency)</option>
-            <option value="480p">480p (Fast)</option>
-          </select>
+          />
 
           {/* Screenshot Button */}
           <button
@@ -1379,6 +1588,31 @@ export default function ScreenMirrorView({ device, onClose, onStopMirror, isActi
             >
               <Disc className="w-3.5 h-3.5 text-rose-400 group-hover:scale-110 transition-transform" />
               <span>Start Recording</span>
+            </button>
+          )}
+
+          {/* Download Recording (visible after recording completes, hidden during recording) */}
+          {completedRecording && !isRecording && (
+            <button
+              onClick={() => {
+                try {
+                  const a = document.createElement('a');
+                  a.href = completedRecording.url;
+                  a.download = completedRecording.filename || 'screen-recording.webm';
+                  document.body.appendChild(a);
+                  a.click();
+                  document.body.removeChild(a);
+                  toast.success(`Downloading ${completedRecording.filename}`);
+                } catch (err) {
+                  console.error('Download failed:', err);
+                  toast.error('Failed to download recording');
+                }
+              }}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 text-xs font-bold text-emerald-400 hover:text-emerald-300 transition-all shadow-sm group cursor-pointer"
+              title="Download the completed screen recording to your computer"
+            >
+              <Download className="w-3.5 h-3.5 text-emerald-400 group-hover:scale-110 transition-transform" />
+              <span className="hidden sm:inline">Download Recording</span>
             </button>
           )}
 

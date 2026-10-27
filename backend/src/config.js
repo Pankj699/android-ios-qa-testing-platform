@@ -82,7 +82,11 @@ const config = {
   MIXPANEL_REGION: process.env.MIXPANEL_REGION || 'US', // 'US' or 'EU'
   MIXPANEL_POLL_INTERVAL_MS: parseInt(process.env.MIXPANEL_POLL_INTERVAL_MS || '3000', 10),
   MIXPANEL_POLL_TIMEOUT_MS: parseInt(process.env.MIXPANEL_POLL_TIMEOUT_MS || '60000', 10),
-  MAX_EVENTS_PER_SESSION: parseInt(process.env.MAX_EVENTS_PER_SESSION || '500', 10)
+  MAX_EVENTS_PER_SESSION: parseInt(process.env.MAX_EVENTS_PER_SESSION || '500', 10),
+
+  // Remote Config Integration Base URLs
+  REMOTE_CONFIG_ANDROID_URL: process.env.REMOTE_CONFIG_ANDROID_URL || 'http://192.168.0.247:2315',
+  REMOTE_CONFIG_IOS_URL: process.env.REMOTE_CONFIG_IOS_URL || 'http://192.168.0.247:2324'
 };
 
 module.exports = config;

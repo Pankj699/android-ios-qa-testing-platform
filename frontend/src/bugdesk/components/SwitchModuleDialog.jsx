@@ -41,7 +41,7 @@ export function SwitchModuleDialog({ open, onOpenChange, initial, onSave }) {
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4 pt-2">
           <div className="space-y-1.5">
-            <label htmlFor="modal-project" className="text-[13px] font-semibold text-slate-200">
+            <label htmlFor="modal-project" className="text-[13px] font-semibold text-slate-700 dark:text-slate-200">
               Project Name &amp; Version
             </label>
             <Input
@@ -54,7 +54,7 @@ export function SwitchModuleDialog({ open, onOpenChange, initial, onSave }) {
             />
           </div>
           <div className="space-y-1.5">
-            <label htmlFor="modal-module" className="text-[13px] font-semibold text-slate-200">
+            <label htmlFor="modal-module" className="text-[13px] font-semibold text-slate-700 dark:text-slate-200">
               Module Name
             </label>
             <Input
@@ -67,8 +67,8 @@ export function SwitchModuleDialog({ open, onOpenChange, initial, onSave }) {
             />
           </div>
           <div className="space-y-1.5">
-            <label htmlFor="modal-round" className="text-[13px] font-semibold text-slate-200">
-              Current Round <span className="text-[#8F97A6] font-normal">(Optional)</span>
+            <label htmlFor="modal-round" className="text-[13px] font-semibold text-slate-700 dark:text-slate-200">
+              Current Round <span className="text-slate-500 dark:text-[#8F97A6] font-normal">(Optional)</span>
             </label>
             <Input
               id="modal-round"
@@ -78,16 +78,16 @@ export function SwitchModuleDialog({ open, onOpenChange, initial, onSave }) {
               className="h-10 text-[13.5px]"
             />
           </div>
-          <DialogFooter className="pt-3">
+          <DialogFooter className="pt-3 flex items-center justify-end gap-2">
             <Button
               type="button"
               variant="outline"
               onClick={() => onOpenChange(false)}
-              className="h-10 text-[13.5px] border-[#263248] text-slate-200 hover:bg-[#1A2234]"
+              className="h-10 text-[13.5px] rounded-pill border-[var(--line)] text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-[#1A2234] font-semibold"
             >
               Cancel
             </Button>
-            <Button type="submit" className="h-10 text-[13.5px] bg-[#F59E0B] hover:bg-[#E58E00] text-[#0A0D14] font-bold">
+            <Button type="submit" className="h-10 text-[13.5px] btn-magic text-white font-bold rounded-pill shadow-md">
               Save &amp; Use
             </Button>
           </DialogFooter>

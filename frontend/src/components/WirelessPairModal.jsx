@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import QRCode from 'qrcode';
 import { api } from '../services/api';
+import { toast } from '../utils/toast';
 
 export default function WirelessPairModal({ isOpen, onClose, onDeviceConnected }) {
   const [activeTab, setActiveTab] = useState('qr'); // 'qr' | 'code' | 'discovered'
@@ -208,9 +209,11 @@ export default function WirelessPairModal({ isOpen, onClose, onDeviceConnected }
     try {
       const res = await api.pairWirelessWithCode(ip.trim(), pairPort.trim(), pairCode.trim());
       setManualSuccessMsg(`✓ Successfully paired with ${ip}:${pairPort}! Now enter your Wireless Debugging connection port.`);
+      toast.success(`Successfully paired with ${ip}:${pairPort}!`);
       setManualStep('connect');
     } catch (err) {
       setManualError(err.message || 'Failed to pair device.');
+      toast.error(err.message || 'Failed to pair device.');
     } finally {
       setManualLoading(false);
     }
@@ -231,6 +234,7 @@ export default function WirelessPairModal({ isOpen, onClose, onDeviceConnected }
     try {
       const res = await api.connectWirelessDevice(ip.trim(), connectPort.trim(), 'browser-wireless');
       setManualSuccessMsg(`✓ Successfully connected to ${res.serial}!`);
+      toast.success(`Device connected successfully: ${res.serial}`);
       setTimeout(() => {
         if (onDeviceConnected) {
           onDeviceConnected(res.device || { serial: res.serial, connected: true, connectionMode: 'browser-wireless' });
@@ -239,6 +243,7 @@ export default function WirelessPairModal({ isOpen, onClose, onDeviceConnected }
       }, 1000);
     } catch (err) {
       setManualError(err.message || 'Failed to connect to device.');
+      toast.error(err.message || 'Failed to connect to device.');
     } finally {
       setManualLoading(false);
     }
@@ -249,37 +254,38 @@ export default function WirelessPairModal({ isOpen, onClose, onDeviceConnected }
     setConnectingSerial(dev.address);
     try {
       const res = await api.connectWirelessDevice(dev.ip, dev.port, 'browser-wireless');
+      toast.success(`Device connected successfully: ${res.serial || dev.name}`);
       if (onDeviceConnected) {
         onDeviceConnected(res.device || { serial: res.serial, connected: true, connectionMode: 'browser-wireless' });
       }
       setTimeout(onClose, 800);
     } catch (err) {
-      alert(`Connection failed: ${err.message}`);
+      toast.error(`Connection failed: ${err.message}`);
     } finally {
       setConnectingSerial(null);
     }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/80 backdrop-blur-sm animate-in fade-in duration-150 overflow-y-auto">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/60 backdrop-blur-sm animate-fade-in overflow-y-auto">
       <div 
-        className="w-full max-w-[900px] bg-[#131924] border border-[#1E2638] rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[calc(100vh-48px)] my-auto"
+        className="w-full max-w-[900px] glass rounded-2xl border border-[var(--line)] shadow-2xl overflow-hidden flex flex-col max-h-[calc(100vh-48px)] my-auto"
         style={{ width: 'min(900px, calc(100vw - 48px))' }}
       >
         {/* Modal Header */}
-        <div className="px-6 py-4 border-b border-[#1E2638] flex items-center justify-between gap-3 bg-[#0D111A]">
+        <div className="px-6 py-4 border-b border-[var(--line)] flex items-center justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0">
-            <div className="p-2.5 rounded-xl bg-gradient-to-br from-amber-500/20 to-orange-500/20 text-[#F59E0B] border border-[#78350F] shrink-0">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-[var(--violet)] to-[var(--pink)] flex items-center justify-center text-white shadow-md shadow-[var(--violet)]/20 shrink-0">
               <Wifi className="w-5 h-5" />
             </div>
             <div className="min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
-                <h3 className="font-bold text-white text-base truncate">Pair & Connect Android Device</h3>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-400 border border-amber-500/20 whitespace-nowrap">
+                <h3 className="font-bold text-[var(--ink)] text-base truncate">Pair & Connect Android Device</h3>
+                <span className="chip-badge chip-badge-primary whitespace-nowrap text-[10px]">
                   Android 11+
                 </span>
               </div>
-              <p className="text-xs text-slate-400 mt-0.5">Android Wireless Debugging (QR & TLS Handshake)</p>
+              <p className="text-xs text-[var(--muted)] mt-0.5">Android Wireless Debugging (QR & TLS Handshake)</p>
             </div>
           </div>
           <div className="flex items-center gap-2 shrink-0">
@@ -288,10 +294,10 @@ export default function WirelessPairModal({ isOpen, onClose, onDeviceConnected }
                 setShowDiagnostics(!showDiagnostics);
                 if (!showDiagnostics) fetchDiagnostics();
               }}
-              className={`p-2 sm:px-3 sm:py-1.5 rounded-lg text-xs font-semibold border transition-colors flex items-center gap-1.5 cursor-pointer ${
+              className={`p-2 sm:px-3 sm:py-1.5 rounded-xl text-xs font-semibold border transition-all flex items-center gap-1.5 cursor-pointer ${
                 showDiagnostics
-                  ? 'bg-amber-500/20 text-[#F59E0B] border-amber-500/40'
-                  : 'text-slate-400 hover:text-white bg-[#1E2638] border-[#334155]'
+                  ? 'btn-magic text-white shadow-xs'
+                  : 'btn-soft text-[var(--muted)] hover:text-[var(--ink)]'
               }`}
               title="Wireless Debugging Diagnostics & mDNS Discovery"
             >
@@ -300,7 +306,7 @@ export default function WirelessPairModal({ isOpen, onClose, onDeviceConnected }
             </button>
             <button
               onClick={onClose}
-              className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-[#1E2638] transition-colors cursor-pointer"
+              className="p-1.5 rounded-xl text-[var(--muted)] hover:text-[var(--ink)] hover:bg-[var(--card)] transition-colors cursor-pointer"
             >
               <X className="w-5 h-5" />
             </button>
@@ -308,29 +314,29 @@ export default function WirelessPairModal({ isOpen, onClose, onDeviceConnected }
         </div>
 
         {/* Navigation Tabs */}
-        <div className="px-6 pt-3 border-b border-[#1E2638] bg-[#0A0D14] flex items-center justify-between overflow-x-auto">
+        <div className="px-6 py-2.5 border-b border-[var(--line)] bg-[var(--card)]/40 flex items-center justify-between overflow-x-auto gap-2">
           <div className="flex gap-2 min-w-max">
             <button
               onClick={() => setActiveTab('qr')}
-              className={`px-4 py-2 text-xs font-bold rounded-t-lg transition-all flex items-center gap-2 border-b-2 cursor-pointer ${
+              className={`px-3.5 py-1.5 text-xs font-bold rounded-xl transition-all flex items-center gap-2 cursor-pointer ${
                 activeTab === 'qr'
-                  ? 'border-[#F59E0B] text-[#F59E0B] bg-[#131924]'
-                  : 'border-transparent text-slate-400 hover:text-slate-200 hover:bg-[#131924]/50'
+                  ? 'btn-magic text-white shadow-xs'
+                  : 'btn-soft text-[var(--muted)] hover:text-[var(--ink)]'
               }`}
             >
               <QrCode className="w-3.5 h-3.5" />
               <span>Pair with QR Code</span>
-              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-500/20 text-[#F59E0B]">
+              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-md bg-white/20 text-white">
                 Recommended
               </span>
             </button>
 
             <button
               onClick={() => setActiveTab('code')}
-              className={`px-4 py-2 text-xs font-bold rounded-t-lg transition-all flex items-center gap-2 border-b-2 cursor-pointer ${
+              className={`px-3.5 py-1.5 text-xs font-bold rounded-xl transition-all flex items-center gap-2 cursor-pointer ${
                 activeTab === 'code'
-                  ? 'border-[#F59E0B] text-[#F59E0B] bg-[#131924]'
-                  : 'border-transparent text-slate-400 hover:text-slate-200 hover:bg-[#131924]/50'
+                  ? 'btn-magic text-white shadow-xs'
+                  : 'btn-soft text-[var(--muted)] hover:text-[var(--ink)]'
               }`}
             >
               <KeyRound className="w-3.5 h-3.5" />
@@ -342,10 +348,10 @@ export default function WirelessPairModal({ isOpen, onClose, onDeviceConnected }
                 setActiveTab('discovered');
                 fetchDiscovered();
               }}
-              className={`px-4 py-2 text-xs font-bold rounded-t-lg transition-all flex items-center gap-2 border-b-2 cursor-pointer ${
+              className={`px-3.5 py-1.5 text-xs font-bold rounded-xl transition-all flex items-center gap-2 cursor-pointer ${
                 activeTab === 'discovered'
-                  ? 'border-[#F59E0B] text-[#F59E0B] bg-[#131924]'
-                  : 'border-transparent text-slate-400 hover:text-slate-200 hover:bg-[#131924]/50'
+                  ? 'btn-magic text-white shadow-xs'
+                  : 'btn-soft text-[var(--muted)] hover:text-[var(--ink)]'
               }`}
             >
               <Radio className="w-3.5 h-3.5" />
@@ -361,16 +367,16 @@ export default function WirelessPairModal({ isOpen, onClose, onDeviceConnected }
         <div className="p-6 md:p-8 overflow-y-auto space-y-6 flex-1">
           {/* Diagnostics Panel (if toggled) */}
           {showDiagnostics && (
-            <div className="p-4 rounded-xl bg-[#0A0D14] border border-amber-500/30 text-xs space-y-3 animate-in fade-in duration-150">
-              <div className="flex items-center justify-between border-b border-[#1E2638] pb-2">
-                <div className="flex items-center gap-2 text-[#F59E0B] font-bold">
+            <div className="p-4 rounded-xl bg-[var(--card)] border border-[var(--line)] text-xs space-y-3 animate-fade-in shadow-inner">
+              <div className="flex items-center justify-between border-b border-[var(--line)] pb-2">
+                <div className="flex items-center gap-2 text-[var(--violet)] font-bold">
                   <Terminal className="w-4 h-4" />
                   <span>mDNS & Network Discovery Diagnostics</span>
                 </div>
                 <button
                   onClick={fetchDiagnostics}
                   disabled={loadingDiag}
-                  className="p-1 rounded bg-[#1E2638] hover:bg-[#263248] text-slate-300 cursor-pointer"
+                  className="btn-soft p-1 rounded-lg cursor-pointer"
                   title="Refresh Diagnostics"
                 >
                   <RefreshCw className={`w-3.5 h-3.5 ${loadingDiag ? 'animate-spin' : ''}`} />
@@ -379,33 +385,33 @@ export default function WirelessPairModal({ isOpen, onClose, onDeviceConnected }
 
               {diagnosticsData ? (
                 <div className="space-y-2 text-[11px] font-mono">
-                  <div className="flex justify-between py-1 border-b border-[#1E2638]/50">
-                    <span className="text-slate-400">QA Host Local IP:</span>
-                    <span className="text-white font-bold">{diagnosticsData.localIp || 'Unknown'}</span>
+                  <div className="flex justify-between py-1 border-b border-[var(--line)]/50">
+                    <span className="text-[var(--muted)]">QA Host Local IP:</span>
+                    <span className="text-[var(--ink)] font-bold">{diagnosticsData.localIp || 'Unknown'}</span>
                   </div>
-                  <div className="flex justify-between py-1 border-b border-[#1E2638]/50">
-                    <span className="text-slate-400">ADB mDNS Daemon Status:</span>
-                    <span className={diagnosticsData.mdnsAvailable ? 'text-emerald-400' : 'text-rose-400'}>
+                  <div className="flex justify-between py-1 border-b border-[var(--line)]/50">
+                    <span className="text-[var(--muted)]">ADB mDNS Daemon Status:</span>
+                    <span className={diagnosticsData.mdnsAvailable ? 'text-emerald-500 font-bold' : 'text-rose-500 font-bold'}>
                       {diagnosticsData.mdnsAvailable ? 'Active & Available' : 'Unavailable'}
                     </span>
                   </div>
-                  <div className="flex justify-between py-1 border-b border-[#1E2638]/50">
-                    <span className="text-slate-400">Pairing Services Detected (_adb-tls-pairing):</span>
-                    <span className="text-[#F59E0B] font-bold">{diagnosticsData.pairingServicesCount}</span>
+                  <div className="flex justify-between py-1 border-b border-[var(--line)]/50">
+                    <span className="text-[var(--muted)]">Pairing Services Detected (_adb-tls-pairing):</span>
+                    <span className="text-amber-500 font-bold">{diagnosticsData.pairingServicesCount}</span>
                   </div>
-                  <div className="flex justify-between py-1 border-b border-[#1E2638]/50">
-                    <span className="text-slate-400">Connected Services Detected (_adb-tls-connect):</span>
-                    <span className="text-emerald-400 font-bold">{diagnosticsData.connectServicesCount}</span>
+                  <div className="flex justify-between py-1 border-b border-[var(--line)]/50">
+                    <span className="text-[var(--muted)]">Connected Services Detected (_adb-tls-connect):</span>
+                    <span className="text-emerald-500 font-bold">{diagnosticsData.connectServicesCount}</span>
                   </div>
 
                   {diagnosticsData.discoveredServices?.length > 0 && (
                     <div className="pt-2">
-                      <span className="text-slate-400 block mb-1">Discovered Network Services:</span>
-                      <div className="space-y-1 max-h-32 overflow-y-auto bg-[#131924] p-2 rounded border border-[#1E2638]">
+                      <span className="text-[var(--muted)] block mb-1">Discovered Network Services:</span>
+                      <div className="space-y-1 max-h-32 overflow-y-auto bg-[var(--card)] p-2 rounded-xl border border-[var(--line)]">
                         {diagnosticsData.discoveredServices.map((s, idx) => (
                           <div key={idx} className="flex justify-between text-[10px]">
-                            <span className="text-slate-300 truncate max-w-[200px]">{s.serviceName}</span>
-                            <span className={s.isPairing ? 'text-amber-400' : 'text-emerald-400'}>
+                            <span className="text-[var(--ink)] truncate max-w-[200px]">{s.serviceName}</span>
+                            <span className={s.isPairing ? 'text-amber-500 font-semibold' : 'text-emerald-500 font-semibold'}>
                               {s.address} ({s.isPairing ? 'pairing' : 'connect'})
                             </span>
                           </div>
@@ -415,8 +421,8 @@ export default function WirelessPairModal({ isOpen, onClose, onDeviceConnected }
                   )}
                 </div>
               ) : (
-                <div className="flex items-center justify-center py-4 text-slate-400">
-                  <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                <div className="flex items-center justify-center py-4 text-[var(--muted)]">
+                  <Loader2 className="w-4 h-4 animate-spin mr-2 text-[var(--violet)]" />
                   <span>Loading network discovery diagnostics...</span>
                 </div>
               )}
@@ -429,28 +435,28 @@ export default function WirelessPairModal({ isOpen, onClose, onDeviceConnected }
               {/* Responsive Two-Column Layout on Desktop */}
               <div className="grid grid-cols-1 md:grid-cols-[340px_1fr] lg:grid-cols-[360px_1fr] gap-6 lg:gap-8 items-start">
                 {/* LEFT COLUMN: QR Code Container */}
-                <div className="flex flex-col items-center justify-center p-6 rounded-2xl bg-[#0A0D14] border border-[#1E2638] text-center w-full max-w-[360px] mx-auto shadow-inner">
+                <div className="flex flex-col items-center justify-center p-6 rounded-2xl glass border border-[var(--line)] text-center w-full max-w-[360px] mx-auto shadow-sm">
                   {qrStatus === 'LOADING' ? (
                     <div className="w-[280px] h-[280px] flex flex-col items-center justify-center gap-3">
-                      <Loader2 className="w-10 h-10 text-[#F59E0B] animate-spin" />
-                      <span className="text-xs text-slate-400 font-medium">Generating Pairing QR...</span>
+                      <Loader2 className="w-10 h-10 text-[var(--violet)] animate-spin" />
+                      <span className="text-xs text-[var(--muted)] font-medium">Generating Pairing QR...</span>
                     </div>
                   ) : qrStatus === 'CONNECTED' ? (
-                    <div className="w-[280px] h-[280px] flex flex-col items-center justify-center gap-3 text-emerald-400 animate-in zoom-in-95">
+                    <div className="w-[280px] h-[280px] flex flex-col items-center justify-center gap-3 text-emerald-500 animate-in zoom-in-95">
                       <CheckCircle2 className="w-16 h-16" />
-                      <span className="text-base font-bold text-white">Device Connected!</span>
-                      <span className="text-xs text-slate-400">Closing dialog...</span>
+                      <span className="text-base font-bold text-[var(--ink)]">Device Connected!</span>
+                      <span className="text-xs text-[var(--muted)]">Closing dialog...</span>
                     </div>
                   ) : qrStatus === 'EXPIRED' ? (
-                    <div className="w-[280px] h-[280px] flex flex-col items-center justify-center gap-4 text-slate-400">
-                      <AlertCircle className="w-12 h-12 text-amber-400" />
+                    <div className="w-[280px] h-[280px] flex flex-col items-center justify-center gap-4 text-[var(--muted)]">
+                      <AlertCircle className="w-12 h-12 text-amber-500" />
                       <div>
-                        <span className="text-sm text-slate-200 font-semibold block">QR Code Expired</span>
-                        <span className="text-xs text-slate-400 mt-1 block">Security token expired after 2 minutes</span>
+                        <span className="text-sm text-[var(--ink)] font-semibold block">QR Code Expired</span>
+                        <span className="text-xs text-[var(--muted)] mt-1 block">Security token expired after 2 minutes</span>
                       </div>
                       <button
                         onClick={startQrSession}
-                        className="px-4 py-2 rounded-lg bg-[#F59E0B] hover:bg-[#D97706] text-black text-xs font-bold transition-all flex items-center gap-2 shadow cursor-pointer"
+                        className="btn-magic px-4 py-2 rounded-xl text-white text-xs font-bold transition-all flex items-center gap-2 shadow-md cursor-pointer"
                       >
                         <RefreshCw className="w-4 h-4" />
                         <span>Refresh QR</span>
@@ -458,20 +464,20 @@ export default function WirelessPairModal({ isOpen, onClose, onDeviceConnected }
                     </div>
                   ) : qrDataUrl ? (
                     <div className="space-y-4 flex flex-col items-center w-full">
-                      <div className="p-3 bg-white rounded-2xl shadow-xl border-2 border-amber-500/40">
+                      <div className="p-3 bg-white rounded-2xl shadow-xl border-2 border-[var(--violet)]/40">
                         <img
                           src={qrDataUrl}
                           alt="Android Wireless Debugging QR Code"
-                          className="w-[260px] sm:w-[280px] h-[260px] sm:h-[280px] rounded-lg block object-contain"
+                          className="w-[260px] sm:w-[280px] h-[260px] sm:h-[280px] rounded-xl block object-contain"
                         />
                       </div>
-                      <div className="flex items-center justify-between w-full px-2 text-xs text-slate-400 pt-1">
+                      <div className="flex items-center justify-between w-full px-2 text-xs text-[var(--muted)] pt-1">
                         <span className="flex items-center gap-1.5">
-                          Expires in: <strong className="text-amber-400 font-mono text-sm">{Math.floor(countdown / 60)}:{String(countdown % 60).padStart(2, '0')}</strong>
+                          Expires in: <strong className="text-amber-500 font-mono text-sm">{Math.floor(countdown / 60)}:{String(countdown % 60).padStart(2, '0')}</strong>
                         </span>
                         <button
                           onClick={startQrSession}
-                          className="text-[#F59E0B] hover:text-[#FBBF24] hover:underline flex items-center gap-1.5 font-medium cursor-pointer"
+                          className="text-[var(--violet)] hover:underline flex items-center gap-1.5 font-semibold cursor-pointer"
                           title="Regenerate QR Code"
                         >
                           <RefreshCw className="w-3.5 h-3.5" />
@@ -480,7 +486,7 @@ export default function WirelessPairModal({ isOpen, onClose, onDeviceConnected }
                       </div>
                     </div>
                   ) : (
-                    <div className="w-[280px] h-[280px] flex items-center justify-center text-rose-400 text-xs text-center p-4">
+                    <div className="w-[280px] h-[280px] flex items-center justify-center text-rose-500 text-xs text-center p-4">
                       {qrError || 'Failed to generate QR.'}
                     </div>
                   )}
@@ -489,41 +495,41 @@ export default function WirelessPairModal({ isOpen, onClose, onDeviceConnected }
                 {/* RIGHT COLUMN: How to Pair on Android 11+ */}
                 <div className="space-y-5 flex flex-col justify-between h-full">
                   <div className="space-y-4">
-                    <h4 className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2 pb-2 border-b border-[#1E2638]">
-                      <Smartphone className="w-4 h-4 text-[#F59E0B]" />
+                    <h4 className="text-xs font-bold text-[var(--ink)] uppercase tracking-wider flex items-center gap-2 pb-2 border-b border-[var(--line)]">
+                      <Smartphone className="w-4 h-4 text-[var(--violet)]" />
                       <span>How to Pair on Android 11+</span>
                     </h4>
 
-                    <ol className="space-y-3.5 text-xs text-slate-300">
+                    <ol className="space-y-3.5 text-xs text-[var(--muted)]">
                       <li className="flex items-start gap-3">
-                        <span className="w-6 h-6 rounded-full bg-[#1E2638] text-white flex items-center justify-center text-xs font-bold shrink-0 mt-0.5 border border-[#334155]">
+                        <span className="w-6 h-6 rounded-full bg-[var(--card)] text-[var(--ink)] flex items-center justify-center text-xs font-bold shrink-0 mt-0.5 border border-[var(--line)] shadow-xs">
                           1
                         </span>
                         <div className="pt-0.5 leading-relaxed">
-                          Open Android <strong className="text-white">Settings</strong> → <strong className="text-white">Developer Options</strong>.
+                          Open Android <strong className="text-[var(--ink)]">Settings</strong> → <strong className="text-[var(--ink)]">Developer Options</strong>.
                         </div>
                       </li>
 
                       <li className="flex items-start gap-3">
-                        <span className="w-6 h-6 rounded-full bg-[#1E2638] text-white flex items-center justify-center text-xs font-bold shrink-0 mt-0.5 border border-[#334155]">
+                        <span className="w-6 h-6 rounded-full bg-[var(--card)] text-[var(--ink)] flex items-center justify-center text-xs font-bold shrink-0 mt-0.5 border border-[var(--line)] shadow-xs">
                           2
                         </span>
                         <div className="pt-0.5 leading-relaxed">
-                          Enable <strong className="text-white">Wireless Debugging</strong>.
+                          Enable <strong className="text-[var(--ink)]">Wireless Debugging</strong>.
                         </div>
                       </li>
 
                       <li className="flex items-start gap-3">
-                        <span className="w-6 h-6 rounded-full bg-[#261D10] text-[#F59E0B] border border-[#78350F] flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">
+                        <span className="w-6 h-6 rounded-full bg-gradient-to-tr from-[var(--violet)] to-[var(--pink)] text-white flex items-center justify-center text-xs font-bold shrink-0 mt-0.5 shadow-xs">
                           3
                         </span>
                         <div className="pt-0.5 leading-relaxed">
-                          Tap <strong className="text-[#F59E0B]">"Pair device with QR code"</strong>.
+                          Tap <strong className="text-[var(--violet)]">"Pair device with QR code"</strong>.
                         </div>
                       </li>
 
                       <li className="flex items-start gap-3">
-                        <span className="w-6 h-6 rounded-full bg-[#261D10] text-[#F59E0B] border border-[#78350F] flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">
+                        <span className="w-6 h-6 rounded-full bg-gradient-to-tr from-[var(--violet)] to-[var(--pink)] text-white flex items-center justify-center text-xs font-bold shrink-0 mt-0.5 shadow-xs">
                           4
                         </span>
                         <div className="pt-0.5 leading-relaxed">
@@ -533,11 +539,11 @@ export default function WirelessPairModal({ isOpen, onClose, onDeviceConnected }
                     </ol>
                   </div>
 
-                  <div className="p-4 rounded-xl bg-[#0A0D14] border border-[#1E2638] text-xs text-slate-400 space-y-1.5 mt-2">
-                    <span className="font-semibold text-slate-200 flex items-center gap-1.5 text-xs">
-                      <Info className="w-4 h-4 text-[#F59E0B]" /> Wi-Fi Network Requirement:
+                  <div className="p-4 rounded-xl glass border border-[var(--line)] text-xs text-[var(--muted)] space-y-1.5 mt-2">
+                    <span className="font-semibold text-[var(--ink)] flex items-center gap-1.5 text-xs">
+                      <Info className="w-4 h-4 text-[var(--violet)]" /> Wi-Fi Network Requirement:
                     </span>
-                    <p className="text-slate-400 leading-relaxed text-[11px]">
+                    <p className="text-[var(--muted)] leading-relaxed text-[11px]">
                       Make sure your Android device and this computer are connected to the same Wi-Fi network.
                     </p>
                   </div>
@@ -547,21 +553,21 @@ export default function WirelessPairModal({ isOpen, onClose, onDeviceConnected }
               {/* Status Banner */}
               <div className={`p-4 rounded-xl border flex items-center gap-3 transition-all ${
                 qrStatus === 'CONNECTED'
-                  ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
+                  ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400'
                   : qrStatus === 'PAIRING' || qrStatus === 'CONNECTING'
-                  ? 'bg-amber-500/10 border-amber-500/30 text-amber-300'
+                  ? 'bg-amber-500/10 border-amber-500/30 text-amber-600 dark:text-amber-400'
                   : qrStatus === 'ERROR' || qrStatus === 'EXPIRED'
-                  ? 'bg-rose-500/10 border-rose-500/30 text-rose-300'
-                  : 'bg-[#0A0D14] border-[#1E2638] text-slate-300'
+                  ? 'bg-rose-500/10 border-rose-500/30 text-rose-600 dark:text-rose-400'
+                  : 'glass border-[var(--line)] text-[var(--ink)]'
               }`}>
                 {qrStatus === 'PAIRING' || qrStatus === 'CONNECTING' ? (
-                  <Loader2 className="w-4 h-4 animate-spin text-[#F59E0B] shrink-0" />
+                  <Loader2 className="w-4 h-4 animate-spin text-[var(--violet)] shrink-0" />
                 ) : qrStatus === 'CONNECTED' ? (
-                  <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                  <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
                 ) : qrStatus === 'ERROR' || qrStatus === 'EXPIRED' ? (
-                  <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+                  <AlertCircle className="w-4 h-4 text-rose-500 shrink-0" />
                 ) : (
-                  <Radio className="w-4 h-4 text-[#F59E0B] animate-pulse shrink-0" />
+                  <Radio className="w-4 h-4 text-[var(--violet)] animate-pulse shrink-0" />
                 )}
                 <div className="text-xs font-medium flex-1">
                   {statusMessage || 'Waiting for Android device to scan QR code...'}
@@ -574,18 +580,18 @@ export default function WirelessPairModal({ isOpen, onClose, onDeviceConnected }
           {activeTab === 'code' && (
             <div className="space-y-5">
               {/* Step indicator */}
-              <div className="flex items-center gap-3 pb-3 border-b border-[#1E2638]">
-                <div className={`flex items-center gap-2 text-xs font-bold ${manualStep === 'pair' ? 'text-[#F59E0B]' : 'text-emerald-400'}`}>
-                  <span className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold bg-[#261D10] text-[#F59E0B] border border-[#78350F]">
+              <div className="flex items-center gap-3 pb-3 border-b border-[var(--line)]">
+                <div className={`flex items-center gap-2 text-xs font-bold ${manualStep === 'pair' ? 'text-[var(--violet)]' : 'text-emerald-500'}`}>
+                  <span className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold bg-[var(--card)] text-[var(--violet)] border border-[var(--line)] shadow-xs">
                     1
                   </span>
                   <span>Pair with 6-Digit Code</span>
                 </div>
 
-                <ArrowRight className="w-3.5 h-3.5 text-slate-600" />
+                <ArrowRight className="w-3.5 h-3.5 text-[var(--muted)]" />
 
-                <div className={`flex items-center gap-2 text-xs font-bold ${manualStep === 'connect' ? 'text-[#F59E0B]' : 'text-slate-500'}`}>
-                  <span className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold bg-[#0A0D14] text-slate-500 border border-[#1E2638]">
+                <div className={`flex items-center gap-2 text-xs font-bold ${manualStep === 'connect' ? 'text-[var(--violet)]' : 'text-[var(--muted)]'}`}>
+                  <span className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold bg-[var(--card)] text-[var(--muted)] border border-[var(--line)] shadow-xs">
                     2
                   </span>
                   <span>Connect to Main Port</span>
@@ -593,15 +599,15 @@ export default function WirelessPairModal({ isOpen, onClose, onDeviceConnected }
               </div>
 
               {manualError && (
-                <div className="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-xs text-rose-300 flex items-start gap-2.5">
-                  <AlertCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+                <div className="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-xs text-rose-500 flex items-start gap-2.5">
+                  <AlertCircle className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />
                   <div>{manualError}</div>
                 </div>
               )}
 
               {manualSuccessMsg && (
-                <div className="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-xs text-emerald-300 flex items-start gap-2.5">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                <div className="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-xs text-emerald-500 flex items-start gap-2.5">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
                   <div>{manualSuccessMsg}</div>
                 </div>
               )}
@@ -609,38 +615,38 @@ export default function WirelessPairModal({ isOpen, onClose, onDeviceConnected }
               {manualStep === 'pair' ? (
                 <form onSubmit={handleManualPair} className="space-y-4">
                   <div>
-                    <label className="block text-xs font-medium text-slate-300 mb-1.5">
-                      Device IP Address <span className="text-rose-400">*</span>
+                    <label className="block text-xs font-medium text-[var(--ink)] mb-1.5">
+                      Device IP Address <span className="text-rose-500">*</span>
                     </label>
                     <input
                       type="text"
                       value={ip}
                       onChange={(e) => setIp(e.target.value)}
                       placeholder="e.g. 192.168.0.86"
-                      className="w-full px-3.5 py-2.5 rounded-xl bg-[#0A0D14] border border-[#1E2638] text-xs text-white font-mono focus:outline-none focus:border-[#F59E0B]"
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-[var(--card)] border border-[var(--line)] text-xs text-[var(--ink)] font-mono placeholder-[var(--muted)] focus:outline-none focus:border-[var(--violet)] focus:ring-2 focus:ring-[var(--violet)]/20 transition-all"
                       required
                     />
-                    <p className="text-[11px] text-slate-400 mt-1">Found in Developer Options → Wireless Debugging → "Pair device with pairing code"</p>
+                    <p className="text-[11px] text-[var(--muted)] mt-1">Found in Developer Options → Wireless Debugging → "Pair device with pairing code"</p>
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-xs font-medium text-slate-300 mb-1.5">
-                        Pairing Port <span className="text-rose-400">*</span>
+                      <label className="block text-xs font-medium text-[var(--ink)] mb-1.5">
+                        Pairing Port <span className="text-rose-500">*</span>
                       </label>
                       <input
                         type="text"
                         value={pairPort}
                         onChange={(e) => setPairPort(e.target.value)}
                         placeholder="e.g. 39203"
-                        className="w-full px-3.5 py-2.5 rounded-xl bg-[#0A0D14] border border-[#1E2638] text-xs text-white font-mono focus:outline-none focus:border-[#F59E0B]"
+                        className="w-full px-3.5 py-2.5 rounded-xl bg-[var(--card)] border border-[var(--line)] text-xs text-[var(--ink)] font-mono placeholder-[var(--muted)] focus:outline-none focus:border-[var(--violet)] focus:ring-2 focus:ring-[var(--violet)]/20 transition-all"
                         required
                       />
                     </div>
 
                     <div>
-                      <label className="block text-xs font-medium text-slate-300 mb-1.5">
-                        6-Digit Pairing Code <span className="text-rose-400">*</span>
+                      <label className="block text-xs font-medium text-[var(--ink)] mb-1.5">
+                        6-Digit Pairing Code <span className="text-rose-500">*</span>
                       </label>
                       <input
                         type="text"
@@ -648,7 +654,7 @@ export default function WirelessPairModal({ isOpen, onClose, onDeviceConnected }
                         onChange={(e) => setPairCode(e.target.value)}
                         placeholder="e.g. 842109"
                         maxLength={6}
-                        className="w-full px-3.5 py-2.5 rounded-xl bg-[#0A0D14] border border-[#1E2638] text-xs text-white font-mono tracking-wider focus:outline-none focus:border-[#F59E0B]"
+                        className="w-full px-3.5 py-2.5 rounded-xl bg-[var(--card)] border border-[var(--line)] text-xs text-[var(--ink)] font-mono tracking-wider placeholder-[var(--muted)] focus:outline-none focus:border-[var(--violet)] focus:ring-2 focus:ring-[var(--violet)]/20 transition-all"
                         required
                       />
                     </div>
@@ -658,7 +664,7 @@ export default function WirelessPairModal({ isOpen, onClose, onDeviceConnected }
                     <button
                       type="button"
                       onClick={() => setManualStep('connect')}
-                      className="text-xs text-slate-400 hover:text-slate-200 underline cursor-pointer"
+                      className="text-xs text-[var(--muted)] hover:text-[var(--ink)] underline cursor-pointer"
                     >
                       Already paired? Skip to connect →
                     </button>
@@ -666,7 +672,7 @@ export default function WirelessPairModal({ isOpen, onClose, onDeviceConnected }
                     <button
                       type="submit"
                       disabled={manualLoading}
-                      className="px-5 py-2.5 rounded-xl bg-[#F59E0B] hover:bg-[#D97706] disabled:opacity-50 text-xs font-bold text-black transition-colors flex items-center gap-2 cursor-pointer shadow"
+                      className="btn-magic px-5 py-2.5 rounded-xl disabled:opacity-50 text-xs font-bold text-white transition-all flex items-center gap-2 cursor-pointer shadow-md"
                     >
                       {manualLoading && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
                       <span>Pair Device</span>
@@ -676,32 +682,32 @@ export default function WirelessPairModal({ isOpen, onClose, onDeviceConnected }
               ) : (
                 <form onSubmit={handleManualConnect} className="space-y-4">
                   <div>
-                    <label className="block text-xs font-medium text-slate-300 mb-1.5">
-                      Device IP Address <span className="text-rose-400">*</span>
+                    <label className="block text-xs font-medium text-[var(--ink)] mb-1.5">
+                      Device IP Address <span className="text-rose-500">*</span>
                     </label>
                     <input
                       type="text"
                       value={ip}
                       onChange={(e) => setIp(e.target.value)}
                       placeholder="e.g. 192.168.0.86"
-                      className="w-full px-3.5 py-2.5 rounded-xl bg-[#0A0D14] border border-[#1E2638] text-xs text-white font-mono focus:outline-none focus:border-[#F59E0B]"
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-[var(--card)] border border-[var(--line)] text-xs text-[var(--ink)] font-mono placeholder-[var(--muted)] focus:outline-none focus:border-[var(--violet)] focus:ring-2 focus:ring-[var(--violet)]/20 transition-all"
                       required
                     />
                   </div>
 
                   <div>
-                    <label className="block text-xs font-medium text-slate-300 mb-1.5">
-                      Connection Port <span className="text-rose-400">*</span>
+                    <label className="block text-xs font-medium text-[var(--ink)] mb-1.5">
+                      Connection Port <span className="text-rose-500">*</span>
                     </label>
                     <input
                       type="text"
                       value={connectPort}
                       onChange={(e) => setConnectPort(e.target.value)}
                       placeholder="e.g. 44261 (shown on main Wireless Debugging screen)"
-                      className="w-full px-3.5 py-2.5 rounded-xl bg-[#0A0D14] border border-[#1E2638] text-xs text-white font-mono focus:outline-none focus:border-[#F59E0B]"
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-[var(--card)] border border-[var(--line)] text-xs text-[var(--ink)] font-mono placeholder-[var(--muted)] focus:outline-none focus:border-[var(--violet)] focus:ring-2 focus:ring-[var(--violet)]/20 transition-all"
                       required
                     />
-                    <p className="text-[11px] text-slate-400 mt-1">
+                    <p className="text-[11px] text-[var(--muted)] mt-1">
                       Note: Android uses different ports for pairing and main connection.
                     </p>
                   </div>
@@ -710,7 +716,7 @@ export default function WirelessPairModal({ isOpen, onClose, onDeviceConnected }
                     <button
                       type="button"
                       onClick={() => setManualStep('pair')}
-                      className="text-xs text-slate-400 hover:text-slate-200 cursor-pointer"
+                      className="text-xs text-[var(--muted)] hover:text-[var(--ink)] cursor-pointer"
                     >
                       ← Back to Pairing
                     </button>
@@ -718,7 +724,7 @@ export default function WirelessPairModal({ isOpen, onClose, onDeviceConnected }
                     <button
                       type="submit"
                       disabled={manualLoading}
-                      className="px-5 py-2.5 rounded-xl bg-[#F59E0B] hover:bg-[#D97706] disabled:opacity-50 text-xs font-bold text-black transition-colors flex items-center gap-2 cursor-pointer shadow"
+                      className="btn-magic px-5 py-2.5 rounded-xl disabled:opacity-50 text-xs font-bold text-white transition-all flex items-center gap-2 cursor-pointer shadow-md"
                     >
                       {manualLoading && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
                       <span>Connect Device</span>
@@ -732,17 +738,17 @@ export default function WirelessPairModal({ isOpen, onClose, onDeviceConnected }
           {/* TAB 3: ALREADY PAIRED & DISCOVERED DEVICES */}
           {activeTab === 'discovered' && (
             <div className="space-y-4">
-              <div className="flex items-center justify-between pb-2 border-b border-[#1E2638]">
+              <div className="flex items-center justify-between pb-2 border-b border-[var(--line)]">
                 <div>
-                  <h4 className="text-xs font-bold text-white">Discovered Wireless Devices</h4>
-                  <p className="text-[11px] text-slate-400">
+                  <h4 className="text-xs font-bold text-[var(--ink)]">Discovered Wireless Devices</h4>
+                  <p className="text-[11px] text-[var(--muted)]">
                     Devices broadcasting active ADB TLS services on the local network.
                   </p>
                 </div>
                 <button
                   onClick={fetchDiscovered}
                   disabled={loadingDiscovered}
-                  className="p-1.5 px-3 rounded-lg bg-[#1E2638] hover:bg-[#263248] text-slate-300 text-xs flex items-center gap-1.5 cursor-pointer"
+                  className="btn-soft p-1.5 px-3 rounded-xl text-xs flex items-center gap-1.5 cursor-pointer"
                 >
                   <RefreshCw className={`w-3.5 h-3.5 ${loadingDiscovered ? 'animate-spin' : ''}`} />
                   <span className="hidden sm:inline">Refresh</span>
@@ -750,8 +756,8 @@ export default function WirelessPairModal({ isOpen, onClose, onDeviceConnected }
               </div>
 
               {loadingDiscovered ? (
-                <div className="p-10 text-center text-xs text-slate-400 flex flex-col items-center justify-center gap-2">
-                  <Loader2 className="w-6 h-6 text-[#F59E0B] animate-spin" />
+                <div className="p-10 text-center text-xs text-[var(--muted)] flex flex-col items-center justify-center gap-2">
+                  <Loader2 className="w-6 h-6 text-[var(--violet)] animate-spin" />
                   <span>Scanning local network for ADB TLS services via mDNS...</span>
                 </div>
               ) : discoveredDevices.length > 0 ? (
@@ -759,22 +765,22 @@ export default function WirelessPairModal({ isOpen, onClose, onDeviceConnected }
                   {discoveredDevices.map((dev, idx) => (
                     <div
                       key={idx}
-                      className="p-4 rounded-xl bg-[#0A0D14] border border-[#1E2638] hover:border-amber-500/40 flex items-center justify-between gap-3 transition-all"
+                      className="p-4 rounded-xl glass border border-[var(--line)] hover:border-[var(--violet)]/40 flex items-center justify-between gap-3 transition-all"
                     >
                       <div className="flex items-center gap-3">
-                        <div className="p-2.5 rounded-lg bg-[#261D10] text-[#F59E0B] border border-[#78350F]">
+                        <div className="p-2.5 rounded-xl bg-[var(--violet)]/10 text-[var(--violet)]">
                           <Wifi className="w-4 h-4" />
                         </div>
                         <div>
-                          <div className="text-xs font-bold text-white font-mono">{dev.address}</div>
-                          <div className="text-[11px] text-slate-400 truncate max-w-[260px] sm:max-w-md">{dev.serviceName}</div>
+                          <div className="text-xs font-bold text-[var(--ink)] font-mono">{dev.address}</div>
+                          <div className="text-[11px] text-[var(--muted)] truncate max-w-[260px] sm:max-w-md">{dev.serviceName}</div>
                         </div>
                       </div>
 
                       <button
                         onClick={() => handleConnectDiscovered(dev)}
                         disabled={connectingSerial === dev.address}
-                        className="px-4 py-2 rounded-lg bg-[#F59E0B] hover:bg-[#D97706] disabled:opacity-50 text-xs font-bold text-black transition-colors flex items-center gap-1.5 cursor-pointer shadow"
+                        className="btn-magic px-4 py-2 rounded-xl disabled:opacity-50 text-xs font-bold text-white transition-all flex items-center gap-1.5 cursor-pointer shadow-sm"
                       >
                         {connectingSerial === dev.address ? (
                           <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -787,10 +793,10 @@ export default function WirelessPairModal({ isOpen, onClose, onDeviceConnected }
                   ))}
                 </div>
               ) : (
-                <div className="p-10 rounded-xl border border-dashed border-[#1E2638] text-center space-y-2 bg-[#0A0D14]/50">
-                  <Radio className="w-8 h-8 text-slate-600 mx-auto" />
-                  <div className="text-xs font-semibold text-slate-300">No Wireless Devices Discovered</div>
-                  <p className="text-[11px] text-slate-500 max-w-sm mx-auto">
+                <div className="p-10 rounded-xl border border-dashed border-[var(--line)] text-center space-y-2 glass">
+                  <Radio className="w-8 h-8 text-[var(--muted)] mx-auto opacity-50" />
+                  <div className="text-xs font-semibold text-[var(--ink)]">No Wireless Devices Discovered</div>
+                  <p className="text-[11px] text-[var(--muted)] max-w-sm mx-auto">
                     Ensure Wireless Debugging is toggled ON on your Android device and that both devices share the same Wi-Fi.
                   </p>
                 </div>

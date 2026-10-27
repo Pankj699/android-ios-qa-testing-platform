@@ -31,6 +31,8 @@ import {
 import { api } from '../services/api';
 import { formatDeviceDisplayName, formatDeviceSelectorLabel } from '../utils/deviceFormatter';
 import DeviceThumbnail from '../components/DeviceThumbnail';
+import CustomSelect from '../components/ui/select';
+import { toast } from '../utils/toast';
 
 /**
  * Normalize screenshot data to a valid image src.
@@ -213,11 +215,11 @@ function PropertyRow({ label, value, source = 'Native', onCopy, canCopy = true, 
   };
 
   return (
-    <div className="flex items-start justify-between py-2 border-b border-[#1A202C]/60 last:border-b-0 hover:bg-[#131722]/50 px-2 rounded-lg transition-colors group">
+    <div className="flex items-start justify-between py-2 border-b border-slate-200/60 dark:border-[#1A202C]/60 last:border-b-0 hover:bg-slate-100/70 dark:hover:bg-[#131722]/50 px-2 rounded-lg transition-colors group">
       <div className="flex flex-col min-w-0 pr-2">
-        <span className="text-[11px] font-semibold text-[#8B949E] tracking-tight">{label}</span>
+        <span className="text-[11px] font-semibold text-slate-500 dark:text-[#8B949E] tracking-tight">{label}</span>
         <span
-          className={`text-xs text-[#E6EDF3] break-all select-all ${monospace ? 'font-mono' : 'font-sans'}`}
+          className={`text-xs text-slate-800 dark:text-[#E6EDF3] break-all select-all ${monospace ? 'font-mono' : 'font-sans'}`}
         >
           {value || '—'}
         </span>
@@ -381,7 +383,6 @@ export default function UiInspectorPage({
   const [searchQuery, setSearchQuery] = useState('');
   const [zoomLevel, setZoomLevel] = useState(1);
   const [expandedIds, setExpandedIds] = useState(new Set());
-  const [toastMessage, setToastMessage] = useState(null);
 
   // Overlapping elements at clicked point
   const [elementsAtPoint, setElementsAtPoint] = useState([]);
@@ -429,9 +430,28 @@ export default function UiInspectorPage({
     }
   }, [currentSerial]);
 
-  const showToast = (msg) => {
-    setToastMessage(msg);
-    setTimeout(() => setToastMessage(null), 2200);
+  const showToast = (msg, type) => {
+    if (type === 'error') {
+      toast.error(msg);
+      return;
+    }
+    if (type === 'success') {
+      toast.success(msg);
+      return;
+    }
+    const lower = String(msg).toLowerCase();
+    if (
+      lower.includes('failed') ||
+      lower.includes('not found') ||
+      lower.includes('could not') ||
+      lower.includes('no active') ||
+      lower.includes('no package') ||
+      lower.includes('error')
+    ) {
+      toast.error(msg);
+    } else {
+      toast.success(msg);
+    }
   };
 
   // Build offscreen canvas when screenshot base64 changes
@@ -1085,29 +1105,21 @@ export default function UiInspectorPage({
 
   return (
     <div className="space-y-6 animate-fadeIn pb-12">
-      {/* Toast Notification */}
-      {toastMessage && (
-        <div className="fixed bottom-6 right-6 z-50 px-4 py-2.5 rounded-xl bg-[#1F293D] border border-amber-500/50 text-white text-xs font-semibold shadow-2xl flex items-center gap-2 animate-slideUp">
-          <Sparkles className="w-4 h-4 text-amber-400" />
-          <span>{toastMessage}</span>
-        </div>
-      )}
-
       {/* Top Header Card */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-[#10131B] border border-[#1C2230] p-5 rounded-2xl shadow-sm">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 glass p-5 rounded-2xl shadow-glass border-[rgba(99,102,241,0.14)]">
         <div className="flex items-center gap-3.5">
-          <div className="w-10 h-10 rounded-xl bg-[#16130C] border border-[#F59E0B]/40 flex items-center justify-center text-[#F59E0B] shadow-inner">
-            <Scan className="w-5 h-5" />
+          <div className="brand-mark w-10 h-10 rounded-2xl flex items-center justify-center text-white font-bold shrink-0 shadow-brand">
+            <Scan className="w-5 h-5 text-white" />
           </div>
           <div>
-            <h2 className="text-base font-bold text-[#FFFFFF] flex items-center gap-2">
-              Android UI Inspector
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-mono bg-amber-500/10 text-amber-400 border border-amber-500/20 font-semibold">
+            <h1 className="text-2xl sm:text-[26px] font-extrabold text-[#1f2544] dark:text-white flex items-center gap-2.5 tracking-tight font-sans">
+              UI <span className="text-heading-gradient">Inspector</span>
+              <span className="chip-badge text-[10px] py-0.5 px-2 font-mono">
                 UIAutomator + Design QA
               </span>
-            </h2>
-            <p className="text-xs text-[#94A3B8]">
-              Click-to-inspect native Android hierarchy, bounds, XPath, states, color eyedropper and Figma spec comparison
+            </h1>
+            <p className="text-xs sm:text-[13px] text-[#6b7194] dark:text-[#94A3B8] mt-1">
+              Click-to-inspect native Android hierarchy, bounds, XPath, states, color eyedropper, and Figma spec comparison.
             </p>
           </div>
         </div>
@@ -1117,30 +1129,30 @@ export default function UiInspectorPage({
           {devices.length > 0 && (
             <div className="flex items-center gap-2">
               <DeviceThumbnail device={currentDevice} size="xs" />
-              <select
+              <CustomSelect
                 value={currentDevice?.serial || ''}
-                onChange={(e) => {
-                  const target = devices.find((d) => d.serial === e.target.value);
+                onChange={(val) => {
+                  const serial = val?.target ? val.target.value : val;
+                  const target = devices.find((d) => d.serial === serial);
                   if (target && onSelectDevice) onSelectDevice(target);
                 }}
-                className="px-3 py-2 bg-[#080B10] border border-[#1C2230] rounded-xl text-xs font-semibold text-[#FFFFFF] focus:outline-none focus:border-[#F59E0B] cursor-pointer"
-              >
-                {devices.map((d) => (
-                  <option key={d.serial} value={d.serial} className="bg-[#10131B]">
-                    {formatDeviceSelectorLabel(d)}
-                  </option>
-                ))}
-              </select>
+                options={devices.map((d) => ({
+                  value: d.serial,
+                  label: formatDeviceSelectorLabel(d)
+                }))}
+                placeholder="Select device"
+                className="h-8 min-w-[180px] max-w-[260px] text-xs font-semibold rounded-xl"
+              />
             </div>
           )}
 
           <button
             onClick={handleInspect}
             disabled={loading || !currentDevice || isIos}
-            className={`px-4 py-2 rounded-xl text-xs font-bold shadow-md transition-all flex items-center gap-2 ${
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
               loading || !currentDevice || isIos
-                ? 'bg-[#1C2230] text-[#64748B] cursor-not-allowed border border-[#273142]'
-                : 'bg-[#F59E0B] hover:bg-[#D97706] text-black border border-amber-400/30'
+                ? 'bg-slate-100 dark:bg-[#1C2230] text-[#6b7194] dark:text-[#64748B] cursor-not-allowed border border-[rgba(99,102,241,0.14)] dark:border-[#273142]'
+                : 'btn-magic text-white border-0 shadow-magic cursor-pointer'
             }`}
           >
             <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
@@ -1178,10 +1190,10 @@ export default function UiInspectorPage({
       {/* Main 3-Column Layout: Viewport | Hierarchy Tree | Properties & Design QA Panel */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         {/* Left Column: Viewport (5 cols) */}
-        <div className="lg:col-span-5 flex flex-col space-y-3 bg-[#10131B] border border-[#1C2230] p-4 rounded-2xl shadow-sm">
-          <div className="flex items-center justify-between pb-2 border-b border-[#1C2230]">
+        <div className="lg:col-span-5 flex flex-col space-y-3 bg-white dark:bg-[#10131B] border border-slate-200 dark:border-[#1C2230] p-4 rounded-2xl shadow-sm">
+          <div className="flex items-center justify-between pb-2 border-b border-slate-200 dark:border-[#1C2230]">
             <div className="flex items-center gap-2">
-              <span className="text-xs font-bold text-white flex items-center gap-1.5">
+              <span className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
                 <MousePointerClick className="w-4 h-4 text-amber-400" />
                 Viewport
               </span>
@@ -1237,25 +1249,22 @@ export default function UiInspectorPage({
                 <Layers className="w-3 h-3 text-amber-400" />
                 {elementsAtPoint.length} elements at point:
               </span>
-              <select
+              <CustomSelect
                 value={selectedNode?.id || ''}
-                onChange={(e) => {
-                  const target = elementsAtPoint.find((n) => n.id === e.target.value);
+                onChange={(val) => {
+                  const id = val?.target ? val.target.value : val;
+                  const target = elementsAtPoint.find((n) => n.id === id);
                   if (target) {
                     setSelectedNode(target);
                     expandAncestors(target, inspectionData.hierarchy.rootNode);
                   }
                 }}
-                className="px-2 py-1 bg-[#131722] border border-[#21293D] rounded-lg text-xs font-mono text-amber-300 focus:outline-none max-w-[200px] truncate"
-              >
-                {elementsAtPoint.map((n, idx) => (
-                  <option key={n.id} value={n.id}>
-                    {idx === 0 ? '🎯 Leaf: ' : `Level ${n.depth}: `}
-                    {n.className.split('.').pop()}
-                    {n.resourceId ? ` (#${n.resourceId.split(':id/').pop()})` : ''}
-                  </option>
-                ))}
-              </select>
+                options={elementsAtPoint.map((n, idx) => ({
+                  value: n.id,
+                  label: `${idx === 0 ? '🎯 Leaf: ' : `Level ${n.depth}: `}${n.className.split('.').pop()}${n.resourceId ? ` (#${n.resourceId.split(':id/').pop()})` : ''}`
+                }))}
+                className="h-7 max-w-[220px] text-xs font-mono rounded-lg"
+              />
             </div>
           )}
 
@@ -1354,9 +1363,9 @@ export default function UiInspectorPage({
         </div>
 
         {/* Middle Column: Component Hierarchy Tree (3 cols) */}
-        <div className="lg:col-span-3 flex flex-col space-y-3 bg-[#10131B] border border-[#1C2230] p-4 rounded-2xl shadow-sm h-[740px]">
-          <div className="flex items-center justify-between pb-2 border-b border-[#1C2230]">
-            <span className="text-xs font-bold text-white flex items-center gap-1.5">
+        <div className="lg:col-span-3 flex flex-col space-y-3 bg-white dark:bg-[#10131B] border border-slate-200 dark:border-[#1C2230] p-4 rounded-2xl shadow-sm h-[740px]">
+          <div className="flex items-center justify-between pb-2 border-b border-slate-200 dark:border-[#1C2230]">
+            <span className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
               <Layers className="w-4 h-4 text-indigo-400" />
               Hierarchy Tree
             </span>
@@ -1375,7 +1384,7 @@ export default function UiInspectorPage({
               placeholder="Search id, class, or text..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-8 pr-12 py-1.5 bg-[#080B10] border border-[#1C2230] rounded-xl text-xs text-white focus:outline-none focus:border-[#F59E0B] placeholder:text-[#525A6C]"
+              className="w-full pl-8 pr-12 py-1.5 bg-slate-50 dark:bg-[#080B10] border border-slate-200 dark:border-[#1C2230] rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:border-purple-500 placeholder:text-slate-400 dark:placeholder:text-[#525A6C]"
             />
             {searchQuery && (
               <span className="absolute right-2.5 top-2 text-[10px] font-mono text-amber-400">
@@ -1409,16 +1418,16 @@ export default function UiInspectorPage({
         </div>
 
         {/* Right Column: Element Properties & Design QA Spec Inspector (4 cols) */}
-        <div className="lg:col-span-4 flex flex-col space-y-4 bg-[#10131B] border border-[#1C2230] p-5 rounded-2xl shadow-sm h-[740px] overflow-y-auto">
+        <div className="lg:col-span-4 flex flex-col space-y-4 bg-white dark:bg-[#10131B] border border-slate-200 dark:border-[#1C2230] p-5 rounded-2xl shadow-sm h-[740px] overflow-y-auto">
           {/* Sub-Tabs: Properties vs Design QA (Figma) */}
-          <div className="flex items-center justify-between pb-3 border-b border-[#1C2230]">
-            <div className="flex items-center gap-1.5 p-1 bg-[#090C12] border border-[#1A202C] rounded-xl">
+          <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-[#1C2230]">
+            <div className="flex items-center gap-1.5 p-1 bg-slate-100 dark:bg-[#090C12] border border-slate-200 dark:border-[#1A202C] rounded-xl">
               <button
                 onClick={() => setActiveInspectorTab('properties')}
                 className={`px-3 py-1 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all ${
                   activeInspectorTab === 'properties'
-                    ? 'bg-[#1E2538] text-white shadow-sm'
-                    : 'text-[#717E91] hover:text-white'
+                    ? 'bg-white dark:bg-[#1E2538] text-slate-900 dark:text-white shadow-sm font-bold'
+                    : 'text-slate-500 dark:text-[#717E91] hover:text-slate-900 dark:hover:text-white'
                 }`}
               >
                 <Sliders className="w-3.5 h-3.5 text-amber-400" />
@@ -1428,8 +1437,8 @@ export default function UiInspectorPage({
                 onClick={() => setActiveInspectorTab('figma-qa')}
                 className={`px-3 py-1 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all ${
                   activeInspectorTab === 'figma-qa'
-                    ? 'bg-[#1E2538] text-white shadow-sm'
-                    : 'text-[#717E91] hover:text-white'
+                    ? 'bg-white dark:bg-[#1E2538] text-slate-900 dark:text-white shadow-sm font-bold'
+                    : 'text-slate-500 dark:text-[#717E91] hover:text-slate-900 dark:hover:text-white'
                 }`}
               >
                 <SlidersHorizontal className="w-3.5 h-3.5 text-indigo-400" />
@@ -1465,7 +1474,7 @@ export default function UiInspectorPage({
 
           {/* Breadcrumb Trail & Parent Navigation */}
           {selectedNode && (
-            <div className="flex items-center justify-between gap-2 p-2 rounded-xl bg-[#090C12] border border-[#161B26]">
+            <div className="flex items-center justify-between gap-2 p-2 rounded-xl bg-slate-50 dark:bg-[#090C12] border border-slate-200 dark:border-[#161B26]">
               <div className="flex flex-wrap items-center gap-1 text-[10px] font-mono text-[#8B949E] overflow-x-auto max-h-16 flex-1">
                 {breadcrumbTrail.map((ancestor, i) => {
                   const isCurrent = i === breadcrumbTrail.length - 1;
@@ -1507,7 +1516,7 @@ export default function UiInspectorPage({
                 <span className="text-[10px] font-bold uppercase tracking-wider text-purple-400 flex items-center gap-1">
                   <Sparkles className="w-3 h-3" /> Visual Sampling & Typography
                 </span>
-                <div className="bg-[#0A0D15] rounded-xl p-2.5 border border-[#181E2E]">
+                <div className="bg-slate-50 dark:bg-[#0A0D15] rounded-xl p-2.5 border border-slate-200 dark:border-[#181E2E]">
                   {/* Sampled Color Row */}
                   <div className="flex items-center justify-between py-2 border-b border-[#1A202C]/60 px-2 rounded-lg">
                     <div className="flex items-center gap-2.5">
@@ -1626,7 +1635,7 @@ export default function UiInspectorPage({
                 <span className="text-[10px] font-bold uppercase tracking-wider text-[#F59E0B] flex items-center gap-1">
                   <Code2 className="w-3 h-3" /> Identity & Selectors
                 </span>
-                <div className="bg-[#0A0D15] rounded-xl p-2.5 border border-[#181E2E]">
+                <div className="bg-slate-50 dark:bg-[#0A0D15] rounded-xl p-2.5 border border-slate-200 dark:border-[#181E2E]">
                   <PropertyRow
                     label="resource-id"
                     value={selectedNode.resourceId}
@@ -1655,7 +1664,7 @@ export default function UiInspectorPage({
                 <span className="text-[10px] font-bold uppercase tracking-wider text-[#A5B4FC] flex items-center gap-1">
                   <Type className="w-3 h-3" /> Content & Accessibility
                 </span>
-                <div className="bg-[#0A0D15] rounded-xl p-2.5 border border-[#181E2E]">
+                <div className="bg-slate-50 dark:bg-[#0A0D15] rounded-xl p-2.5 border border-slate-200 dark:border-[#181E2E]">
                   <PropertyRow
                     label="text"
                     value={selectedNode.text}
@@ -1676,7 +1685,7 @@ export default function UiInspectorPage({
                 <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-400 flex items-center gap-1">
                   <Layout className="w-3 h-3" /> Layout & Bounds
                 </span>
-                <div className="bg-[#0A0D15] rounded-xl p-2.5 border border-[#181E2E] space-y-2">
+                <div className="bg-slate-50 dark:bg-[#0A0D15] rounded-xl p-2.5 border border-slate-200 dark:border-[#181E2E] space-y-2">
                   <PropertyRow
                     label="bounds"
                     value={selectedNode.bounds?.raw}
@@ -1742,7 +1751,7 @@ export default function UiInspectorPage({
             <div className="space-y-4">
               <div className="p-3 rounded-xl bg-[#0A0D15] border border-[#1A202C] space-y-3">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                  <span className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
                     <SlidersHorizontal className="w-3.5 h-3.5 text-indigo-400" />
                     Enter Expected Figma Values
                   </span>

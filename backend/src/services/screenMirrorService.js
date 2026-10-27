@@ -76,11 +76,15 @@ class ScreenMirrorService {
         startedAt: new Date().toISOString()
       },
       isStopping: false,
-      proc: null
+      proc: null,
+      inputProc: null,
+      inputQueue: [],
+      isProcessingInputQueue: false
     };
 
     this.activeSessions.set(serial, session);
     this._spawnStreamProcess(session);
+    this._initInputProc(session);
 
     logger.info(`[ScreenMirror] Started screen mirror session for device ${serial} (${width}x${height} @ ${Math.round(bitrate / 1000)}kbps)`);
 
@@ -361,6 +365,20 @@ class ScreenMirrorService {
 
     for (const ws of session.subscribers) {
       if (ws.readyState === 1 /* OPEN */) {
+        // Backpressure guard: if client socket buffer has accumulated > 2MB,
+        // client socket is critically congested (e.g. background tab or network stall).
+        // Disconnect congested socket so client can cleanly reconnect fresh
+        // without ballooning Node heap or buffering stale seconds of backlog.
+        if (ws.bufferedAmount > 2097152) {
+          logger.warn(`[ScreenMirror] Subscriber socket buffer overflow (${ws.bufferedAmount} bytes). Disconnecting congested client.`);
+          try {
+            ws.send(JSON.stringify({ type: 'MIRROR_ERROR', error: 'Network congestion: client buffer overflow' }));
+            ws.close(1008, 'Buffer overflow');
+          } catch (e) {}
+          session.subscribers.delete(ws);
+          continue;
+        }
+
         try {
           ws.send(chunk, { binary: true });
         } catch (err) {
@@ -517,6 +535,18 @@ class ScreenMirrorService {
       }
     }
 
+    if (session.inputProc) {
+      try {
+        session.inputProc.stdin?.end();
+        session.inputProc.stdout?.removeAllListeners();
+        session.inputProc.stderr?.removeAllListeners();
+        session.inputProc.removeAllListeners();
+        session.inputProc.kill('SIGTERM');
+      } catch (e) {}
+      session.inputProc = null;
+    }
+    session.inputQueue = [];
+
     session.cachedSps = null;
     session.cachedPps = null;
     session.cachedKeyframe = null;
@@ -613,7 +643,85 @@ class ScreenMirrorService {
   }
 
   /**
-   * Send touch or key input event to device
+   * Spawn a dedicated, persistent ADB interactive shell for the mirror session
+   * to eliminate process-spawn latency (~200ms) on touch and gesture injection.
+   */
+  _initInputProc(session) {
+    if (session.isStopping || session.inputProc) return;
+    const { serial } = session;
+    try {
+      const inputProc = spawn(config.ADB_PATH, ['-s', serial, 'shell'], { windowsHide: true });
+      session.inputProc = inputProc;
+      session.inputQueue = [];
+      session.isProcessingInputQueue = false;
+
+      inputProc.stdout.on('data', () => {});
+      inputProc.stderr.on('data', (data) => {
+        const err = data.toString().trim();
+        if (err) logger.debug(`[ScreenMirror Input Stderr ${serial}]: ${err}`);
+      });
+      inputProc.on('close', () => {
+        session.inputProc = null;
+      });
+      inputProc.on('error', (err) => {
+        logger.warn(`[ScreenMirror Input Error ${serial}]: ${err.message}`);
+        session.inputProc = null;
+      });
+    } catch (err) {
+      logger.warn(`[ScreenMirror] Failed to spawn persistent input shell for ${serial}: ${err.message}`);
+      session.inputProc = null;
+    }
+  }
+
+  /**
+   * Drain sequential input commands to ensure strictly ordered, non-interleaved delivery
+   */
+  _drainInputQueue(session) {
+    if (session.isProcessingInputQueue || !session.inputQueue || session.inputQueue.length === 0) return;
+    session.isProcessingInputQueue = true;
+
+    const item = session.inputQueue.shift();
+    if (!item) {
+      session.isProcessingInputQueue = false;
+      return;
+    }
+
+    const { cmd, resolve, reject, type, event } = item;
+    try {
+      if (session.inputProc && !session.inputProc.killed && session.inputProc.stdin && session.inputProc.stdin.writable) {
+        session.inputProc.stdin.write(`${cmd}\n`, (err) => {
+          session.isProcessingInputQueue = false;
+          if (err) {
+            // Safe fallback to adbService.execute on pipe write failure
+            const parts = ['-s', session.serial, 'shell', ...cmd.split(' ')];
+            adbService.execute(parts).then(() => resolve({ success: true, type, ...event })).catch(reject);
+          } else {
+            resolve({ success: true, type, ...event });
+          }
+          if (session.inputQueue.length > 0) {
+            setImmediate(() => this._drainInputQueue(session));
+          }
+        });
+      } else {
+        session.isProcessingInputQueue = false;
+        const parts = ['-s', session.serial, 'shell', ...cmd.split(' ')];
+        adbService.execute(parts).then(() => resolve({ success: true, type, ...event })).catch(reject);
+        if (session.inputQueue.length > 0) {
+          setImmediate(() => this._drainInputQueue(session));
+        }
+      }
+    } catch (err) {
+      session.isProcessingInputQueue = false;
+      const parts = ['-s', session.serial, 'shell', ...cmd.split(' ')];
+      adbService.execute(parts).then(() => resolve({ success: true, type, ...event })).catch(reject);
+      if (session.inputQueue.length > 0) {
+        setImmediate(() => this._drainInputQueue(session));
+      }
+    }
+  }
+
+  /**
+   * Send touch or key input event to device with sub-5ms persistent shell injection and fallback
    */
   async sendInput(serial, user, event = {}) {
     if (!serial) throw new Error('Device serial is required');
@@ -622,29 +730,18 @@ class ScreenMirrorService {
     }
 
     const { type, x, y, endX, endY, durationMs, keycode } = event;
+    let cmd = null;
 
     if (type === 'tap') {
       if (typeof x !== 'number' || typeof y !== 'number') throw new Error('Valid X and Y coordinates required for tap');
-      await adbService.execute(['-s', serial, 'shell', 'input', 'tap', String(Math.round(x)), String(Math.round(y))]);
-      return { success: true, type: 'tap', x, y };
-    }
-
-    if (type === 'swipe') {
+      cmd = `input tap ${Math.round(x)} ${Math.round(y)}`;
+    } else if (type === 'swipe') {
       if (typeof x !== 'number' || typeof y !== 'number' || typeof endX !== 'number' || typeof endY !== 'number') {
         throw new Error('Valid start and end coordinates required for swipe');
       }
       const dur = durationMs || 300;
-      await adbService.execute([
-        '-s', serial,
-        'shell', 'input', 'swipe',
-        String(Math.round(x)), String(Math.round(y)),
-        String(Math.round(endX)), String(Math.round(endY)),
-        String(dur)
-      ]);
-      return { success: true, type: 'swipe' };
-    }
-
-    if (type === 'keyevent') {
+      cmd = `input swipe ${Math.round(x)} ${Math.round(y)} ${Math.round(endX)} ${Math.round(endY)} ${dur}`;
+    } else if (type === 'keyevent') {
       const allowedKeys = [
         3,   // HOME
         4,   // BACK
@@ -662,19 +759,30 @@ class ScreenMirrorService {
         throw new Error(`Keycode ${keycode} is not in the allowlist.`);
       }
 
-      await adbService.execute(['-s', serial, 'shell', 'input', 'keyevent', String(targetKey)]);
-      return { success: true, type: 'keyevent', keycode: targetKey };
-    }
-
-    if (type === 'text') {
+      cmd = `input keyevent ${targetKey}`;
+    } else if (type === 'text') {
       const text = String(event.text || '').replace(/[^a-zA-Z0-9._-]/g, '');
       if (text) {
-        await adbService.execute(['-s', serial, 'shell', 'input', 'text', text]);
+        cmd = `input text ${text}`;
+      } else {
+        return { success: true, type: 'text' };
       }
-      return { success: true, type: 'text' };
+    } else {
+      throw new Error(`Unsupported input event type: ${type}`);
     }
 
-    throw new Error(`Unsupported input event type: ${type}`);
+    const session = this.activeSessions.get(serial);
+    if (session && session.inputProc && !session.inputProc.killed && session.inputProc.stdin && session.inputProc.stdin.writable) {
+      return new Promise((resolve, reject) => {
+        session.inputQueue.push({ cmd, resolve, reject, type, event });
+        this._drainInputQueue(session);
+      });
+    }
+
+    // Direct fallback if mirror session or inputProc is not running
+    const parts = ['-s', serial, 'shell', ...cmd.split(' ')];
+    await adbService.execute(parts);
+    return { success: true, type, ...event };
   }
 
   /**
@@ -685,6 +793,7 @@ class ScreenMirrorService {
       try {
         session.isStopping = true;
         if (session.proc) session.proc.kill('SIGKILL');
+        if (session.inputProc) session.inputProc.kill('SIGTERM');
       } catch (e) {}
     }
     this.activeSessions.clear();

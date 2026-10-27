@@ -48,6 +48,7 @@ function saveToDisk(customFile = null) {
       mixpanel_specifications: getRows('mixpanel_specifications'),
       mixpanel_sessions: getRows('mixpanel_sessions'),
       mixpanel_events: getRows('mixpanel_events'),
+      bugdesk_devices: getRows('bugdesk_devices'),
       schema_migrations: getRows('schema_migrations'),
       savedAt: new Date().toISOString()
     };
@@ -248,6 +249,28 @@ async function restoreFromDisk(customFile = null) {
             ]
           );
         }
+      }
+    }
+
+    // 10. Restore BugDesk Devices
+    if (Array.isArray(data.bugdesk_devices) && data.bugdesk_devices.length > 0) {
+      let restoredDevices = 0;
+      for (const dev of data.bugdesk_devices) {
+        const check = await globalPool.query('SELECT id FROM bugdesk_devices WHERE id = $1', [dev.id]);
+        if (check.rows.length === 0) {
+          await globalPool.query(
+            `INSERT INTO bugdesk_devices (id, name, os, manufacturer, model, normalized_key, created_by_user_id, created_at, updated_at)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+            [
+              dev.id, dev.name, dev.os, dev.manufacturer || null, dev.model || null,
+              dev.normalized_key, dev.created_by_user_id || null, dev.created_at, dev.updated_at
+            ]
+          );
+          restoredDevices++;
+        }
+      }
+      if (restoredDevices > 0) {
+        logger.info(`[DB Persistence] Restored ${restoredDevices} BugDesk device(s) from disk.`);
       }
     }
   } catch (err) {

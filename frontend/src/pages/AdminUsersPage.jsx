@@ -18,6 +18,8 @@ import {
   X
 } from 'lucide-react';
 import { api } from '../services/api';
+import CustomSelect from '../components/ui/select';
+import { toast } from '../utils/toast';
 
 const ROLES = ['ADMIN', 'EDITOR', 'TESTER', 'DEVELOPER', 'VIEWER'];
 const STATUSES = ['ACTIVE', 'INACTIVE'];
@@ -43,11 +45,12 @@ export default function AdminUsersPage({ currentUser }) {
   const [resetLoading, setResetLoading] = useState(false);
   const [copied, setCopied] = useState(false);
 
-  const [notification, setNotification] = useState(null);
-
   const showNotification = (msg, type = 'success') => {
-    setNotification({ msg, type });
-    setTimeout(() => setNotification(null), 4000);
+    if (type === 'error') {
+      toast.error(msg);
+    } else {
+      toast.success(msg);
+    }
   };
 
   const loadUsers = useCallback(async () => {
@@ -155,37 +158,32 @@ export default function AdminUsersPage({ currentUser }) {
   };
 
   return (
-    <div className="space-y-6 fade-in">
-      {/* Toast Notification */}
-      {notification && (
-        <div
-          className={`fixed bottom-5 right-5 z-50 px-4 py-3 rounded-xl border shadow-xl flex items-center gap-2 text-xs font-semibold animate-fadeIn ${
-            notification.type === 'error'
-              ? 'bg-rose-950/90 border-rose-800 text-rose-200'
-              : 'bg-emerald-950/90 border-emerald-800 text-emerald-200'
-          }`}
-        >
-          {notification.type === 'error' ? <AlertTriangle className="w-4 h-4 text-rose-400" /> : <CheckCircle2 className="w-4 h-4 text-emerald-400" />}
-          <span>{notification.msg}</span>
-        </div>
-      )}
-
+    <div className="space-y-6 fade-in text-slate-800 dark:text-slate-200">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-4 border-b border-[#1C2230]">
-        <div>
-          <h2 className="text-xl font-bold text-white flex items-center gap-2.5">
-            <ShieldCheck className="w-5 h-5 text-[#F59E0B]" />
-            User Management & Access Control
-          </h2>
-          <p className="text-xs text-slate-400 mt-1">
-            Manage platform users, assign role-based permissions (RBAC), control account status, and perform admin password resets.
-          </p>
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-4 border-b border-[var(--line)]">
+        <div className="flex items-center gap-3">
+          <div className="brand-mark w-10 h-10 rounded-2xl flex items-center justify-center text-white font-bold shrink-0 shadow-brand">
+            <ShieldCheck className="w-5 h-5 text-white" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h1 className="text-2xl sm:text-[26px] font-extrabold text-[#1F2544] dark:text-white tracking-tight font-sans">
+                User Management &amp; Access <span className="text-heading-gradient">Control</span>
+              </h1>
+              <span className="chip-badge uppercase text-[10px] tracking-wider font-bold text-violet-600 dark:text-violet-300 bg-violet-500/10 border-violet-500/20">
+                Admin
+              </span>
+            </div>
+            <p className="text-xs sm:text-[13px] text-[#6B7194] dark:text-[#94A3B8] mt-1">
+              Manage platform users, assign role-based permissions (RBAC), control account status, and perform admin password resets.
+            </p>
+          </div>
         </div>
 
         <button
           onClick={loadUsers}
           disabled={loading}
-          className="p-2 rounded-lg bg-[#080B10] hover:bg-[#1C2230] text-slate-300 hover:text-white transition-colors border border-[#1C2230]"
+          className="p-2.5 rounded-pill glass border border-[var(--line)] text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition-all shadow-sm hover:border-violet-500/40"
           title="Refresh Users"
         >
           <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
@@ -194,55 +192,55 @@ export default function AdminUsersPage({ currentUser }) {
 
       {/* Summary KPI Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <div className="p-4 rounded-xl bg-[#10131B] border border-[#1C2230]">
-          <div className="flex items-center justify-between text-slate-400 text-xs mb-2">
+        <div className="p-5 rounded-card glass border border-[var(--line)] shadow-sm hover:border-violet-500/30 transition-all">
+          <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 text-xs mb-2 font-semibold">
             <span>Total Accounts</span>
-            <Users className="w-4 h-4 text-blue-400" />
+            <Users className="w-4 h-4 text-violet-500" />
           </div>
-          <div className="text-2xl font-bold text-white font-mono">{summary.total}</div>
+          <div className="text-2xl font-extrabold text-slate-900 dark:text-white font-mono">{summary.total}</div>
         </div>
 
-        <div className="p-4 rounded-xl bg-[#10131B] border border-[#1C2230]">
-          <div className="flex items-center justify-between text-slate-400 text-xs mb-2">
+        <div className="p-5 rounded-card glass border border-[var(--line)] shadow-sm hover:border-violet-500/30 transition-all">
+          <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 text-xs mb-2 font-semibold">
             <span>Active Users</span>
-            <UserCheck className="w-4 h-4 text-emerald-400" />
+            <UserCheck className="w-4 h-4 text-emerald-500" />
           </div>
-          <div className="text-2xl font-bold text-emerald-400 font-mono">{summary.active}</div>
+          <div className="text-2xl font-extrabold text-emerald-600 dark:text-emerald-400 font-mono">{summary.active}</div>
         </div>
 
-        <div className="p-4 rounded-xl bg-[#10131B] border border-[#1C2230]">
-          <div className="flex items-center justify-between text-slate-400 text-xs mb-2">
+        <div className="p-5 rounded-card glass border border-[var(--line)] shadow-sm hover:border-violet-500/30 transition-all">
+          <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 text-xs mb-2 font-semibold">
             <span>Inactive Users</span>
-            <UserX className="w-4 h-4 text-rose-400" />
+            <UserX className="w-4 h-4 text-rose-500" />
           </div>
-          <div className="text-2xl font-bold text-rose-400 font-mono">{summary.inactive}</div>
+          <div className="text-2xl font-extrabold text-rose-600 dark:text-rose-400 font-mono">{summary.inactive}</div>
         </div>
 
-        <div className="p-4 rounded-xl bg-[#10131B] border border-[#1C2230]">
-          <div className="flex items-center justify-between text-slate-400 text-xs mb-2">
+        <div className="p-5 rounded-card glass border border-[var(--line)] shadow-sm hover:border-violet-500/30 transition-all">
+          <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 text-xs mb-2 font-semibold">
             <span>Administrators</span>
-            <Shield className="w-4 h-4 text-[#F59E0B]" />
+            <Shield className="w-4 h-4 text-violet-500" />
           </div>
-          <div className="text-2xl font-bold text-[#F59E0B] font-mono">{summary.administrators}</div>
+          <div className="text-2xl font-extrabold text-violet-600 dark:text-violet-400 font-mono">{summary.administrators}</div>
         </div>
       </div>
 
       {/* Filter and Search Bar */}
-      <div className="p-4 rounded-xl bg-[#10131B] border border-[#1C2230] flex flex-wrap items-center justify-between gap-4">
+      <div className="p-4 rounded-card glass border border-[var(--line)] shadow-sm flex flex-wrap items-center justify-between gap-4">
         <form onSubmit={handleSearchSubmit} className="flex items-center gap-2 flex-1 max-w-md">
           <div className="relative flex-1">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-2.5" />
             <input
               type="text"
               placeholder="Search by name or email..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-3 py-2 rounded-lg bg-[#080B10] border border-[#1C2230] text-xs text-white placeholder-slate-500 focus:outline-none focus:border-[#F59E0B]"
+              className="w-full pl-9.5 pr-3 py-2 rounded-pill bg-white/80 dark:bg-slate-950/60 border border-[var(--line)] text-xs text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-violet-500 shadow-inner transition-all"
             />
           </div>
           <button
             type="submit"
-            className="px-3.5 py-2 rounded-lg bg-[#080B10] hover:bg-[#1C2230] text-xs font-medium text-slate-200 border border-[#1C2230] transition-colors"
+            className="btn-magic px-4 py-2 rounded-pill text-xs font-bold text-white shadow-md transition-all cursor-pointer"
           >
             Search
           </button>
@@ -250,35 +248,31 @@ export default function AdminUsersPage({ currentUser }) {
 
         <div className="flex flex-wrap items-center gap-3">
           <div className="flex items-center gap-2">
-            <span className="text-xs text-slate-400">Role:</span>
-            <select
+            <span className="text-xs text-slate-500 dark:text-slate-400 font-semibold">Role:</span>
+            <CustomSelect
               value={roleFilter}
-              onChange={(e) => setRoleFilter(e.target.value)}
-              className="px-3 py-1.5 rounded-lg bg-[#080B10] border border-[#1C2230] text-xs text-slate-200 focus:outline-none focus:border-[#F59E0B]"
-            >
-              <option value="">All Roles</option>
-              {ROLES.map((r) => (
-                <option key={r} value={r}>
-                  {r}
-                </option>
-              ))}
-            </select>
+              onChange={(val) => setRoleFilter(val?.target ? val.target.value : val)}
+              options={[
+                { value: '', label: 'All Roles' },
+                ...ROLES.map((r) => ({ value: r, label: r }))
+              ]}
+              className="h-8 w-32 text-xs rounded-pill"
+              title="Filter by Role"
+            />
           </div>
 
           <div className="flex items-center gap-2">
-            <span className="text-xs text-slate-400">Status:</span>
-            <select
+            <span className="text-xs text-slate-500 dark:text-slate-400 font-semibold">Status:</span>
+            <CustomSelect
               value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="px-3 py-1.5 rounded-lg bg-[#080B10] border border-[#1C2230] text-xs text-slate-200 focus:outline-none focus:border-[#F59E0B]"
-            >
-              <option value="">All Statuses</option>
-              {STATUSES.map((s) => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
-              ))}
-            </select>
+              onChange={(val) => setStatusFilter(val?.target ? val.target.value : val)}
+              options={[
+                { value: '', label: 'All Statuses' },
+                ...STATUSES.map((s) => ({ value: s, label: s }))
+              ]}
+              className="h-8 w-36 text-xs rounded-pill"
+              title="Filter by Status"
+            />
           </div>
 
           {(searchQuery || roleFilter || statusFilter) && (
@@ -288,7 +282,7 @@ export default function AdminUsersPage({ currentUser }) {
                 setRoleFilter('');
                 setStatusFilter('');
               }}
-              className="text-xs text-slate-400 hover:text-white underline underline-offset-2 ml-1"
+              className="text-xs text-violet-600 dark:text-violet-400 hover:underline font-semibold ml-1 cursor-pointer"
             >
               Reset Filters
             </button>
@@ -297,11 +291,11 @@ export default function AdminUsersPage({ currentUser }) {
       </div>
 
       {/* Users Table */}
-      <div className="bg-[#10131B] border border-[#1C2230] rounded-xl overflow-hidden shadow-sm">
+      <div className="glass border border-[var(--line)] rounded-card overflow-hidden shadow-sm">
         {users.length > 0 ? (
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs text-slate-300">
-              <thead className="bg-[#080B10] text-[#94A3B8] uppercase text-[10px] font-semibold tracking-wider border-b border-[#1C2230]">
+            <table className="w-full text-left text-xs text-slate-700 dark:text-slate-300">
+              <thead className="bg-slate-100/60 dark:bg-slate-950/60 text-slate-500 dark:text-slate-400 uppercase text-[10px] font-bold tracking-wider border-b border-[var(--line)]">
                 <tr>
                   <th className="py-3.5 px-4">User</th>
                   <th className="py-3.5 px-4">Role</th>
@@ -311,33 +305,33 @@ export default function AdminUsersPage({ currentUser }) {
                   <th className="py-3.5 px-4 text-right">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[#1C2230] font-sans">
+              <tbody className="divide-y divide-[var(--line)] font-sans">
                 {users.map((u) => {
                   const isCurrent = currentUser?.id === u.id || currentUser?.email === u.email;
                   return (
-                    <tr key={u.id} className="hover:bg-[#1C2230]/40 transition-colors">
+                    <tr key={u.id} className="hover:bg-violet-500/5 dark:hover:bg-violet-500/10 transition-colors">
                       <td className="py-3 px-4">
                         <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-full bg-[#080B10] border border-[#1C2230] flex items-center justify-center font-bold text-xs text-[#F59E0B]">
+                          <div className="w-8 h-8 rounded-2xl bg-gradient-to-tr from-violet-500/15 to-pink-500/15 border border-violet-500/25 flex items-center justify-center font-bold text-xs text-violet-600 dark:text-violet-400 shadow-sm">
                             {u.name ? u.name.charAt(0).toUpperCase() : u.email.charAt(0).toUpperCase()}
                           </div>
                           <div>
-                            <div className="font-semibold text-white flex items-center gap-1.5">
+                            <div className="font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
                               <span>{u.name || 'Unnamed User'}</span>
                               {isCurrent && (
-                                <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-amber-500/20 text-[#F59E0B] border border-amber-500/30">
+                                <span className="text-[10px] font-mono px-1.5 py-0.2 rounded-pill bg-violet-500/15 text-violet-700 dark:text-violet-300 border border-violet-500/30 font-bold">
                                   YOU
                                 </span>
                               )}
                             </div>
-                            <div className="text-[11px] text-slate-400 font-mono">{u.email}</div>
+                            <div className="text-[11px] text-slate-500 dark:text-slate-400 font-mono">{u.email}</div>
                           </div>
                         </div>
                       </td>
 
                       <td className="py-3 px-4">
                         <span
-                          className={`px-2.5 py-1 rounded text-[11px] font-mono uppercase font-bold border ${getRoleBadgeStyle(
+                          className={`px-2.5 py-1 rounded-pill text-[11px] font-mono uppercase font-bold border ${getRoleBadgeStyle(
                             u.role
                           )}`}
                         >
@@ -347,23 +341,23 @@ export default function AdminUsersPage({ currentUser }) {
 
                       <td className="py-3 px-4">
                         {u.status === 'ACTIVE' ? (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-pill text-[11px] font-bold bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30">
                             <CheckCircle2 className="w-3 h-3" />
                             ACTIVE
                           </span>
                         ) : (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold bg-rose-500/10 text-rose-400 border border-rose-500/30">
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-pill text-[11px] font-bold bg-rose-500/10 text-rose-700 dark:text-rose-400 border border-rose-500/30">
                             <XCircle className="w-3 h-3" />
                             INACTIVE
                           </span>
                         )}
                       </td>
 
-                      <td className="py-3 px-4 text-slate-400 font-mono text-[11px]">
+                      <td className="py-3 px-4 text-slate-500 dark:text-slate-400 font-mono text-[11px]">
                         {u.createdAt ? new Date(u.createdAt).toLocaleDateString() : 'N/A'}
                       </td>
 
-                      <td className="py-3 px-4 text-slate-400 font-mono text-[11px]">
+                      <td className="py-3 px-4 text-slate-500 dark:text-slate-400 font-mono text-[11px]">
                         {u.lastLoginAt ? new Date(u.lastLoginAt).toLocaleString() : 'Never'}
                       </td>
 
@@ -371,19 +365,19 @@ export default function AdminUsersPage({ currentUser }) {
                         <div className="flex items-center justify-end gap-2">
                           <button
                             onClick={() => openEditModal(u)}
-                            className="px-2.5 py-1.5 rounded-lg bg-[#080B10] hover:bg-[#1C2230] text-slate-200 hover:text-white border border-[#1C2230] text-xs font-medium transition-colors flex items-center gap-1.5"
+                            className="px-3 py-1.5 rounded-pill bg-white/80 dark:bg-slate-900/80 hover:bg-white dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 hover:text-slate-900 dark:hover:text-white border border-[var(--line)] text-xs font-semibold transition-all flex items-center gap-1.5 shadow-sm"
                             title="Edit Role or Status"
                           >
-                            <Edit2 className="w-3.5 h-3.5 text-slate-400" />
+                            <Edit2 className="w-3.5 h-3.5 text-violet-500" />
                             <span>Edit</span>
                           </button>
 
                           <button
                             onClick={() => openResetModal(u)}
-                            className="px-2.5 py-1.5 rounded-lg bg-[#16130C] hover:bg-[#261D10] text-[#F59E0B] hover:text-[#FBBF24] border border-[#F59E0B]/30 text-xs font-medium transition-colors flex items-center gap-1.5"
+                            className="px-3 py-1.5 rounded-pill bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 dark:text-amber-400 border border-amber-500/30 text-xs font-semibold transition-all flex items-center gap-1.5 shadow-sm"
                             title="Reset User Password"
                           >
-                            <KeyRound className="w-3.5 h-3.5 text-[#F59E0B]" />
+                            <KeyRound className="w-3.5 h-3.5 text-amber-500" />
                             <span>Reset Password</span>
                           </button>
                         </div>
@@ -395,7 +389,7 @@ export default function AdminUsersPage({ currentUser }) {
             </table>
           </div>
         ) : (
-          <div className="p-8 text-center text-slate-400 text-xs">
+          <div className="p-8 text-center text-slate-500 dark:text-slate-400 text-xs">
             {loading ? 'Loading team accounts...' : 'No users found matching current filters.'}
           </div>
         )}
@@ -403,23 +397,23 @@ export default function AdminUsersPage({ currentUser }) {
 
       {/* Edit User Modal */}
       {editModalUser && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fadeIn">
-          <div className="relative w-full max-w-md rounded-2xl bg-[#10131B] border border-[#1C2230] shadow-2xl overflow-hidden">
-            <div className="flex items-center justify-between p-5 bg-[#080B10] border-b border-[#1C2230]">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 dark:bg-black/80 backdrop-blur-sm animate-fadeIn">
+          <div className="relative w-full max-w-md rounded-card glass dark:bg-slate-900/95 bg-white/95 border border-[var(--line)] shadow-2xl overflow-hidden">
+            <div className="flex items-center justify-between p-5 bg-slate-50/60 dark:bg-slate-950/60 border-b border-[var(--line)]">
               <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-[#F59E0B]/10 text-[#F59E0B] border border-[#F59E0B]/20">
+                <div className="p-2 rounded-xl bg-violet-500/10 text-violet-600 dark:text-violet-400 border border-violet-500/20">
                   <Edit2 className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-base font-bold text-white">Edit User</h3>
-                  <p className="text-xs text-slate-400 font-mono truncate max-w-[240px]">
+                  <h3 className="text-base font-bold text-slate-900 dark:text-white">Edit User</h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 font-mono truncate max-w-[240px]">
                     {editModalUser.email}
                   </p>
                 </div>
               </div>
               <button
                 onClick={() => setEditModalUser(null)}
-                className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-[#1C2230] transition-colors"
+                className="p-1.5 rounded-pill text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -427,14 +421,14 @@ export default function AdminUsersPage({ currentUser }) {
 
             <form onSubmit={handleSaveUser} className="p-5 space-y-4">
               {editError && (
-                <div className="p-3 rounded-lg bg-rose-950/60 border border-rose-800 text-rose-200 text-xs flex items-start gap-2">
-                  <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+                <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-600 dark:text-rose-300 text-xs flex items-start gap-2">
+                  <AlertTriangle className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />
                   <span>{editError}</span>
                 </div>
               )}
 
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
                   Display Name
                 </label>
                 <input
@@ -442,59 +436,63 @@ export default function AdminUsersPage({ currentUser }) {
                   required
                   value={editForm.name}
                   onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
-                  className="w-full px-3 py-2 rounded-lg bg-[#080B10] border border-[#1C2230] text-xs text-white focus:outline-none focus:border-[#F59E0B]"
+                  className="w-full px-3.5 py-2 rounded-xl bg-white/80 dark:bg-slate-950/60 border border-[var(--line)] text-xs text-slate-900 dark:text-white focus:outline-none focus:border-violet-500 shadow-inner"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
                   Role
                 </label>
-                <select
+                <CustomSelect
                   value={editForm.role}
-                  onChange={(e) => setEditForm({ ...editForm, role: e.target.value })}
-                  className="w-full px-3 py-2 rounded-lg bg-[#080B10] border border-[#1C2230] text-xs text-white focus:outline-none focus:border-[#F59E0B]"
-                >
-                  {ROLES.map((r) => (
-                    <option key={r} value={r}>
-                      {r}
-                    </option>
-                  ))}
-                </select>
+                  onChange={(val) => {
+                    const role = val?.target ? val.target.value : val;
+                    setEditForm({ ...editForm, role });
+                  }}
+                  options={ROLES.map((r) => ({ value: r, label: r }))}
+                  className="w-full h-10 text-xs rounded-xl"
+                  title="Select Role"
+                />
                 <p className="text-[10px] text-slate-500 mt-1">
                   ADMIN: Full administrative access • EDITOR: Manage builds and test runs • TESTER: Execute tests • DEVELOPER: Read telemetry • VIEWER: Read only
                 </p>
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
                   Account Status
                 </label>
-                <select
+                <CustomSelect
                   value={editForm.status}
-                  onChange={(e) => setEditForm({ ...editForm, status: e.target.value })}
-                  className="w-full px-3 py-2 rounded-lg bg-[#080B10] border border-[#1C2230] text-xs text-white focus:outline-none focus:border-[#F59E0B]"
-                >
-                  <option value="ACTIVE">ACTIVE (Authorized to sign in)</option>
-                  <option value="INACTIVE">INACTIVE (Deactivated / Blocked)</option>
-                </select>
+                  onChange={(val) => {
+                    const status = val?.target ? val.target.value : val;
+                    setEditForm({ ...editForm, status });
+                  }}
+                  options={[
+                    { value: 'ACTIVE', label: 'ACTIVE (Authorized to sign in)' },
+                    { value: 'INACTIVE', label: 'INACTIVE (Deactivated / Blocked)' }
+                  ]}
+                  className="w-full h-10 text-xs rounded-xl"
+                  title="Select Account Status"
+                />
                 <p className="text-[10px] text-slate-500 mt-1">
                   Deactivating a user revokes all their active sessions immediately.
                 </p>
               </div>
 
-              <div className="flex items-center justify-end gap-3 pt-3 border-t border-[#1C2230]">
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-[var(--line)]">
                 <button
                   type="button"
                   onClick={() => setEditModalUser(null)}
-                  className="px-4 py-2 rounded-lg bg-[#080B10] hover:bg-[#1C2230] border border-[#1C2230] text-xs font-semibold text-slate-300 transition-colors"
+                  className="px-4 py-2 rounded-pill bg-white/80 dark:bg-slate-900/80 hover:bg-white dark:hover:bg-slate-800 border border-[var(--line)] text-xs font-semibold text-slate-700 dark:text-slate-300 transition-all shadow-sm"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={editLoading}
-                  className="px-4 py-2 rounded-lg bg-[#F59E0B] hover:bg-[#D97706] text-xs font-bold text-black transition-all flex items-center gap-2 disabled:opacity-50"
+                  className="btn-magic px-4 py-2 rounded-pill text-xs font-bold text-white transition-all flex items-center gap-2 disabled:opacity-50 shadow-md cursor-pointer"
                 >
                   {editLoading ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : null}
                   <span>Save Changes</span>
@@ -507,23 +505,23 @@ export default function AdminUsersPage({ currentUser }) {
 
       {/* Reset Password Modal */}
       {resetModalUser && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fadeIn">
-          <div className="relative w-full max-w-md rounded-2xl bg-[#10131B] border border-[#1C2230] shadow-2xl overflow-hidden">
-            <div className="flex items-center justify-between p-5 bg-[#080B10] border-b border-[#1C2230]">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 dark:bg-black/80 backdrop-blur-sm animate-fadeIn">
+          <div className="relative w-full max-w-md rounded-card glass dark:bg-slate-900/95 bg-white/95 border border-[var(--line)] shadow-2xl overflow-hidden">
+            <div className="flex items-center justify-between p-5 bg-slate-50/60 dark:bg-slate-950/60 border-b border-[var(--line)]">
               <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-[#F59E0B]/10 text-[#F59E0B] border border-[#F59E0B]/20">
+                <div className="p-2 rounded-xl bg-amber-500/10 text-amber-500 border border-amber-500/20">
                   <KeyRound className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-base font-bold text-white">Reset User Password</h3>
-                  <p className="text-xs text-slate-400 font-mono truncate max-w-[240px]">
+                  <h3 className="text-base font-bold text-slate-900 dark:text-white">Reset User Password</h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 font-mono truncate max-w-[240px]">
                     {resetModalUser.email}
                   </p>
                 </div>
               </div>
               <button
                 onClick={() => setResetModalUser(null)}
-                className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-[#1C2230] transition-colors"
+                className="p-1.5 rounded-pill text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -531,46 +529,46 @@ export default function AdminUsersPage({ currentUser }) {
 
             <div className="p-5 space-y-4">
               {resetError && (
-                <div className="p-3 rounded-lg bg-rose-950/60 border border-rose-800 text-rose-200 text-xs flex items-start gap-2">
-                  <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+                <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-600 dark:text-rose-300 text-xs flex items-start gap-2">
+                  <AlertTriangle className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />
                   <span>{resetError}</span>
                 </div>
               )}
 
               {resetResult ? (
                 <div className="space-y-4">
-                  <div className="p-4 rounded-xl bg-emerald-950/40 border border-emerald-800/60 space-y-2">
-                    <div className="flex items-center gap-2 text-emerald-400 text-xs font-bold">
+                  <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 space-y-2">
+                    <div className="flex items-center gap-2 text-emerald-700 dark:text-emerald-400 text-xs font-bold">
                       <CheckCircle2 className="w-4 h-4" />
                       <span>Password Reset Successfully</span>
                     </div>
-                    <p className="text-xs text-slate-300">
+                    <p className="text-xs text-slate-600 dark:text-slate-300">
                       Provide this temporary password to the user. Existing active sessions for this account have been invalidated.
                     </p>
                   </div>
 
                   <div>
-                    <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
                       New Temporary Password
                     </label>
                     <div className="flex items-center gap-2">
-                      <div className="flex-1 px-3 py-2.5 rounded-lg bg-[#080B10] border border-[#1C2230] text-sm font-mono text-[#F59E0B] font-bold select-all tracking-wider">
+                      <div className="flex-1 px-3 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-sm font-mono text-amber-400 font-bold select-all tracking-wider shadow-inner">
                         {resetResult}
                       </div>
                       <button
                         onClick={handleCopyPassword}
-                        className="px-3.5 py-2.5 rounded-lg bg-[#080B10] hover:bg-[#1C2230] text-slate-200 hover:text-white border border-[#1C2230] text-xs font-semibold transition-colors flex items-center gap-1.5"
+                        className="px-3.5 py-2.5 rounded-pill bg-white/80 dark:bg-slate-900/80 hover:bg-white dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 hover:text-slate-900 dark:hover:text-white border border-[var(--line)] text-xs font-semibold transition-all flex items-center gap-1.5 shadow-sm"
                       >
-                        {copied ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
+                        {copied ? <Check className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4" />}
                         <span>{copied ? 'Copied' : 'Copy'}</span>
                       </button>
                     </div>
                   </div>
 
-                  <div className="pt-3 border-t border-[#1C2230] flex justify-end">
+                  <div className="pt-3 border-t border-[var(--line)] flex justify-end">
                     <button
                       onClick={() => setResetModalUser(null)}
-                      className="px-4 py-2 rounded-lg bg-[#F59E0B] hover:bg-[#D97706] text-xs font-bold text-black transition-all"
+                      className="btn-magic px-4 py-2 rounded-pill text-xs font-bold text-white transition-all shadow-md cursor-pointer"
                     >
                       Done
                     </button>
@@ -578,12 +576,12 @@ export default function AdminUsersPage({ currentUser }) {
                 </div>
               ) : (
                 <form onSubmit={handleExecuteReset} className="space-y-4">
-                  <p className="text-xs text-slate-300">
-                    Are you sure you want to reset the password for <strong className="text-white">{resetModalUser.name}</strong> ({resetModalUser.email})?
+                  <p className="text-xs text-slate-600 dark:text-slate-300">
+                    Are you sure you want to reset the password for <strong className="text-slate-900 dark:text-white">{resetModalUser.name}</strong> ({resetModalUser.email})?
                   </p>
 
                   <div>
-                    <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
                       Custom Temporary Password (Optional)
                     </label>
                     <input
@@ -591,29 +589,29 @@ export default function AdminUsersPage({ currentUser }) {
                       placeholder="Leave blank to generate cryptographically secure password"
                       value={resetCustomPassword}
                       onChange={(e) => setResetCustomPassword(e.target.value)}
-                      className="w-full px-3 py-2 rounded-lg bg-[#080B10] border border-[#1C2230] text-xs text-white placeholder-slate-500 focus:outline-none focus:border-[#F59E0B]"
+                      className="w-full px-3.5 py-2 rounded-xl bg-white/80 dark:bg-slate-950/60 border border-[var(--line)] text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-violet-500 shadow-inner"
                     />
                     <p className="text-[10px] text-slate-500 mt-1">
                       If provided, must be at least 8 chars with uppercase, lowercase, digit, and special character.
                     </p>
                   </div>
 
-                  <div className="p-3 rounded-lg bg-[#080B10] border border-[#1C2230] text-[11px] text-slate-400">
+                  <div className="p-3 rounded-xl bg-white/60 dark:bg-slate-950/60 border border-[var(--line)] text-[11px] text-slate-500 dark:text-slate-400">
                     Resetting will automatically terminate all active sessions for this user.
                   </div>
 
-                  <div className="flex items-center justify-end gap-3 pt-3 border-t border-[#1C2230]">
+                  <div className="flex items-center justify-end gap-3 pt-3 border-t border-[var(--line)]">
                     <button
                       type="button"
                       onClick={() => setResetModalUser(null)}
-                      className="px-4 py-2 rounded-lg bg-[#080B10] hover:bg-[#1C2230] border border-[#1C2230] text-xs font-semibold text-slate-300 transition-colors"
+                      className="px-4 py-2 rounded-pill bg-white/80 dark:bg-slate-900/80 hover:bg-white dark:hover:bg-slate-800 border border-[var(--line)] text-xs font-semibold text-slate-700 dark:text-slate-300 transition-all shadow-sm"
                     >
                       Cancel
                     </button>
                     <button
                       type="submit"
                       disabled={resetLoading}
-                      className="px-4 py-2 rounded-lg bg-rose-600 hover:bg-rose-500 text-xs font-bold text-white transition-all flex items-center gap-2 disabled:opacity-50"
+                      className="px-4 py-2 rounded-pill bg-rose-600 hover:bg-rose-500 text-xs font-bold text-white transition-all flex items-center gap-2 disabled:opacity-50 shadow-md cursor-pointer"
                     >
                       {resetLoading ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : null}
                       <span>Confirm Reset</span>

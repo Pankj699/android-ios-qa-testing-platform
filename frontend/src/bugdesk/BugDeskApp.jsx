@@ -14,6 +14,7 @@ function BugDeskContent({
   onSelectSubTab,
   switchModuleOpen,
   setSwitchModuleOpen,
+  isActive = true,
 }) {
   const { settings, update, loaded } = useModuleSettings();
   const [forceOnboarding, setForceOnboarding] = React.useState(false);
@@ -43,7 +44,10 @@ function BugDeskContent({
     <div className="flex-1 min-w-0">
       {activeSubTab === "dashboard" && <BugDeskDashboard onNavigate={onSelectSubTab} />}
       <div className={activeSubTab === "new-bug" ? "block" : "hidden"}>
-        <BugDeskNewBug onNavigate={onSelectSubTab} />
+        <BugDeskNewBug
+          onNavigate={onSelectSubTab}
+          isActive={Boolean(isActive && activeSubTab === "new-bug")}
+        />
       </div>
       {activeSubTab === "history" && <BugDeskHistory onNavigate={onSelectSubTab} />}
       {activeSubTab === "settings" && <BugDeskSettings onNavigate={onSelectSubTab} />}
@@ -65,6 +69,7 @@ export function BugDeskApp({
   onSelectSubTab,
   switchModuleOpen,
   setSwitchModuleOpen,
+  isActive = true,
 }) {
   return (
     <BugDeskAuthProvider currentUser={currentUser} onLogout={onLogout}>
@@ -73,6 +78,7 @@ export function BugDeskApp({
         onSelectSubTab={onSelectSubTab}
         switchModuleOpen={switchModuleOpen}
         setSwitchModuleOpen={setSwitchModuleOpen}
+        isActive={isActive}
       />
     </BugDeskAuthProvider>
   );

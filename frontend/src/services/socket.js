@@ -1,4 +1,4 @@
-import { getAuthToken } from './api';
+import { getAuthToken } from './api.js';
 
 class TestSocketService {
   constructor() {
@@ -10,6 +10,7 @@ class TestSocketService {
 
   connect(testId = null) {
     this.currentTestId = testId;
+    if (typeof window === 'undefined') return;
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const host = window.location.host;
     const token = getAuthToken() || '';

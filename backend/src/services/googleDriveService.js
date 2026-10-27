@@ -567,6 +567,23 @@ async function getAuthenticatedDriveClient(userId, injectedClient = null) {
   const isExpiring = !record.expiry_date || (Number(record.expiry_date) - now < 300000);
 
   let accessToken = null;
+  let refreshToken = null;
+  if (record.encrypted_refresh_token) {
+    try {
+      if (record.encrypted_refresh_token.includes(':')) {
+        refreshToken = tokenCrypto.decryptSelfContained(record.encrypted_refresh_token);
+      } else {
+        refreshToken = tokenCrypto.decryptToken(
+          record.encrypted_refresh_token,
+          record.token_iv,
+          record.token_auth_tag
+        );
+      }
+    } catch (e) {
+      logger.warn(`[Google Drive] Could not decrypt refresh token: ${e.message}`);
+    }
+  }
+
   if (isExpiring && record.encrypted_refresh_token) {
     const refreshed = await refreshUserToken(userId, record, injectedClient);
     accessToken = refreshed.accessToken;
@@ -589,7 +606,11 @@ async function getAuthenticatedDriveClient(userId, injectedClient = null) {
 
   const oauth2Client = injectedClient || createOAuth2Client();
   if (typeof oauth2Client.setCredentials === 'function') {
-    oauth2Client.setCredentials({ access_token: accessToken });
+    const credentials = { access_token: accessToken };
+    if (refreshToken) {
+      credentials.refresh_token = refreshToken;
+    }
+    oauth2Client.setCredentials(credentials);
   }
 
   const drive = google.drive({ version: 'v3', auth: oauth2Client });
@@ -1297,24 +1318,50 @@ async function uploadRecording(userId, payload = {}, injectedClient = null) {
   }
 
   const { drive, email } = driveClientObj;
-  const fileStream = fs.createReadStream(filePath);
 
   let driveFile;
   try {
-    const uploadRes = await withRetry(() =>
-      drive.files.create({
-        requestBody: {
-          name: safeFilename,
-          mimeType: mimeType || 'video/webm',
-          parents: targetFolderId && targetFolderId !== 'root' ? [targetFolderId] : undefined
-        },
-        media: {
-          mimeType: mimeType || 'video/webm',
-          body: fileStream
-        },
-        fields: 'id, name, size, webViewLink, parents'
-      })
-    );
+    const uploadRes = await withRetry(async () => {
+      // Create a fresh readable stream for each attempt from the finalized on-disk file
+      const fileStream = fs.createReadStream(filePath);
+
+      const cleanupStream = () => {
+        try {
+          if (fileStream && !fileStream.destroyed) {
+            fileStream.destroy();
+          }
+        } catch (_) {}
+      };
+
+      fileStream.on('error', (err) => {
+        logger.warn(`[Google Drive] Upload fileStream error: ${err.message}`);
+      });
+
+      try {
+        const res = await drive.files.create(
+          {
+            requestBody: {
+              name: safeFilename,
+              mimeType: mimeType || 'video/webm',
+              parents: targetFolderId && targetFolderId !== 'root' ? [targetFolderId] : undefined
+            },
+            media: {
+              mimeType: mimeType || 'video/webm',
+              body: fileStream
+            },
+            fields: 'id, name, size, webViewLink, parents'
+          },
+          {
+            // Disable gaxios internal retry on stream uploads to prevent reusing exhausted stream
+            retryConfig: { retry: 0 }
+          }
+        );
+        return res;
+      } catch (createErr) {
+        cleanupStream();
+        throw createErr;
+      }
+    }, { maxRetries: 3, baseDelayMs: 200 });
     driveFile = uploadRes.data;
   } catch (uploadErr) {
     await db.query(

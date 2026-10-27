@@ -161,34 +161,34 @@ export default function DriveFolderSelectorModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fadeIn">
-      <div className="relative w-full max-w-lg bg-[#0D111A] border border-[#1E2638] rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md animate-fadeIn">
+      <div className="relative w-full max-w-lg glass border border-[var(--line)] rounded-card shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
         {/* Header */}
-        <div className="px-6 py-4 border-b border-[#1E2638] bg-[#131924] flex items-center justify-between">
+        <div className="px-6 py-4 border-b border-[var(--line)] bg-white/40 dark:bg-[#131924] flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-[#F59E0B]">
-              <HardDrive className="w-4 h-4" />
+            <div className="w-9 h-9 rounded-xl brand-mark flex items-center justify-center text-white shadow-sm shrink-0">
+              <HardDrive className="w-4 h-4 text-white" />
             </div>
             <div>
-              <h3 className="font-bold text-sm text-[#FFFFFF]">{title}</h3>
-              <p className="text-[11px] text-[#94A3B8]">Browse and choose destination folder</p>
+              <h3 className="font-extrabold text-sm text-[#1F2544] dark:text-[#FFFFFF] font-sans">{title}</h3>
+              <p className="text-[11px] text-[#6B7194] dark:text-[#94A3B8]">Browse and choose destination folder</p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg hover:bg-[#1E2638] text-[#94A3B8] hover:text-[#FFFFFF] transition-colors"
+            className="p-1.5 rounded-lg text-[#6B7194] hover:text-[#1F2544] dark:text-[#94A3B8] dark:hover:text-[#FFFFFF] transition-colors cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
         {/* Breadcrumb Navigation Bar */}
-        <div className="px-6 py-3 bg-[#0A0D14] border-b border-[#1E2638] flex items-center justify-between gap-2 overflow-x-auto text-xs">
+        <div className="px-6 py-3 bg-white/30 dark:bg-[#0A0D14] border-b border-[var(--line)] flex items-center justify-between gap-2 overflow-x-auto text-xs">
           <div className="flex items-center gap-1.5 min-w-0 flex-1 overflow-x-auto no-scrollbar">
             {breadcrumbs.length > 1 && (
               <button
                 onClick={handleNavigateUp}
-                className="p-1 rounded hover:bg-[#1E2638] text-[#94A3B8] hover:text-[#FFFFFF] shrink-0 mr-1"
+                className="p-1 rounded-btn btn-soft text-[#6B7194] hover:text-[#1F2544] dark:text-[#94A3B8] dark:hover:text-[#FFFFFF] shrink-0 mr-1 cursor-pointer"
                 title="Go to parent folder"
               >
                 <ArrowLeft className="w-3.5 h-3.5" />
@@ -201,13 +201,13 @@ export default function DriveFolderSelectorModal({
                 <React.Fragment key={crumb.id || idx}>
                   <button
                     onClick={() => handleNavigateBreadcrumb(idx)}
-                    className={`shrink-0 hover:underline transition-colors ${
-                      isLast ? 'font-bold text-[#F59E0B]' : 'text-[#94A3B8] hover:text-white'
+                    className={`shrink-0 hover:underline transition-colors cursor-pointer ${
+                      isLast ? 'font-bold text-[#7c6cf6] dark:text-violet-400' : 'text-[#6B7194] hover:text-[#1F2544] dark:text-[#94A3B8] dark:hover:text-white font-medium'
                     }`}
                   >
                     {crumb.name}
                   </button>
-                  {!isLast && <ChevronRight className="w-3.5 h-3.5 text-[#475569] shrink-0" />}
+                  {!isLast && <ChevronRight className="w-3.5 h-3.5 text-[#6B7194]/60 shrink-0" />}
                 </React.Fragment>
               );
             })}
@@ -216,10 +216,10 @@ export default function DriveFolderSelectorModal({
           {!isCreatingFolder && (
             <button
               onClick={() => setIsCreatingFolder(true)}
-              className="flex items-center gap-1 px-2.5 py-1 rounded-md bg-[#161B26] hover:bg-[#1E2638] text-[#CBD5E1] hover:text-[#F59E0B] border border-[#263248] text-xs font-medium transition-colors shrink-0"
+              className="flex items-center gap-1 px-3 py-1.5 rounded-btn btn-soft text-[#1F2544] hover:text-[#7c6cf6] dark:text-[#CBD5E1] dark:hover:text-violet-400 text-xs font-bold transition-colors shrink-0 cursor-pointer"
               title="Create new subfolder here"
             >
-              <FolderPlus className="w-3.5 h-3.5" />
+              <FolderPlus className="w-3.5 h-3.5 text-[#7c6cf6]" />
               <span>New Folder</span>
             </button>
           )}
@@ -227,7 +227,7 @@ export default function DriveFolderSelectorModal({
 
         {/* Inline Create Folder Input */}
         {isCreatingFolder && (
-          <form onSubmit={handleCreateFolder} className="px-6 py-3 bg-[#131924]/60 border-b border-[#1E2638] flex flex-col gap-2">
+          <form onSubmit={handleCreateFolder} className="px-6 py-3 bg-white/50 dark:bg-[#131924]/60 border-b border-[var(--line)] flex flex-col gap-2">
             <div className="flex items-center gap-2">
               <input
                 type="text"
@@ -235,12 +235,12 @@ export default function DriveFolderSelectorModal({
                 placeholder="Folder name..."
                 value={newFolderName}
                 onChange={(e) => setNewFolderName(e.target.value)}
-                className="flex-1 bg-[#090C12] border border-[#263248] rounded-lg px-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-[#F59E0B]"
+                className="flex-1 bg-white/70 dark:bg-[#090C12] border border-[var(--line)] rounded-xl px-3.5 py-1.5 text-xs text-[#1F2544] dark:text-white placeholder-[#6B7194] focus:outline-none focus:border-[#7c6cf6] shadow-xs"
               />
               <button
                 type="submit"
                 disabled={!newFolderName.trim() || createLoading}
-                className="px-3 py-1.5 rounded-lg bg-[#F59E0B] hover:bg-[#D97706] disabled:opacity-50 text-black font-semibold text-xs transition-colors flex items-center gap-1"
+                className="btn-magic px-3.5 py-1.5 rounded-btn disabled:opacity-50 text-white font-bold text-xs shadow-magic transition-all flex items-center gap-1 cursor-pointer"
               >
                 {createLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
                 <span>Create</span>
@@ -252,13 +252,13 @@ export default function DriveFolderSelectorModal({
                   setNewFolderName('');
                   setCreateError(null);
                 }}
-                className="p-1.5 rounded-lg hover:bg-[#1E2638] text-[#94A3B8] hover:text-white"
+                className="p-1.5 rounded-lg text-[#6B7194] hover:text-[#1F2544] dark:text-[#94A3B8] dark:hover:text-white cursor-pointer"
               >
                 <X className="w-3.5 h-3.5" />
               </button>
             </div>
             {createError && (
-              <div className="text-[11px] text-rose-400 flex items-center gap-1">
+              <div className="text-[11px] text-rose-500 font-medium flex items-center gap-1">
                 <AlertCircle className="w-3 h-3" />
                 <span>{createError}</span>
               </div>
@@ -267,19 +267,19 @@ export default function DriveFolderSelectorModal({
         )}
 
         {/* Folder List Content */}
-        <div className="p-4 flex-1 overflow-y-auto space-y-1 min-h-[220px]">
+        <div className="p-4 flex-1 overflow-y-auto space-y-1.5 min-h-[220px]">
           {loading ? (
-            <div className="flex flex-col items-center justify-center py-12 text-slate-400">
-              <Loader2 className="w-6 h-6 animate-spin text-[#F59E0B] mb-2" />
-              <span className="text-xs">Loading Google Drive folders...</span>
+            <div className="flex flex-col items-center justify-center py-12 text-[#6B7194]">
+              <Loader2 className="w-6 h-6 animate-spin text-[#7c6cf6] dark:text-violet-400 mb-2" />
+              <span className="text-xs font-medium">Loading Google Drive folders...</span>
             </div>
           ) : error ? (
-            <div className="flex flex-col items-center justify-center py-10 text-rose-400 px-4 text-center">
+            <div className="flex flex-col items-center justify-center py-10 text-rose-500 px-4 text-center">
               <AlertCircle className="w-6 h-6 mb-2" />
-              <span className="text-xs">{error}</span>
+              <span className="text-xs font-medium">{error}</span>
               <button
                 onClick={() => fetchFolders(currentFolder.id)}
-                className="mt-3 px-3 py-1 bg-[#1E2638] hover:bg-[#263248] text-white text-xs rounded-md transition-colors"
+                className="mt-3 px-3.5 py-1.5 rounded-btn btn-soft text-xs font-bold transition-colors cursor-pointer"
               >
                 Retry
               </button>
@@ -294,24 +294,24 @@ export default function DriveFolderSelectorModal({
                 }}
                 className={`flex items-center justify-between px-3.5 py-2.5 rounded-xl cursor-pointer transition-all border ${
                   selectedFolder?.id === currentFolder.id
-                    ? 'bg-amber-500/15 border-amber-500/40 text-[#F59E0B]'
-                    : 'bg-[#090C12]/50 hover:bg-[#131924] border-transparent text-[#94A3B8]'
+                    ? 'bg-[#7c6cf6]/10 border-[#7c6cf6]/40 text-[#7c6cf6] dark:bg-violet-500/15 dark:border-violet-500/40 dark:text-violet-300'
+                    : 'bg-white/40 hover:bg-white/70 border-transparent text-[#1F2544] dark:bg-[#090C12]/50 dark:hover:bg-[#131924] dark:text-[#94A3B8]'
                 }`}
               >
                 <div className="flex items-center gap-2.5 min-w-0">
-                  <Folder className="w-4 h-4 text-[#F59E0B] shrink-0" />
-                  <span className="text-xs font-semibold truncate">
+                  <Folder className="w-4 h-4 text-[#7c6cf6] dark:text-violet-400 shrink-0" />
+                  <span className="text-xs font-bold truncate">
                     Current: {currentFolder.name} (Save directly here)
                   </span>
                 </div>
                 {selectedFolder?.id === currentFolder.id && (
-                  <Check className="w-4 h-4 text-[#F59E0B] shrink-0" />
+                  <Check className="w-4 h-4 text-[#7c6cf6] dark:text-violet-400 shrink-0" />
                 )}
               </div>
 
               {/* Subfolders list */}
               {folders.length === 0 ? (
-                <div className="text-center py-8 text-slate-500 text-xs">
+                <div className="text-center py-8 text-[#6B7194] text-xs font-medium">
                   No subfolders found inside &ldquo;{currentFolder.name}&rdquo;.
                 </div>
               ) : (
@@ -325,13 +325,13 @@ export default function DriveFolderSelectorModal({
                       onDoubleClick={() => handleNavigateDown(folder)}
                       className={`flex items-center justify-between px-3.5 py-2.5 rounded-xl cursor-pointer transition-all border group ${
                         isSelected
-                          ? 'bg-amber-500/15 border-amber-500/40 text-[#F59E0B]'
-                          : 'bg-[#0E121B] hover:bg-[#161B26] border-[#1C2230] text-[#CBD5E1]'
+                          ? 'bg-[#7c6cf6]/10 border-[#7c6cf6]/40 text-[#7c6cf6] dark:bg-violet-500/15 dark:border-violet-500/40 dark:text-violet-300'
+                          : 'bg-white/60 hover:bg-white border-[var(--line)] text-[#1F2544] dark:bg-[#0E121B] dark:hover:bg-[#161B26] dark:border-[#1C2230] dark:text-[#CBD5E1]'
                       }`}
                     >
                       <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                        <Folder className={`w-4 h-4 shrink-0 ${isSelected ? 'text-[#F59E0B]' : 'text-amber-400/70'}`} />
-                        <span className="text-xs font-medium truncate">{folder.name}</span>
+                        <Folder className={`w-4 h-4 shrink-0 ${isSelected ? 'text-[#7c6cf6] dark:text-violet-400' : 'text-violet-400/70'}`} />
+                        <span className="text-xs font-semibold truncate">{folder.name}</span>
                       </div>
 
                       <div className="flex items-center gap-2 shrink-0">
@@ -341,12 +341,12 @@ export default function DriveFolderSelectorModal({
                             e.stopPropagation();
                             handleNavigateDown(folder);
                           }}
-                          className="px-2 py-1 rounded text-[11px] bg-[#1E2638] hover:bg-[#263248] text-slate-300 hover:text-white transition-colors"
+                          className="px-2.5 py-1 rounded-btn btn-soft text-[11px] font-bold text-[#1F2544] dark:text-slate-300 transition-colors cursor-pointer"
                           title="Open folder"
                         >
                           Open &rarr;
                         </button>
-                        {isSelected && <Check className="w-4 h-4 text-[#F59E0B]" />}
+                        {isSelected && <Check className="w-4 h-4 text-[#7c6cf6] dark:text-violet-400" />}
                       </div>
                     </div>
                   );
@@ -357,10 +357,10 @@ export default function DriveFolderSelectorModal({
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 bg-[#131924] border-t border-[#1E2638] flex items-center justify-between gap-3">
-          <div className="text-xs text-slate-400 min-w-0 flex-1 mr-2">
-            <span className="text-[10px] text-slate-500 block uppercase font-mono">Selected Destination:</span>
-            <span className="font-semibold text-white truncate block text-xs">
+        <div className="px-6 py-4 bg-white/50 dark:bg-[#131924] border-t border-[var(--line)] flex items-center justify-between gap-3">
+          <div className="text-xs text-[#6B7194] min-w-0 flex-1 mr-2">
+            <span className="text-[10px] text-[#6B7194] block uppercase font-bold tracking-wider">Selected Destination:</span>
+            <span className="font-extrabold text-[#1F2544] dark:text-white truncate block text-xs">
               {selectedFolder?.path || selectedFolder?.name || 'My Drive'}
             </span>
           </div>
@@ -368,14 +368,14 @@ export default function DriveFolderSelectorModal({
           <div className="flex items-center gap-2">
             <button
               onClick={onClose}
-              className="px-4 py-2 rounded-lg bg-[#1E2638] hover:bg-[#263248] text-xs font-semibold text-[#94A3B8] hover:text-[#FFFFFF] transition-colors"
+              className="px-4 py-2 rounded-btn btn-soft text-xs font-bold text-[#6B7194] hover:text-[#1F2544] transition-colors cursor-pointer"
             >
               Cancel
             </button>
             <button
               onClick={handleConfirm}
               disabled={!selectedFolder}
-              className="px-4 py-2 rounded-lg bg-[#F59E0B] hover:bg-[#D97706] disabled:opacity-50 text-xs font-bold text-[#000000] shadow transition-colors"
+              className="btn-magic px-5 py-2 rounded-btn disabled:opacity-50 text-xs font-bold text-white shadow-magic transition-all cursor-pointer"
             >
               Select Folder
             </button>

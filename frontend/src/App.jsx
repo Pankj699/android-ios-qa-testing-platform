@@ -24,27 +24,107 @@ import AdminUsersPage from './pages/AdminUsersPage';
 import AdminDeviceManagementPage from './pages/AdminDeviceManagementPage';
 import GoogleDrivePage from './pages/GoogleDrivePage';
 import MixpanelValidatorPage from './pages/MixpanelValidatorPage';
+import RemoteConfigPage from './pages/RemoteConfigPage';
 import BugDeskApp from './bugdesk/BugDeskApp';
 import { getModuleSettings } from './bugdesk/lib/scoped-storage';
-import { Toaster } from 'sonner';
+import AppToaster from './components/AppToaster';
+import { toast } from './utils/toast';
 
 import { api } from './services/api';
 import { socketService } from './services/socket';
 import { webUsbAdbService } from './services/webUsbAdbService';
 import { screenMirrorStreamManager } from './services/screenMirrorStreamManager';
+import { ThemeProvider } from './context/ThemeContext';
 import { Lock, LogIn, ShieldAlert } from 'lucide-react';
 
+const getSidebarStorageKey = (userId) => {
+  return userId ? `qa_platform:${userId}:sidebar_collapsed` : 'qa_platform:sidebar_collapsed';
+};
+
+const readStoredSidebarCollapsed = (userId) => {
+  try {
+    const key = getSidebarStorageKey(userId);
+    const stored = localStorage.getItem(key);
+    if (stored !== null) {
+      return stored === 'true';
+    }
+  } catch (e) {
+    console.warn('Failed to read sidebar collapsed state from localStorage', e);
+  }
+  return false;
+};
+
+const writeStoredSidebarCollapsed = (userId, collapsed) => {
+  try {
+    const key = getSidebarStorageKey(userId);
+    localStorage.setItem(key, String(collapsed));
+  } catch (e) {
+    console.warn('Failed to write sidebar collapsed state to localStorage', e);
+  }
+};
+
+const isRemoteConfigPath = (path) => {
+  const p = (path || '').toLowerCase();
+  return (
+    p === '/remoteconfig' ||
+    p.startsWith('/remoteconfig/') ||
+    p === '/remote-config' ||
+    p.startsWith('/remote-config/')
+  );
+};
+
+const getInitialTab = () => {
+  if (typeof window !== 'undefined') {
+    const path = window.location.pathname;
+    if (isRemoteConfigPath(path)) {
+      return 'remote-config';
+    }
+    if (path.toLowerCase().startsWith('/bug-desk')) {
+      return 'bug-desk';
+    }
+  }
+  return 'dashboard';
+};
+
 export default function App() {
-  const [currentTab, setCurrentTab] = useState('dashboard');
+  const [currentTab, setCurrentTab] = useState(getInitialTab);
   const [currentUser, setCurrentUser] = useState(() => api.getCurrentUser());
   const [isAuthenticated, setIsAuthenticated] = useState(() => !!api.getCurrentUser());
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
+    return readStoredSidebarCollapsed(api.getCurrentUser()?.id);
+  });
+
+  // Synchronize sidebar collapsed preference with the active user identity
+  const activeUserId = currentUser?.id || null;
+  useEffect(() => {
+    setIsSidebarCollapsed(readStoredSidebarCollapsed(activeUserId));
+  }, [activeUserId]);
+
+  const handleToggleSidebar = useCallback(() => {
+    setIsSidebarCollapsed((prev) => {
+      const next = !prev;
+      writeStoredSidebarCollapsed(currentUser?.id || null, next);
+      return next;
+    });
+  }, [currentUser?.id]);
 
   // Bug Desk sub-navigation & active module state
   const [bugDeskTab, setBugDeskTab] = useState('dashboard');
-  const [bugDeskModuleSettings, setBugDeskModuleSettings] = useState(null);
+  const [bugDeskModuleSettings, setBugDeskModuleSettings] = useState(() => {
+    const user = api.getCurrentUser();
+    return user?.id ? getModuleSettings(user.id) : null;
+  });
   const [bugDeskSwitchOpen, setBugDeskSwitchOpen] = useState(false);
   const [mirrorModalOpen, setMirrorModalOpen] = useState(false);
   const [mirrorSessionActive, setMirrorSessionActive] = useState(false);
+  const [remoteConfigPlatform, setRemoteConfigPlatform] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const p = (params.get('platform') || '').toLowerCase();
+      if (p === 'ios' || p === 'android') return p;
+    }
+    return 'android';
+  });
 
   const [devices, setDevices] = useState([]);
   const [browserUsbDevice, setBrowserUsbDevice] = useState(null);
@@ -68,6 +148,10 @@ export default function App() {
   const [authResetToken, setAuthResetToken] = useState('');
   const [usbDiagModalOpen, setUsbDiagModalOpen] = useState(false);
   const [usbDiagnostics, setUsbDiagnostics] = useState(null);
+
+  useEffect(() => {
+    window.__QA_TOAST__ = toast;
+  }, []);
 
   // Fetch all initial data
   const fetchData = useCallback(async () => {
@@ -269,17 +353,20 @@ export default function App() {
     return () => window.removeEventListener('bugdesk:settings-updated', handleSettingsUpdated);
   }, []);
 
-  // Sync window URL path with Bug Desk tabs
+  // Sync window URL path with Bug Desk and Remote Config tabs
   useEffect(() => {
     const parseUrlTab = () => {
-      const path = window.location.pathname.toLowerCase();
-      if (path.startsWith('/bug-desk')) {
+      const path = window.location.pathname;
+      if (isRemoteConfigPath(path)) {
+        setCurrentTab('remote-config');
+      } else if (path.toLowerCase().startsWith('/bug-desk')) {
         setCurrentTab('bug-desk');
-        if (path.includes('/new-bug') || path.endsWith('/new')) {
+        const p = path.toLowerCase();
+        if (p.includes('/new-bug') || p.endsWith('/new')) {
           setBugDeskTab('new-bug');
-        } else if (path.includes('/history')) {
+        } else if (p.includes('/history')) {
           setBugDeskTab('history');
-        } else if (path.includes('/settings')) {
+        } else if (p.includes('/settings')) {
           setBugDeskTab('settings');
         } else {
           setBugDeskTab('dashboard');
@@ -299,8 +386,16 @@ export default function App() {
     }
     if (newTab === 'bug-desk') {
       window.history.pushState({}, '', `/bug-desk/${bugDeskTab}`);
-    } else if (window.location.pathname.startsWith('/bug-desk')) {
-      window.history.pushState({}, '', '/');
+    } else if (newTab === 'remote-config') {
+      const currentPath = window.location.pathname;
+      if (!isRemoteConfigPath(currentPath)) {
+        window.history.pushState({}, '', '/RemoteConfig');
+      }
+    } else {
+      const currentPath = window.location.pathname;
+      if (currentPath.toLowerCase().startsWith('/bug-desk') || isRemoteConfigPath(currentPath)) {
+        window.history.pushState({}, '', '/');
+      }
     }
   };
 
@@ -342,6 +437,7 @@ export default function App() {
     webUsbAdbService.disconnect();
     browserUsbDeviceRef.current = null;
     setBrowserUsbDevice(null);
+    padExecutionManager.resetForUser(null);
     await api.logout();
     setCurrentUser(null);
     setIsAuthenticated(false);
@@ -373,6 +469,7 @@ export default function App() {
           browserUsbDeviceRef.current = dev;
           setBrowserUsbDevice(dev);
           setSelectedDevice(dev);
+          toast.success(`Connected device: ${formatDeviceDisplayName(dev)}`);
         }
       } catch (err) {
         if (err.isCancelled) return;
@@ -390,7 +487,7 @@ export default function App() {
           setUsbDiagnostics(err.diagnostics);
           setUsbDiagModalOpen(true);
         } else {
-          alert(err.message || 'Failed to connect USB device.');
+          toast.error(err.message || 'Failed to connect USB device.');
         }
       }
     });
@@ -398,7 +495,10 @@ export default function App() {
 
   const handleBuildUploaded = (newBuild) => {
     fetchData();
-    if (newBuild) setSelectedBuild(newBuild);
+    if (newBuild) {
+      setSelectedBuild(newBuild);
+      toast.success(`Build "${newBuild.fileName || newBuild.packageName}" uploaded successfully!`);
+    }
   };
 
   const handleDisconnectDevice = async (serial) => {
@@ -407,13 +507,15 @@ export default function App() {
       browserUsbDeviceRef.current = null;
       setBrowserUsbDevice(null);
       setSelectedDevice((prev) => (prev?.serial === serial ? null : prev));
+      toast.success(`Disconnected device: ${serial}`);
       return;
     }
     try {
       await api.disconnectDevice(serial);
       fetchData();
+      toast.success(`Disconnected device: ${serial}`);
     } catch (err) {
-      alert(`Disconnect failed: ${err.message}`);
+      toast.error(`Disconnect failed: ${err.message}`);
     }
   };
 
@@ -431,8 +533,9 @@ export default function App() {
       try {
         await api.deleteBuild(id);
         fetchData();
+        toast.success('Build deleted successfully.');
       } catch (err) {
-        alert(`Delete failed: ${err.message}`);
+        toast.error(`Delete failed: ${err.message}`);
       }
     }
   };
@@ -461,23 +564,36 @@ export default function App() {
   };
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[#080A0F] text-[#FFFFFF] font-sans antialiased">
-      {/* Sidebar Navigation */}
-      <Sidebar
-        currentTab={currentTab}
-        setTab={handleTabChange}
-        runningTestCount={summaryStats?.running || 0}
-        onOpenTourModal={() => setTourModalOpen(true)}
-        currentUser={currentUser}
-      />
+    <ThemeProvider>
+      <div className="flex h-screen overflow-hidden bg-[#FBF9FF] text-[#1F2544] dark:bg-[#080A0F] dark:text-[#FFFFFF] font-sans antialiased relative">
+        {/* Ambient Pastel Background Blobs */}
+        <div className="bg-blobs">
+          <span></span>
+          <span></span>
+          <span></span>
+          <span></span>
+        </div>
 
-      {/* Main Content Area */}
-      <div className={`flex-1 flex flex-col min-w-0 overflow-hidden ${currentTab === 'bug-desk' ? 'bg-[#0A0D14]' : 'bg-qa-isometric'}`}>
+        {/* Sidebar Navigation */}
+        <Sidebar
+          currentTab={currentTab}
+          setTab={handleTabChange}
+          runningTestCount={summaryStats?.running || 0}
+          onOpenTourModal={() => setTourModalOpen(true)}
+          currentUser={currentUser}
+          isCollapsed={isSidebarCollapsed}
+          onToggleCollapse={handleToggleSidebar}
+        />
+
+        {/* Main Content Area */}
+        <div className="flex-1 flex flex-col min-w-0 overflow-hidden relative z-10">
         {/* Header with live status & User Profile */}
         <Header
           currentUser={currentUser}
           isAuthenticated={isAuthenticated}
           selectedDevice={selectedDevice}
+          devices={combinedDevices}
+          onSelectDevice={setSelectedDevice}
           diagnostics={diagnostics}
           onOpenPairModal={() => guardAction(() => setPairModalOpen(true))}
           onOpenTourModal={() => setTourModalOpen(true)}
@@ -499,20 +615,21 @@ export default function App() {
             setMirrorSessionActive(true);
             setMirrorModalOpen(true);
           }}
+          remoteConfigPlatform={remoteConfigPlatform}
         />
 
         {/* Scrollable Page Views */}
-        <main className={`flex-1 overflow-y-auto ${currentTab === 'mixpanel-validator' ? 'p-4 lg:p-5 w-full flex flex-col min-h-0' : currentTab === 'bug-desk' ? 'p-0 w-full flex flex-col min-h-0' : 'p-6 lg:p-8 max-w-7xl w-full mx-auto'}`}>
-          {/* Unauthenticated Security Banner */}
-          {!isAuthenticated && (
-            <div className="mb-6 p-4 rounded-xl bg-[#261D10]/80 border border-[#78350F] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-lg animate-fadeIn">
+        <main className={`flex-1 overflow-y-auto ${currentTab === 'remote-config' || currentTab === 'bug-desk' ? 'p-0 w-full flex flex-col min-h-0' : currentTab === 'mixpanel-validator' ? 'p-4 lg:p-5 w-full flex flex-col min-h-0' : 'p-6 lg:p-8 max-w-7xl w-full mx-auto'}`}>
+          {/* Unauthenticated Security Banner (exempt on Remote Config Manager) */}
+          {!isAuthenticated && currentTab !== 'remote-config' && (
+            <div className="mb-6 p-4 rounded-2xl glass flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 animate-fadeIn">
               <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-[#F59E0B]/20 text-[#F59E0B]">
+                <div className="w-10 h-10 rounded-xl bg-violet-100/80 border border-violet-200/60 text-[#7c6cf6] dark:bg-violet-500/15 dark:border-violet-500/30 flex items-center justify-center dark:text-violet-400 shrink-0">
                   <Lock className="w-5 h-5" />
                 </div>
                 <div>
-                  <h4 className="text-xs font-bold text-[#FFFFFF]">Authentication Required</h4>
-                  <p className="text-[11px] text-[#94A3B8]">
+                  <h4 className="text-xs font-bold text-[#1f2544] dark:text-white">Authentication Required</h4>
+                  <p className="text-[11px] text-[#6b7194] dark:text-[#94A3B8]">
                     Sign in to access your connected devices, uploaded builds, and run Play Asset Delivery tests.
                   </p>
                 </div>
@@ -522,9 +639,9 @@ export default function App() {
                   setAuthModalMode('login');
                   setAuthModalOpen(true);
                 }}
-                className="px-4 py-2 rounded-lg bg-[#F59E0B] hover:bg-[#D97706] text-xs font-bold text-[#000000] shadow transition-all flex items-center gap-1.5 whitespace-nowrap"
+                className="px-4 py-2 rounded-xl btn-magic text-xs font-bold whitespace-nowrap cursor-pointer shadow-magic"
               >
-                <LogIn className="w-3.5 h-3.5 text-[#000000]" />
+                <LogIn className="w-3.5 h-3.5 text-white" />
                 <span>Sign In / Register</span>
               </button>
             </div>
@@ -600,7 +717,7 @@ export default function App() {
               <GoogleDrivePage currentUser={currentUser} />
             )}
 
-            {currentTab === 'run-test' && (
+            <div className={currentTab === 'run-test' ? 'block' : 'hidden'}>
               <RunTestPage
                 devices={combinedDevices}
                 selectedDevice={selectedDevice}
@@ -614,8 +731,11 @@ export default function App() {
                   webUsbAdbService.getDiagnostics().then(d => { setUsbDiagnostics(d); setUsbDiagModalOpen(true); });
                 }}
                 onOpenUploadModal={() => guardAction(() => setUploadModalOpen(true))}
+                isActive={currentTab === 'run-test'}
+                currentTab={currentTab}
+                currentUser={currentUser}
               />
-            )}
+            </div>
 
             {currentTab === 'mixpanel-validator' && (
               <MixpanelValidatorPage
@@ -637,6 +757,14 @@ export default function App() {
                 setSelectedDevice={setSelectedDevice}
                 onOpenPairModal={() => guardAction(() => setPairModalOpen(true))}
                 onConnectBrowserUsb={handleConnectBrowserUsb}
+              />
+            )}
+
+            {currentTab === 'remote-config' && (
+              <RemoteConfigPage
+                currentUser={currentUser}
+                platform={remoteConfigPlatform}
+                onPlatformChange={setRemoteConfigPlatform}
               />
             )}
 
@@ -689,16 +817,17 @@ export default function App() {
                   onSelectSubTab={handleBugDeskTabChange}
                   switchModuleOpen={bugDeskSwitchOpen}
                   setSwitchModuleOpen={setBugDeskSwitchOpen}
+                  isActive={currentTab === 'bug-desk'}
                 />
               </div>
             ) : (
               currentTab === 'bug-desk' && (
-                <div className="p-12 text-center text-slate-400 max-w-md mx-auto my-12 bg-[#0F1420] border border-[#1E2638] rounded-2xl shadow-xl">
-                  <div className="w-12 h-12 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400 mx-auto mb-4">
+                <div className="p-12 text-center text-[#6b7194] dark:text-slate-400 max-w-md mx-auto my-12 glass shadow-glass">
+                  <div className="w-14 h-14 rounded-2xl bg-violet-100/80 border border-violet-200/60 text-[#7c6cf6] dark:bg-violet-500/15 dark:border-violet-500/30 flex items-center justify-center dark:text-violet-400 mx-auto mb-4 shadow-sm">
                     <Lock className="w-6 h-6" />
                   </div>
-                  <h3 className="text-lg font-bold text-white">Sign In Required</h3>
-                  <p className="text-xs text-slate-400 mt-2 leading-relaxed">
+                  <h3 className="text-xl font-extrabold text-[#1f2544] dark:text-white">Sign In Required</h3>
+                  <p className="text-xs text-[#6b7194] dark:text-slate-400 mt-2 leading-relaxed">
                     Please sign in to your QA Platform account to access your personal Bug Desk workspace, saved API keys, and bug reports.
                   </p>
                   <button
@@ -706,7 +835,7 @@ export default function App() {
                       setAuthModalMode('login');
                       setAuthModalOpen(true);
                     }}
-                    className="mt-5 px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-black font-bold text-xs uppercase tracking-wider transition-all shadow-md cursor-pointer"
+                    className="mt-6 px-6 py-3 rounded-xl btn-magic text-white font-bold text-xs uppercase tracking-wider transition-all shadow-magic cursor-pointer"
                   >
                     Sign In to QA Platform
                   </button>
@@ -786,8 +915,9 @@ export default function App() {
         </div>
       )}
 
-      {/* Sonner toast provider for notifications across Bug Desk */}
-      <Toaster position="top-right" richColors theme="dark" closeButton />
+      {/* Standardized Global AppToaster */}
+      <AppToaster />
     </div>
+    </ThemeProvider>
   );
 }

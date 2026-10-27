@@ -4,8 +4,10 @@ import { useAuth } from "../context/auth-context";
 
 export function useModuleSettings() {
   const { session } = useAuth();
-  const [settings, setSettings] = React.useState(null);
-  const [loaded, setLoaded] = React.useState(false);
+  const [settings, setSettings] = React.useState(() => {
+    return session?.userId ? getModuleSettings(session.userId) : null;
+  });
+  const [loaded, setLoaded] = React.useState(() => Boolean(session?.userId));
 
   React.useEffect(() => {
     if (!session?.userId) {

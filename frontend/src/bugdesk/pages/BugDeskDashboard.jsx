@@ -11,14 +11,14 @@ import { buildHeading } from "../lib/report-format";
 
 function StatCard({ icon: Icon, label, value }) {
   return (
-    <Card className="rounded-xl border border-[#1A2234] bg-[#0E131F] shadow-md">
+    <Card className="rounded-card border border-[var(--line)] glass shadow-sm hover:border-violet-500/30 transition-all">
       <CardContent className="flex items-center gap-3.5 p-5">
-        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-amber-500/15 text-amber-400 border border-amber-500/30">
+        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-tr from-violet-500/15 to-pink-500/15 border border-violet-500/25 text-violet-600 dark:text-violet-400 shadow-sm">
           <Icon className="h-5 w-5" />
         </div>
         <div className="min-w-0">
-          <p className="text-[13px] text-[#8F97A6] font-medium">{label}</p>
-          <p className="truncate font-display text-[19px] font-bold text-white mt-0.5">{value}</p>
+          <p className="text-[13px] text-slate-500 dark:text-slate-400 font-semibold">{label}</p>
+          <p className="truncate font-display text-[19px] font-extrabold text-slate-900 dark:text-white mt-0.5">{value}</p>
         </div>
       </CardContent>
     </Card>
@@ -44,9 +44,9 @@ export function BugDeskDashboard({ onNavigate }) {
         actions={
           <Button
             onClick={() => onNavigate && onNavigate("new-bug")}
-            className="bg-[#F59E0B] hover:bg-[#E58E00] text-[#0A0D14] font-bold text-[13.5px] h-10 px-4 rounded-lg shadow-sm"
+            className="btn-magic text-white font-bold text-[13.5px] h-10 px-4 rounded-pill shadow-md cursor-pointer"
           >
-            <FilePlus2 className="h-4 w-4" /> New bug report
+            <FilePlus2 className="h-4 w-4 mr-1.5" /> New bug report
           </Button>
         }
       />
@@ -59,15 +59,15 @@ export function BugDeskDashboard({ onNavigate }) {
           <StatCard icon={RotateCw} label="Current round" value={settings?.round && settings.round.trim() ? settings.round.trim() : "—"} />
         </div>
 
-        <Card className="rounded-xl border border-[#1A2234] bg-[#0E131F] shadow-md">
-          <CardHeader className="flex flex-row items-center justify-between gap-2 border-b border-[#1A2234] pb-4 px-6 pt-5">
-            <CardTitle className="text-[16.5px] font-bold text-white">Recent bug reports</CardTitle>
+        <Card className="rounded-card border border-[var(--line)] glass shadow-sm">
+          <CardHeader className="flex flex-row items-center justify-between gap-2 border-b border-[var(--line)] pb-4 px-6 pt-5">
+            <CardTitle className="text-[16.5px] font-extrabold text-slate-900 dark:text-white">Recent bug reports</CardTitle>
             {history.length > 0 && (
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={() => onNavigate && onNavigate("history")}
-                className="text-[#F59E0B] hover:text-amber-300 hover:bg-amber-500/10 text-[13px] font-semibold"
+                className="text-violet-600 hover:text-violet-700 hover:bg-violet-50 dark:text-amber-400 dark:hover:text-amber-300 dark:hover:bg-amber-500/10 text-[13px] font-semibold rounded-pill"
               >
                 View all <ArrowRight className="h-3.5 w-3.5 ml-1" />
               </Button>
@@ -76,33 +76,33 @@ export function BugDeskDashboard({ onNavigate }) {
           <CardContent className="pt-4 px-6 pb-6">
             {recent.length === 0 ? (
               <div className="flex flex-col items-center justify-center gap-3 py-12 text-center">
-                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#141B28] text-slate-400">
-                  <Inbox className="h-6 w-6 text-[#8F97A6]" />
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-tr from-violet-500/10 to-pink-500/10 border border-violet-500/20 text-violet-500">
+                  <Inbox className="h-6 w-6" />
                 </div>
                 <div>
-                  <p className="text-[14px] font-semibold text-white">No bug reports yet</p>
-                  <p className="text-[13px] text-[#8F97A6] mt-0.5">Generate your first one from rough QA notes.</p>
+                  <p className="text-[14px] font-bold text-slate-900 dark:text-white">No bug reports yet</p>
+                  <p className="text-[13px] text-slate-500 dark:text-slate-400 mt-0.5">Generate your first one from rough QA notes.</p>
                 </div>
                 <Button
                   size="sm"
                   onClick={() => onNavigate && onNavigate("new-bug")}
-                  className="bg-[#F59E0B] hover:bg-[#E58E00] text-[#0A0D14] font-bold text-[13.5px] h-9 px-4 rounded-lg mt-2"
+                  className="btn-magic text-white font-bold text-[13.5px] h-9 px-4 rounded-pill mt-2 cursor-pointer shadow-md"
                 >
                   <FilePlus2 className="h-4 w-4 mr-1.5" /> New bug report
                 </Button>
               </div>
             ) : (
-              <ul className="divide-y divide-[#1A2234]">
+              <ul className="divide-y divide-[var(--line)]">
                 {recent.map((r) => (
                   <li key={r.id} className="flex items-start justify-between gap-4 py-3.5">
                     <div className="min-w-0">
-                      <p className="truncate text-[13.5px] font-medium text-white">{buildHeading(r)}</p>
-                      <p className="mt-1 text-[12.5px] text-[#8F97A6]">
+                      <p className="truncate text-[13.5px] font-semibold text-slate-900 dark:text-white">{buildHeading(r)}</p>
+                      <p className="mt-1 text-[12.5px] text-slate-500 dark:text-slate-400">
                         {new Date(r.createdAt).toLocaleString()}
                       </p>
                     </div>
                     {r.round && r.round.trim() ? (
-                      <Badge variant="outline" className="shrink-0 font-mono text-[12px] border-[#263248] text-amber-400">
+                      <Badge variant="outline" className="shrink-0 font-mono text-[11.5px] border border-violet-500/25 text-violet-700 dark:text-violet-300 bg-violet-500/10 rounded-pill px-2.5 py-0.5">
                         {r.round.trim()}
                       </Badge>
                     ) : null}

@@ -116,6 +116,25 @@ function migrateLegacyData(userId) {
         write(userHistoryKey, legacyHistory);
       }
     }
+
+    // 4. Selected Platform migration (one-time claim to ensure it never leaks to other users)
+    const userPlatformKey = STORAGE_KEYS.scoped(userId, "selected-platform");
+    if (!window.localStorage.getItem(userPlatformKey)) {
+      const unscopedKey = "qabr:selected-platform";
+      const legacyRaw = window.localStorage.getItem(unscopedKey) || window.localStorage.getItem("bugdesk:selected-platform");
+      if (legacyRaw) {
+        try {
+          const parsed = JSON.parse(legacyRaw);
+          if (parsed === "android" || parsed === "ios") {
+            write(userPlatformKey, parsed);
+            try {
+              window.localStorage.removeItem(unscopedKey);
+              window.localStorage.removeItem("bugdesk:selected-platform");
+            } catch {}
+          }
+        } catch {}
+      }
+    }
   } catch (err) {
     console.warn("BugDesk legacy migration skipped:", err);
   }
@@ -178,6 +197,13 @@ export function deleteBugReport(userId, reportId) {
   );
 }
 
+export function updateBugReport(userId, updatedReport) {
+  if (!userId || !updatedReport?.id) return;
+  const history = getBugHistory(userId);
+  const next = history.map((r) => (r.id === updatedReport.id ? { ...r, ...updatedReport } : r));
+  write(STORAGE_KEYS.scoped(userId, "history"), next);
+}
+
 // ---- In-progress draft (New Bug form & generated report) ----
 
 export function getNewBugDraft(userId) {
@@ -229,5 +255,76 @@ export function resetPMSUrls(userId, defaultAndroid = "", defaultIos = "") {
     ios: defaultIos,
   });
 }
+
+// ---- User selected platform persistence ----
+
+export function getSelectedPlatform(userId) {
+  if (!userId || typeof userId !== "string" || !userId.trim()) return null;
+  const cleanId = userId.trim();
+  migrateLegacyData(cleanId);
+  const val = read(STORAGE_KEYS.scoped(cleanId, "selected-platform"), null);
+  if (val === "android" || val === "ios") {
+    return val;
+  }
+  return null;
+}
+
+export function saveSelectedPlatform(userId, platform) {
+  if (!userId || typeof userId !== "string" || !userId.trim()) return;
+  const cleanId = userId.trim();
+  if (platform !== "android" && platform !== "ios") return;
+  write(STORAGE_KEYS.scoped(cleanId, "selected-platform"), platform);
+  if (isBrowser()) {
+    try {
+      window.dispatchEvent(
+        new CustomEvent("bugdesk:platform-updated", {
+          detail: { userId: cleanId, platform },
+        })
+      );
+    } catch {}
+  }
+}
+
+// ---- PMS / Redmine API Access Key (User-scoped credential) ----
+
+export function getPmsApiKey(userId) {
+  if (!userId || typeof userId !== "string" || !userId.trim()) return "";
+  const cleanId = userId.trim();
+  migrateLegacyData(cleanId);
+  return read(STORAGE_KEYS.scoped(cleanId, "pms-api-key"), "");
+}
+
+export function savePmsApiKey(userId, apiKey) {
+  if (!userId || typeof userId !== "string" || !userId.trim()) return;
+  const cleanId = userId.trim();
+  const val = typeof apiKey === "string" ? apiKey.trim() : "";
+  write(STORAGE_KEYS.scoped(cleanId, "pms-api-key"), val);
+  if (isBrowser()) {
+    try {
+      window.dispatchEvent(
+        new CustomEvent("bugdesk:pms-key-updated", {
+          detail: { userId: cleanId, hasKey: Boolean(val) },
+        })
+      );
+    } catch {}
+  }
+}
+
+export function clearPmsApiKey(userId) {
+  if (!userId || typeof userId !== "string" || !userId.trim()) return;
+  const cleanId = userId.trim();
+  if (!isBrowser()) return;
+  try {
+    window.localStorage.removeItem(STORAGE_KEYS.scoped(cleanId, "pms-api-key"));
+    window.dispatchEvent(
+      new CustomEvent("bugdesk:pms-key-updated", {
+        detail: { userId: cleanId, hasKey: false },
+      })
+    );
+  } catch (e) {
+    console.error("Failed to clear PMS API key:", e);
+  }
+}
+
 
 

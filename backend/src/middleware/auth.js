@@ -30,7 +30,13 @@ const PUBLIC_PATHS = [
   '/drive/callback',
   '/api/drive/callback',
   '/drive/oauth-complete',
-  '/api/drive/oauth-complete'
+  '/api/drive/oauth-complete',
+  '/remote-config',
+  '/api/remote-config',
+  '/remote-configs',
+  '/api/remote-configs',
+  '/remoteconfig',
+  '/api/remoteconfig'
 ];
 
 /**
@@ -86,9 +92,23 @@ function extractTokenFromRequest(req) {
  */
 function authenticate(req, res, next) {
   const token = extractTokenFromRequest(req);
-  const path = req.path || '';
-  const isIconPath = /^\/?(api\/)?build\/[^/]+\/icon$/i.test(path) || /^\/?(api\/)?app-icon\/[^/]+$/i.test(path);
-  const isPublic = isIconPath || PUBLIC_PATHS.some(p => path === p || path.startsWith(p + '/'));
+  const rawPath = (req.path || '').replace(/\/+$/, '') || '/';
+  const rawFullPath = (((req.baseUrl || '') + (req.path || '')).replace(/\/+$/, '')) || '/';
+  const rawOriginalPath = (((req.originalUrl || '').split('?')[0]).replace(/\/+$/, '')) || '/';
+
+  const path = rawPath.toLowerCase();
+  const fullPath = rawFullPath.toLowerCase();
+  const originalPath = rawOriginalPath.toLowerCase();
+
+  const isIconPath = /^\/?(api\/)?build\/[^/]+\/icon$/i.test(rawPath) || /^\/?(api\/)?app-icon\/[^/]+$/i.test(rawPath);
+  const isPublic = isIconPath || PUBLIC_PATHS.some(p => {
+    const pub = p.toLowerCase().replace(/\/+$/, '') || '/';
+    return (
+      path === pub || path.startsWith(pub + '/') ||
+      fullPath === pub || fullPath.startsWith(pub + '/') ||
+      originalPath === pub || originalPath.startsWith(pub + '/')
+    );
+  });
 
   if (isPublic) {
     if (!token) {

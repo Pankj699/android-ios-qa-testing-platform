@@ -131,8 +131,8 @@ export function getEffectivePMSProjectUrl(platform, customUrls = null) {
  * @returns {'android'|'ios'|null}
  */
 export function detectPlatformFromContext(context = {}) {
-  const project = String(context.project || "").trim().toLowerCase();
-  const module = String(context.module || "").trim().toLowerCase();
+  const project = String(context?.project || "").trim().toLowerCase();
+  const module = String(context?.module || "").trim().toLowerCase();
 
   // Check for explicit "android"
   const isAndroid =
@@ -158,19 +158,42 @@ export function detectPlatformFromContext(context = {}) {
 }
 
 /**
- * Constructs the Redmine New Issue URL with prefilled Subject and Description.
+ * Extracts the Redmine project identifier from a full URL.
+ * Falls back to platform default project identifier if parsing fails.
+ * @param {string} url
+ * @param {'android'|'ios'} [platform='android']
+ * @returns {string}
+ */
+export function getProjectIdFromUrl(url, platform = "android") {
+  if (url && typeof url === "string" && url.trim()) {
+    try {
+      const parsed = new URL(url.trim());
+      const match = parsed.pathname.match(/\/projects\/([^/]+)/);
+      if (match && match[1]) {
+        return match[1];
+      }
+    } catch {}
+  }
+  return platform === "ios" ? "iha_ios" : "cp-photo-editor-suite";
+}
+
+/**
+ * Constructs the Redmine New Issue URL with prefilled Subject, Description,
+ * Status, Priority, and Assignee.
  * Uses Redmine's standard parameter convention:
- * ?issue[subject]=...&issue[description]=...
+ * ?issue[subject]=...&issue[description]=...&issue[status_id]=...&issue[priority_id]=...&issue[assigned_to_id]=...
  *
  * @param {'android'|'ios'} platform
  * @param {{ subject: string, description: string }} data
  * @param {object} [customUrls] - Optional custom URLs { android?: string, ios?: string }
+ * @param {{ statusId?: string|number, priorityId?: string|number, assignedToId?: string|number }} [options] - Issue options
  * @returns {string}
  */
 export function buildPMSIssueUrl(
   platform,
   { subject = "", description = "" } = {},
-  customUrls = null
+  customUrls = null,
+  options = {}
 ) {
   const baseUrl = getEffectivePMSProjectUrl(platform, customUrls);
   const url = new URL(baseUrl);
@@ -180,6 +203,35 @@ export function buildPMSIssueUrl(
   }
   if (description && typeof description === "string" && description.trim()) {
     url.searchParams.set("issue[description]", description.trim());
+  }
+
+  if (options && typeof options === "object") {
+    // Status prefill (if provided and valid)
+    if (
+      options.statusId !== undefined &&
+      options.statusId !== null &&
+      String(options.statusId).trim() !== ""
+    ) {
+      url.searchParams.set("issue[status_id]", String(options.statusId).trim());
+    }
+
+    // Priority prefill (if provided and valid)
+    if (
+      options.priorityId !== undefined &&
+      options.priorityId !== null &&
+      String(options.priorityId).trim() !== ""
+    ) {
+      url.searchParams.set("issue[priority_id]", String(options.priorityId).trim());
+    }
+
+    // Assignee prefill (only when assigned to a specific user; empty/null leaves unassigned)
+    if (
+      options.assignedToId !== undefined &&
+      options.assignedToId !== null &&
+      String(options.assignedToId).trim() !== ""
+    ) {
+      url.searchParams.set("issue[assigned_to_id]", String(options.assignedToId).trim());
+    }
   }
 
   return url.toString();

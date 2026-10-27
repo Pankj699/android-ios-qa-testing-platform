@@ -10,13 +10,11 @@ import {
   ChevronRight,
   ChevronDown,
   Activity,
-  Layers,
   Globe,
   AlertCircle,
   Clock,
   Code2,
   X,
-  FileText,
   ShieldCheck,
   HardDrive,
   Send,
@@ -54,6 +52,25 @@ export const HTTP_STATUS_TEXTS = {
   503: 'Service Unavailable',
   504: 'Gateway Timeout'
 };
+
+/**
+ * Android Volley Request.Method Integer Codes Mapping
+ */
+export const VOLLEY_METHOD_CODES = {
+  0: 'GET',
+  1: 'POST',
+  2: 'PUT',
+  3: 'DELETE',
+  4: 'HEAD',
+  5: 'OPTIONS',
+  6: 'TRACE',
+  7: 'PATCH'
+};
+
+/**
+ * Strictly allowed structured categories for target-app monitoring (No raw/general Logcat in this console)
+ */
+export const ALLOWED_CATEGORIES = ['API', 'QA ACTION', 'ERROR', 'APP CRASH'];
 
 /**
  * Sensitive Data Masking Utility
@@ -293,19 +310,21 @@ export function getStructuredTransactionJson(entry) {
     }
   }
 
+  const resolvedStatus = (api.status !== undefined && api.status !== null) ? api.status : (entry.status !== undefined && entry.status !== null ? entry.status : null);
+
   return {
     requestId: api.requestId || entry.id,
     timestamp: entry.time || new Date().toISOString(),
     request: {
-      method: api.method || 'GET',
+      method: (api.method && api.method !== 'UNKNOWN') ? api.method : 'UNKNOWN',
       url: api.endpoint || '',
       queryParams: queryObj,
       headers: reqHeaders,
       body: reqBody
     },
     response: {
-      status: api.status || entry.status || 200,
-      statusText: api.statusText || HTTP_STATUS_TEXTS[api.status || entry.status || 200] || 'OK',
+      status: resolvedStatus,
+      statusText: api.statusText || (resolvedStatus ? (HTTP_STATUS_TEXTS[resolvedStatus] || 'OK') : 'Unavailable'),
       duration: api.duration || entry.duration || null,
       size: api.responseSize || null,
       headers: respHeaders,
@@ -400,7 +419,7 @@ export function parseLogEntry(rawLog, index) {
       ...apiDetails,
       requestId: apiDetails.requestId || (isObj && rawLog.requestId ? rawLog.requestId : null),
       endpoint: apiDetails.endpoint || apiDetails.url,
-      method: (apiDetails.method || apiDetails.request?.method || 'GET').toUpperCase(),
+      method: (apiDetails.method && apiDetails.method !== 'UNKNOWN') ? apiDetails.method.toUpperCase() : (apiDetails.request?.method ? apiDetails.request.method.toUpperCase() : 'UNKNOWN'),
       queryParams: queryParams || (apiDetails.query ? Object.entries(apiDetails.query).map(([key, value]) => ({ key, value: String(value) })) : null),
       requestHeaders: formatHeaders(apiDetails.request?.headers || apiDetails.requestHeaders || apiDetails.headers),
       requestBody: formatPayloadBody(apiDetails.request?.body || apiDetails.requestBody || apiDetails.body, apiDetails.request?.contentType || apiDetails.requestContentType),
@@ -423,7 +442,7 @@ export function parseLogEntry(rawLog, index) {
       if (jsonStart !== -1) {
         const jsonStr = cleanText.substring(jsonStart);
         const parsedData = JSON.parse(jsonStr);
-        const method = (parsedData.method || parsedData.request?.method || 'GET').toUpperCase();
+        const method = (parsedData.method && parsedData.method !== 'UNKNOWN') ? parsedData.method.toUpperCase() : (parsedData.request?.method ? parsedData.request.method.toUpperCase() : 'UNKNOWN');
         const endpoint = parsedData.url || parsedData.endpoint || '';
         status = parsedData.response?.status || parsedData.status || 200;
         duration = parsedData.durationMs ? formatDuration(parsedData.durationMs) : formatDuration(parsedData.duration || null);
@@ -467,25 +486,31 @@ export function parseLogEntry(rawLog, index) {
 
     const endpoint = urlMatch ? urlMatch[2] : cleanText;
     const explicitMethod = urlMatch && urlMatch[1] && urlMatch[1].trim() ? urlMatch[1].trim() : '';
-    const method = explicitMethod && ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'].includes(explicitMethod.toUpperCase())
+    const method = explicitMethod && ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'HEAD', 'OPTIONS'].includes(explicitMethod.toUpperCase())
       ? explicitMethod.toUpperCase()
-      : (endpoint.includes('generate') || endpoint.includes('add') || endpoint.includes('upload') || endpoint.includes('remove') || endpoint.includes('create') ? 'POST' : 'GET');
+      : 'UNKNOWN';
 
-    if (rcMatch) {
-      status = parseInt(rcMatch[1], 10);
-    }
+    status = rcMatch ? parseInt(rcMatch[1], 10) : null;
     if (lifeMatch) {
       duration = formatDuration(parseInt(lifeMatch[1], 10));
     }
     const responseSize = sizeMatch ? formatBytes(parseInt(sizeMatch[1], 10)) : null;
     const queryParams = extractQueryParams(endpoint);
 
+    const tagMatch = cleanText.match(/\b(0x[a-fA-F0-9]+)\b(?:\s+[A-Z]+\s+(\d+))?/i);
+    const volleyTag = tagMatch ? tagMatch[1].toLowerCase() : null;
+    const volleySeq = tagMatch && tagMatch[2] ? tagMatch[2] : null;
+    const volleyReqId = volleyTag ? (volleySeq ? `${volleyTag}_${volleySeq}` : volleyTag) : null;
+
     apiDetails = {
+      requestId: volleyReqId || null,
+      volleyTag: volleyTag || null,
+      volleySeq: volleySeq || null,
       method,
       endpoint,
       queryParams,
-      status: status || 200,
-      statusText: HTTP_STATUS_TEXTS[status || 200] || 'OK',
+      status: status || null,
+      statusText: status ? (HTTP_STATUS_TEXTS[status] || 'OK') : null,
       duration: duration || null,
       responseSize,
       requestHeaders: null,
@@ -493,25 +518,88 @@ export function parseLogEntry(rawLog, index) {
       responseHeaders: null,
       responseBody: null,
       type: 'response',
-      summary: `${method} ${endpoint}`
+      summary: method !== 'UNKNOWN' ? `${method} ${endpoint}` : endpoint
     };
   }
-  // 3. Android App-Level API Log patterns:
-  // e.g. "API_TO_CALL: URL :- http://192.168.0.110/.../generateAiFlyerImage Request: { ... }"
-  // or "API_TO_CALL: http://.../generatePhotoshoot\tRequest: "
-  else if (/API_TO_CALL:\s*(?:URL\s*:-\s*)?(https?:\/\/[^\s]+)/i.test(cleanText) || /API_URL\s*:\s*(https?:\/\/[^\s]+)/i.test(cleanText)) {
+  // 3b. Android Volley MarkerLog format (e.g. MarkerLog.finish: (1532 ms) [ ] https://...):
+  else if (cleanText.includes('MarkerLog.finish') || (cleanText.includes('Volley') && cleanText.includes('MarkerLog'))) {
+    const urlMatch = cleanText.match(/(https?:\/\/[^\s>]+)/i);
+    const durMatch = cleanText.match(/MarkerLog\.finish:\s*\(\s*(\d+(?:\.\d+)?\s*(?:ms|s))\s*\)/i) ||
+                     cleanText.match(/\(\s*(\d+(?:\.\d+)?\s*(?:ms|s))\s*\)/i);
+    const isMarkerOnlyTiming = /\(\+\d+\)/.test(cleanText);
+
+    // Only classify genuine request-completion records with a valid URL and duration.
+    // Timing-only markers (e.g. (+0), (+1), (+50)) or lines without an HTTP URL are
+    // internal Volley diagnostic traces and must stay in general logcat, not the API Calls tab.
+    if (urlMatch && durMatch && !isMarkerOnlyTiming) {
+      category = 'API';
+      const bracketMatch = cleanText.match(/\((?:[^)]+)\)\s*\[([^\]]*)\]/i);
+      const explicitMethod = bracketMatch && bracketMatch[1] && bracketMatch[1].trim() ? bracketMatch[1].trim().toUpperCase() : '';
+      const method = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'HEAD', 'OPTIONS'].includes(explicitMethod)
+        ? explicitMethod
+        : 'UNKNOWN';
+
+      const endpoint = urlMatch[1];
+      const durationStr = formatDuration(durMatch[1]);
+      const queryParams = extractQueryParams(endpoint);
+
+      const tagMatch = cleanText.match(/\b(0x[a-fA-F0-9]+)\b(?:\s+[A-Z]+\s+(\d+))?/i);
+      const volleyTag = tagMatch ? tagMatch[1].toLowerCase() : null;
+      const volleySeq = tagMatch && tagMatch[2] ? tagMatch[2] : null;
+      const volleyReqId = volleyTag ? (volleySeq ? `${volleyTag}_${volleySeq}` : volleyTag) : null;
+
+      status = null;
+      duration = durationStr;
+
+      apiDetails = {
+        requestId: volleyReqId || null,
+        volleyTag: volleyTag || null,
+        volleySeq: volleySeq || null,
+        method,
+        endpoint,
+        queryParams,
+        status: null,
+        statusText: 'Completed',
+        duration,
+        responseSize: null,
+        requestHeaders: null,
+        requestBody: null,
+        responseHeaders: null,
+        responseBody: null,
+        type: 'completed',
+        summary: method !== 'UNKNOWN' ? `${method} ${endpoint}` : endpoint
+      };
+    } else {
+      category = 'APP LOGCAT';
+      apiDetails = null;
+    }
+  }
+  // 3c. Android Volley WaitingRequestManager in-flight requests (e.g. WaitingRequestManager.maybeAddToWaitingRequests...):
+  else if (cleanText.includes('WaitingRequestManager') && (cleanText.includes('api_name=') || cleanText.includes('request_json='))) {
     category = 'API';
-    const urlMatch = cleanText.match(/(https?:\/\/[^\s]+)/i);
-    const endpoint = urlMatch ? urlMatch[1] : cleanText;
-    const method = endpoint.includes('generate') || endpoint.includes('add') || endpoint.includes('create') || endpoint.includes('remove') || endpoint.includes('upload') || endpoint.includes('sync') || endpoint.includes('update') || endpoint.includes('set') ? 'POST' : 'GET';
+    const apiNameMatch = cleanText.match(/api_name=(https?:\/\/[^\s]+)/i);
+    const urlMatch = cleanText.match(/sending to network \d+-(https?:\/\/[^\s]+?)request_json/i);
+    const endpoint = apiNameMatch ? apiNameMatch[1] : (urlMatch ? urlMatch[1] : cleanText);
     const queryParams = extractQueryParams(endpoint);
 
-    // Extract request body if included in log line e.g. "Request: { ... }"
     let requestBody = null;
-    const reqBodyMatch = cleanText.match(/Request:\s*(\{[\s\S]*\}|\[[\s\S]*\])/i);
-    if (reqBodyMatch) {
-      requestBody = formatPayloadBody(reqBodyMatch[1]);
+    const jsonMatch = cleanText.match(/request_json=(\{[\s\S]*?\})(?:api_name=|$)/i) || cleanText.match(/request_json=(\{[\s\S]*\})/i);
+    if (jsonMatch) {
+      requestBody = formatPayloadBody(jsonMatch[1]);
     }
+
+    // Decode Volley integer method code from "sending to network (\d+)-"
+    const netMethodMatch = cleanText.match(/sending to network (\d+)-/i);
+    let method = 'UNKNOWN';
+    if (netMethodMatch && VOLLEY_METHOD_CODES[netMethodMatch[1]]) {
+      method = VOLLEY_METHOD_CODES[netMethodMatch[1]];
+    } else {
+      const explicitMethodMatch = cleanText.match(/\b(POST|GET|PUT|DELETE|PATCH|HEAD|OPTIONS)\b/i);
+      method = explicitMethodMatch ? explicitMethodMatch[1].toUpperCase() : (requestBody ? 'POST' : 'UNKNOWN');
+    }
+
+    status = null;
+    duration = null;
 
     apiDetails = {
       method,
@@ -519,19 +607,62 @@ export function parseLogEntry(rawLog, index) {
       queryParams,
       requestHeaders: null,
       requestBody,
-      status: 200,
-      statusText: 'OK',
+      status: null,
+      statusText: null,
+      duration: null,
+      responseSize: null,
       responseHeaders: null,
       responseBody: null,
       type: 'request',
-      summary: `${method} ${endpoint}`
+      summary: method !== 'UNKNOWN' ? `${method} ${endpoint}` : endpoint
     };
-    status = 200;
+  }
+  // 4. Android App-Level API Log patterns:
+  // e.g. "API_TO_CALL: URL :- http://192.168.0.110/.../generateAiFlyerImage Request: { ... }"
+  // or "API_TO_CALL:< https://flyerbuilder.app/.../addUserPreferencesV2\tRequest: "
+  // or ">>> syncTestimonial : API_TO_CALL <<< https://testimonial.graphicdesigns.co.in/api/getFeedbackUrlByApp"
+  else if (
+    /API_TO_CALL(?:\s*:\s*URL\s*:-\s*|\s*<{1,3}\s*|\s*:\s*<\s*|\s*:\s*|\s+)(https?:\/\/[^\s>\t]+)/i.test(cleanText) ||
+    /API_URL\s*:\s*(https?:\/\/[^\s>\t]+)/i.test(cleanText)
+  ) {
+    category = 'API';
+    const urlMatch = cleanText.match(/API_TO_CALL(?:\s*:\s*URL\s*:-\s*|\s*<{1,3}\s*|\s*:\s*<\s*|\s*:\s*|\s+)(https?:\/\/[^\s>\t]+)/i) ||
+                     cleanText.match(/API_URL\s*:\s*(https?:\/\/[^\s>\t]+)/i);
+    const endpoint = urlMatch ? urlMatch[1] : cleanText;
+    const queryParams = extractQueryParams(endpoint);
+
+    // Extract request body if included in log line e.g. "Request: { ... }" or "jsonData <<< { ... }"
+    let requestBody = null;
+    const reqBodyMatch = cleanText.match(/Request:\s*(\{[\s\S]*\}|\[[\s\S]*\])/i) ||
+                         cleanText.match(/jsonData\s*<{1,3}\s*(\{[\s\S]*\}|\[[\s\S]*\])/i);
+    if (reqBodyMatch) {
+      requestBody = formatPayloadBody(reqBodyMatch[1]);
+    }
+
+    const explicitMethodMatch = cleanText.match(/\b(POST|GET|PUT|DELETE|PATCH|HEAD|OPTIONS)\b/i);
+    const method = explicitMethodMatch ? explicitMethodMatch[1].toUpperCase() : (requestBody ? 'POST' : 'UNKNOWN');
+
+    status = null;
+    duration = null;
+
+    apiDetails = {
+      method,
+      endpoint,
+      queryParams,
+      requestHeaders: null,
+      requestBody,
+      status: null,
+      statusText: null,
+      responseHeaders: null,
+      responseBody: null,
+      type: 'request',
+      summary: method !== 'UNKNOWN' ? `${method} ${endpoint}` : endpoint
+    };
   }
   // 4. OkHttp / Retrofit HTTP Interceptor patterns
-  else if (cleanText.includes('--> POST') || cleanText.includes('--> GET') || cleanText.includes('--> PUT') || cleanText.includes('--> DELETE') || cleanText.includes('--> PATCH')) {
+  else if (cleanText.includes('--> POST') || cleanText.includes('--> GET') || cleanText.includes('--> PUT') || cleanText.includes('--> DELETE') || cleanText.includes('--> PATCH') || cleanText.includes('--> HEAD') || cleanText.includes('--> OPTIONS')) {
     category = 'API';
-    const match = cleanText.match(/-->\s+(POST|GET|PUT|DELETE|PATCH)\s+([^\s]+)/i);
+    const match = cleanText.match(/-->\s+(POST|GET|PUT|DELETE|PATCH|HEAD|OPTIONS)\s+([^\s]+)/i);
     if (match) {
       const method = match[1].toUpperCase();
       const endpoint = match[2];
@@ -719,7 +850,16 @@ export function correlateLogs(logs = []) {
   // Pending maps ONLY track in-flight requests awaiting responses
   const pendingByRequestId = new Map(); // requestId -> index in result
   const pendingByEndpoint = new Map();  // endpoint -> array of indices in result (FIFO)
+  const completedByVolleyKey = new Map(); // `${volleyTag}_${volleySeq}` -> index in result
   let pendingApiIdx = null; // points to the most recent transaction index expecting multi-line body
+
+  function recordVolleyIndex(idx, entryToRecord) {
+    const vTag = entryToRecord?.apiDetails?.volleyTag;
+    const vSeq = entryToRecord?.apiDetails?.volleySeq;
+    if (vTag && vSeq) {
+      completedByVolleyKey.set(`${vTag}_${vSeq}`, idx);
+    }
+  }
 
   // Crash multiline state machine
   let activeCrash = null;
@@ -835,10 +975,25 @@ export function correlateLogs(logs = []) {
       return pendingByRequestId.get(reqId);
     }
     const ep = entry.apiDetails?.endpoint;
+    const entrySeq = entry.apiDetails?.volleySeq;
+    const entryTag = entry.apiDetails?.volleyTag;
+
     if (ep && pendingByEndpoint.has(ep)) {
       const queue = pendingByEndpoint.get(ep);
       if (queue && queue.length > 0) {
-        return queue[0];
+        if (entrySeq) {
+          const match = queue.find(idx => {
+            const cand = result[idx];
+            const candSeq = cand?.apiDetails?.volleySeq;
+            if (candSeq) {
+              return candSeq === entrySeq && (!entryTag || !cand?.apiDetails?.volleyTag || cand.apiDetails.volleyTag === entryTag);
+            }
+            return true;
+          });
+          if (match !== undefined) return match;
+        } else {
+          return queue[0];
+        }
       }
     }
     // Fallback: match by URL path ignoring query parameters
@@ -846,7 +1001,19 @@ export function correlateLogs(logs = []) {
       const epPath = ep.split('?')[0];
       for (const [key, queue] of pendingByEndpoint.entries()) {
         if (queue && queue.length > 0 && key.split('?')[0] === epPath) {
-          return queue[0];
+          if (entrySeq) {
+            const match = queue.find(idx => {
+              const cand = result[idx];
+              const candSeq = cand?.apiDetails?.volleySeq;
+              if (candSeq) {
+                return candSeq === entrySeq && (!entryTag || !cand?.apiDetails?.volleyTag || cand.apiDetails.volleyTag === entryTag);
+              }
+              return true;
+            });
+            if (match !== undefined) return match;
+          } else {
+            return queue[0];
+          }
         }
       }
     }
@@ -1031,14 +1198,41 @@ export function correlateLogs(logs = []) {
       const isFull = !!entry.apiDetails.isFullTransaction;
 
       if (isRequest) {
+        // If this is WaitingRequestManager and an in-flight request for this endpoint is already pending, enrich it
+        if (cleanText.includes('WaitingRequestManager') && pendingByEndpoint.has(endpoint)) {
+          const queue = pendingByEndpoint.get(endpoint);
+          if (queue && queue.length > 0) {
+            const pIdx = queue.find(idx => {
+              const cand = result[idx];
+              return cand && (!cand.apiDetails?.requestBody || cand.apiDetails?.method === 'UNKNOWN');
+            });
+            if (pIdx !== undefined && result[pIdx]) {
+              const existing = result[pIdx];
+              if ((!existing.apiDetails.method || existing.apiDetails.method === 'UNKNOWN') && entry.apiDetails.method !== 'UNKNOWN') {
+                existing.apiDetails.method = entry.apiDetails.method;
+                existing.apiDetails.summary = `${entry.apiDetails.method} ${existing.apiDetails.endpoint}`;
+              }
+              if (!existing.apiDetails.requestBody && entry.apiDetails.requestBody) {
+                existing.apiDetails.requestBody = entry.apiDetails.requestBody;
+              }
+              pendingApiIdx = pIdx;
+              continue;
+            }
+          }
+        }
+
         const newIdx = result.length;
         result.push(entry);
         addPendingIndex(newIdx, entry);
+        recordVolleyIndex(newIdx, entry);
         pendingApiIdx = newIdx;
       } else if (isFull) {
         const pendingIdx = matchPendingIndex(entry);
         if (pendingIdx !== null && result[pendingIdx]) {
           const existing = result[pendingIdx];
+          const resolvedMethod = (existing.apiDetails?.method && existing.apiDetails.method !== 'UNKNOWN')
+            ? existing.apiDetails.method
+            : (entry.apiDetails?.method && entry.apiDetails.method !== 'UNKNOWN' ? entry.apiDetails.method : 'UNKNOWN');
           result[pendingIdx] = {
             ...entry,
             id: existing.id,
@@ -1047,6 +1241,8 @@ export function correlateLogs(logs = []) {
             status: entry.status || existing.status,
             apiDetails: {
               ...entry.apiDetails,
+              method: resolvedMethod,
+              summary: resolvedMethod !== 'UNKNOWN' ? `${resolvedMethod} ${existing.apiDetails?.endpoint || entry.apiDetails.endpoint}` : (existing.apiDetails?.endpoint || entry.apiDetails.endpoint),
               requestId: existing.apiDetails?.requestId || entry.apiDetails.requestId,
               duration: entry.duration || existing.duration,
               status: entry.status || existing.status,
@@ -1060,51 +1256,252 @@ export function correlateLogs(logs = []) {
             }
           };
           removePendingIndex(pendingIdx, existing);
+          recordVolleyIndex(pendingIdx, result[pendingIdx]);
           pendingApiIdx = pendingIdx;
         } else {
           const newIdx = result.length;
           result.push(entry);
+          recordVolleyIndex(newIdx, entry);
           pendingApiIdx = newIdx;
         }
       } else if (isResponse) {
         const pendingIdx = matchPendingIndex(entry);
         if (pendingIdx !== null && result[pendingIdx]) {
           const existing = result[pendingIdx];
+          const resolvedMethod = (existing.apiDetails?.method && existing.apiDetails.method !== 'UNKNOWN')
+            ? existing.apiDetails.method
+            : (entry.apiDetails?.method && entry.apiDetails.method !== 'UNKNOWN' ? entry.apiDetails.method : 'UNKNOWN');
           result[pendingIdx] = {
             ...existing,
-            status: entry.status || existing.status || 200,
+            status: entry.status !== null ? entry.status : existing.status,
             duration: entry.duration || existing.duration,
             apiDetails: {
               ...existing.apiDetails,
-              status: entry.status || existing.status || 200,
-              statusText: entry.apiDetails.statusText || existing.apiDetails?.statusText || HTTP_STATUS_TEXTS[entry.status || 200] || 'OK',
+              method: resolvedMethod,
+              summary: resolvedMethod !== 'UNKNOWN' ? `${resolvedMethod} ${existing.apiDetails?.endpoint || entry.apiDetails.endpoint}` : (existing.apiDetails?.endpoint || entry.apiDetails.endpoint),
+              // Associate Volley identity with this transaction
+              requestId: entry.apiDetails?.requestId || existing.apiDetails?.requestId,
+              volleyTag: entry.apiDetails?.volleyTag || existing.apiDetails?.volleyTag,
+              volleySeq: entry.apiDetails?.volleySeq || existing.apiDetails?.volleySeq,
+              status: entry.status !== null ? entry.status : existing.status,
+              statusText: entry.apiDetails?.statusText || existing.apiDetails?.statusText || (entry.status ? HTTP_STATUS_TEXTS[entry.status] : null),
               duration: entry.duration || existing.duration,
-              responseSize: entry.apiDetails.responseSize || existing.apiDetails?.responseSize,
+              responseSize: entry.apiDetails?.responseSize || existing.apiDetails?.responseSize,
               requestHeaders: existing.apiDetails?.requestHeaders || (activeToken ? formatHeaders({ Authorization: `Bearer ${activeToken}`, 'Content-Type': 'application/json' }) : null),
               requestBody: existing.apiDetails?.requestBody || null,
-              responseHeaders: entry.apiDetails.responseHeaders || existing.apiDetails?.responseHeaders || formatHeaders({ 'Content-Type': 'application/json; charset=utf-8' }),
+              responseHeaders: entry.apiDetails?.responseHeaders || existing.apiDetails?.responseHeaders || formatHeaders({ 'Content-Type': 'application/json; charset=utf-8' }),
+              responseBody: entry.apiDetails?.responseBody || existing.apiDetails?.responseBody,
+              type: 'completed'
+            }
+          };
+          removePendingIndex(pendingIdx, existing);
+          recordVolleyIndex(pendingIdx, result[pendingIdx]);
+          pendingApiIdx = pendingIdx;
+        } else {
+          // Check if matches transaction with exact Volley sequence identity across all records
+          let matchedExistingIdx = null;
+          const entryTag = entry.apiDetails?.volleyTag;
+          const entrySeq = entry.apiDetails?.volleySeq;
+          if (entryTag && entrySeq && completedByVolleyKey.has(`${entryTag}_${entrySeq}`)) {
+            matchedExistingIdx = completedByVolleyKey.get(`${entryTag}_${entrySeq}`);
+          }
+
+          const lookback = Math.max(0, result.length - 100);
+          for (let k = result.length - 1; matchedExistingIdx === null && k >= lookback; k--) {
+            const cand = result[k];
+            if (cand?.category === 'API' && cand.apiDetails?.endpoint === endpoint) {
+              const candTag = cand.apiDetails?.volleyTag;
+              const candSeq = cand.apiDetails?.volleySeq;
+
+              // Rule 1: When both events contain Volley sequence numbers, require an exact sequence match.
+              if (entrySeq && candSeq) {
+                if (entryTag && candTag && entryTag === candTag && entrySeq === candSeq) {
+                  matchedExistingIdx = k;
+                  break;
+                }
+              }
+              // Rule 2: If either event has a Volley tag/sequence, do NOT fall back to tag + endpoint alone.
+              // Rule 3: If NEITHER event has Volley tag or sequence, correlate by method + endpoint when candidate lacks duration/size.
+              else if (!entryTag && !candTag && !entrySeq && !candSeq) {
+                const candMethod = cand.apiDetails?.method;
+                const entryMethod = entry.apiDetails?.method;
+                const methodMatches = !candMethod || !entryMethod || candMethod === 'UNKNOWN' || entryMethod === 'UNKNOWN' || candMethod === entryMethod;
+                if (methodMatches && (!cand.duration || !cand.apiDetails?.duration || !cand.apiDetails?.responseSize)) {
+                  matchedExistingIdx = k;
+                  break;
+                }
+              }
+            }
+          }
+
+          if (matchedExistingIdx !== null) {
+            const target = result[matchedExistingIdx];
+            if (entry.status !== null) {
+              target.status = entry.status;
+              target.apiDetails.status = entry.status;
+              target.apiDetails.statusText = entry.apiDetails.statusText || HTTP_STATUS_TEXTS[entry.status] || 'OK';
+            }
+            if (!target.duration && entry.duration) {
+              target.duration = entry.duration;
+              target.apiDetails.duration = entry.duration;
+            }
+            if (!target.apiDetails.responseSize && entry.apiDetails?.responseSize) {
+              target.apiDetails.responseSize = entry.apiDetails.responseSize;
+            }
+            if ((!target.apiDetails.method || target.apiDetails.method === 'UNKNOWN') && entry.apiDetails?.method && entry.apiDetails.method !== 'UNKNOWN') {
+              target.apiDetails.method = entry.apiDetails.method;
+            }
+            target.apiDetails.summary = (target.apiDetails.method && target.apiDetails.method !== 'UNKNOWN')
+              ? `${target.apiDetails.method} ${target.apiDetails.endpoint}`
+              : target.apiDetails.endpoint;
+            target.apiDetails.type = 'completed';
+            recordVolleyIndex(matchedExistingIdx, target);
+            pendingApiIdx = matchedExistingIdx;
+          } else {
+            if (!entry.apiDetails.responseHeaders) {
+              entry.apiDetails.responseHeaders = formatHeaders({ 'Content-Type': 'application/json; charset=utf-8' });
+            }
+            const newIdx = result.length;
+            result.push(entry);
+            recordVolleyIndex(newIdx, entry);
+            pendingApiIdx = newIdx;
+          }
+        }
+      } else if (entry.apiDetails?.type === 'completed') {
+        // Fast O(1) correlation using global Volley sequence key
+        const cEntryTag = entry.apiDetails?.volleyTag;
+        const cEntrySeq = entry.apiDetails?.volleySeq;
+        let matchedCompletedIdx = null;
+        if (cEntryTag && cEntrySeq && completedByVolleyKey.has(`${cEntryTag}_${cEntrySeq}`)) {
+          matchedCompletedIdx = completedByVolleyKey.get(`${cEntryTag}_${cEntrySeq}`);
+        }
+
+        if (matchedCompletedIdx !== null) {
+          const target = result[matchedCompletedIdx];
+          // Always update to final duration from MarkerLog.finish
+          if (entry.duration) {
+            target.duration = entry.duration;
+            target.apiDetails.duration = entry.duration;
+          }
+          if (target.status === null && entry.status !== null) {
+            target.status = entry.status;
+            target.apiDetails.status = entry.status;
+            target.apiDetails.statusText = entry.apiDetails.statusText || HTTP_STATUS_TEXTS[entry.status] || 'OK';
+          }
+          if ((!target.apiDetails.method || target.apiDetails.method === 'UNKNOWN') && entry.apiDetails.method !== 'UNKNOWN') {
+            target.apiDetails.method = entry.apiDetails.method;
+          }
+          target.apiDetails.summary = (target.apiDetails.method && target.apiDetails.method !== 'UNKNOWN')
+            ? `${target.apiDetails.method} ${target.apiDetails.endpoint}`
+            : target.apiDetails.endpoint;
+          if (!target.apiDetails.responseSize && entry.apiDetails.responseSize) {
+            target.apiDetails.responseSize = entry.apiDetails.responseSize;
+          }
+          target.apiDetails.type = 'completed';
+          recordVolleyIndex(matchedCompletedIdx, target);
+          pendingApiIdx = matchedCompletedIdx;
+          continue;
+        }
+
+        const pendingIdx = matchPendingIndex(entry);
+        if (pendingIdx !== null && result[pendingIdx]) {
+          const existing = result[pendingIdx];
+          const resolvedMethod = (existing.apiDetails?.method && existing.apiDetails.method !== 'UNKNOWN')
+            ? existing.apiDetails.method
+            : (entry.apiDetails?.method && entry.apiDetails.method !== 'UNKNOWN' ? entry.apiDetails.method : 'UNKNOWN');
+          result[pendingIdx] = {
+            ...entry,
+            id: existing.id,
+            time: existing.time || entry.time,
+            duration: entry.duration || existing.duration,
+            status: entry.status !== null ? entry.status : existing.status,
+            apiDetails: {
+              ...entry.apiDetails,
+              method: resolvedMethod,
+              summary: resolvedMethod !== 'UNKNOWN' ? `${resolvedMethod} ${existing.apiDetails?.endpoint || entry.apiDetails.endpoint}` : (existing.apiDetails?.endpoint || entry.apiDetails.endpoint),
+              requestId: existing.apiDetails?.requestId || entry.apiDetails.requestId,
+              volleyTag: existing.apiDetails?.volleyTag || entry.apiDetails.volleyTag,
+              volleySeq: existing.apiDetails?.volleySeq || entry.apiDetails.volleySeq,
+              duration: entry.duration || existing.duration,
+              status: entry.status !== null ? entry.status : existing.status,
+              statusText: entry.apiDetails.statusText || existing.apiDetails?.statusText || (entry.status ? HTTP_STATUS_TEXTS[entry.status] : null),
+              responseSize: entry.apiDetails.responseSize || existing.apiDetails?.responseSize,
+              requestHeaders: existing.apiDetails?.requestHeaders || entry.apiDetails?.requestHeaders,
+              requestBody: existing.apiDetails?.requestBody || entry.apiDetails?.requestBody,
+              responseHeaders: entry.apiDetails.responseHeaders || existing.apiDetails?.responseHeaders,
               responseBody: entry.apiDetails.responseBody || existing.apiDetails?.responseBody,
               type: 'completed'
             }
           };
           removePendingIndex(pendingIdx, existing);
+          recordVolleyIndex(pendingIdx, result[pendingIdx]);
           pendingApiIdx = pendingIdx;
-        } else if (pendingApiIdx !== null && result[pendingApiIdx] && result[pendingApiIdx].apiDetails?.endpoint === endpoint) {
-          const lastTx = result[pendingApiIdx];
-          if (!lastTx.duration && entry.duration) {
-            lastTx.duration = entry.duration;
-            lastTx.apiDetails.duration = entry.duration;
-          }
-          if (!lastTx.apiDetails.responseSize && entry.apiDetails?.responseSize) {
-            lastTx.apiDetails.responseSize = entry.apiDetails.responseSize;
-          }
         } else {
-          if (!entry.apiDetails.responseHeaders) {
-            entry.apiDetails.responseHeaders = formatHeaders({ 'Content-Type': 'application/json; charset=utf-8' });
+          // Check for deduplication against recent completed transactions with matching request identity
+          const lookback = Math.max(0, result.length - 100);
+          let matchedExistingIdx = null;
+
+          for (let k = result.length - 1; k >= lookback; k--) {
+            const cand = result[k];
+            if (!cand || cand.category !== 'API' || !cand.apiDetails) continue;
+
+            const sameEndpoint = cand.apiDetails.endpoint === endpoint;
+            if (!sameEndpoint) continue;
+
+            // Check reliable request identity: Volley tag & seq
+            const hasVolleyIdentity = entry.apiDetails.volleyTag && cand.apiDetails.volleyTag;
+            if (hasVolleyIdentity) {
+              const sameTag = entry.apiDetails.volleyTag === cand.apiDetails.volleyTag;
+              const entrySeq = entry.apiDetails.volleySeq;
+              const candSeq = cand.apiDetails.volleySeq;
+              // When both events contain Volley sequence numbers, require an exact sequence match.
+              // If either sequence is missing, do not fall back to Volley tag + endpoint alone; leave unmerged.
+              if (sameTag && entrySeq && candSeq && entrySeq === candSeq) {
+                matchedExistingIdx = k;
+                break;
+              }
+            }
+
+            // Check exact duplicate: same endpoint, duration, method, and rawText
+            const sameDuration = cand.duration === entry.duration;
+            const sameMethod = cand.apiDetails.method === entry.apiDetails.method;
+            const sameRaw = cand.rawText === entry.rawText;
+            if (sameDuration && sameMethod && sameRaw) {
+              matchedExistingIdx = k;
+              break;
+            }
           }
-          const newIdx = result.length;
-          result.push(entry);
-          pendingApiIdx = newIdx;
+
+          if (matchedExistingIdx !== null) {
+            const target = result[matchedExistingIdx];
+            // Always update to final duration from MarkerLog.finish
+            if (entry.duration) {
+              target.duration = entry.duration;
+              target.apiDetails.duration = entry.duration;
+            }
+            if (target.status === null && entry.status !== null) {
+              target.status = entry.status;
+              target.apiDetails.status = entry.status;
+              target.apiDetails.statusText = entry.apiDetails.statusText || HTTP_STATUS_TEXTS[entry.status] || 'OK';
+            }
+            if ((!target.apiDetails.method || target.apiDetails.method === 'UNKNOWN') && entry.apiDetails.method !== 'UNKNOWN') {
+              target.apiDetails.method = entry.apiDetails.method;
+            }
+            target.apiDetails.summary = (target.apiDetails.method && target.apiDetails.method !== 'UNKNOWN')
+              ? `${target.apiDetails.method} ${target.apiDetails.endpoint}`
+              : target.apiDetails.endpoint;
+            if (!target.apiDetails.responseSize && entry.apiDetails.responseSize) {
+              target.apiDetails.responseSize = entry.apiDetails.responseSize;
+            }
+            target.apiDetails.type = 'completed';
+            recordVolleyIndex(matchedExistingIdx, target);
+            pendingApiIdx = matchedExistingIdx;
+          } else {
+            const newIdx = result.length;
+            result.push(entry);
+            recordVolleyIndex(newIdx, entry);
+            pendingApiIdx = newIdx;
+          }
         }
       } else {
         const newIdx = result.length;
@@ -1126,7 +1523,7 @@ export function correlateLogs(logs = []) {
       let isCorrelatedPayload = false;
       if (jsonCandidate && pendingApiIdx !== null && result[pendingApiIdx]) {
         try {
-          JSON.parse(jsonCandidate); // validate JSON syntax
+          const parsedPayload = JSON.parse(jsonCandidate); // validate JSON syntax
           const targetEntry = result[pendingApiIdx];
 
           if (
@@ -1140,10 +1537,20 @@ export function correlateLogs(logs = []) {
             if (!targetEntry.apiDetails.responseHeaders) {
               targetEntry.apiDetails.responseHeaders = formatHeaders({ 'Content-Type': 'application/json; charset=utf-8' });
             }
+            if ((targetEntry.status === null || targetEntry.status === undefined) && parsedPayload && typeof parsedPayload.code === 'number' && parsedPayload.code >= 100 && parsedPayload.code < 600) {
+              targetEntry.status = parsedPayload.code;
+              targetEntry.apiDetails.status = parsedPayload.code;
+              targetEntry.apiDetails.statusText = HTTP_STATUS_TEXTS[parsedPayload.code] || 'OK';
+            }
             isCorrelatedPayload = true;
           }
-          else if (!targetEntry.apiDetails?.requestBody && (targetEntry.apiDetails?.type === 'request' || cleanText.includes('Helper') || cleanText.includes('callApiFor'))) {
+          else if (!targetEntry.apiDetails?.requestBody && (targetEntry.apiDetails?.type === 'request' || cleanText.includes('Helper') || cleanText.includes('callApiFor') || cleanText.includes('Request:') || cleanText.includes('jsonData'))) {
             targetEntry.apiDetails.requestBody = formatPayloadBody(jsonCandidate);
+            // In com.bg.flyermaker target app convention, an API_TO_CALL request followed by a "Request:" or "jsonData" JSON payload reliably establishes a POST request
+            if ((!targetEntry.apiDetails.method || targetEntry.apiDetails.method === 'UNKNOWN') && (cleanText.includes('Request:') || cleanText.includes('jsonData') || targetEntry.rawText?.includes('API_TO_CALL'))) {
+              targetEntry.apiDetails.method = 'POST';
+              targetEntry.apiDetails.summary = `POST ${targetEntry.apiDetails.endpoint}`;
+            }
             if (!targetEntry.apiDetails.requestHeaders && activeToken) {
               targetEntry.apiDetails.requestHeaders = formatHeaders({
                 Authorization: `Bearer ${activeToken}`,
@@ -1174,7 +1581,7 @@ export function correlateLogs(logs = []) {
 /**
  * Postman-Style Syntax Highlighted JSON Viewer Component
  */
-export function JsonSyntaxViewer({ json, maxHeightClass = 'max-h-[480px]', showLineNumbers = true }) {
+export function JsonSyntaxViewer({ json, maxHeightClass = 'max-h-[480px]', showLineNumbers = true, sanitize = true, className = '' }) {
   const formattedJson = useMemo(() => {
     if (!json && json !== false && json !== 0) return '';
     let str = '';
@@ -1195,8 +1602,8 @@ export function JsonSyntaxViewer({ json, maxHeightClass = 'max-h-[480px]', showL
     } else {
       str = String(json);
     }
-    return sanitizeSensitiveData(str);
-  }, [json]);
+    return sanitize ? sanitizeSensitiveData(str) : str;
+  }, [json, sanitize]);
 
   const lines = useMemo(() => {
     return (formattedJson || '').split('\n');
@@ -1207,7 +1614,7 @@ export function JsonSyntaxViewer({ json, maxHeightClass = 'max-h-[480px]', showL
   }
 
   return (
-    <div className={`bg-[#07090E] rounded border border-[#171E2E] overflow-x-hidden overflow-y-auto ${maxHeightClass} select-text font-mono text-[12px] leading-relaxed p-2.5`}>
+    <div className={`bg-[#07090E] rounded-xl border border-[#171E2E] overflow-x-hidden overflow-y-auto ${maxHeightClass} select-text font-mono text-[12px] leading-relaxed p-2.5 ${className}`}>
       <table className="w-full table-fixed border-collapse">
         {showLineNumbers && (
           <colgroup>
@@ -1255,8 +1662,7 @@ export function JsonSyntaxViewer({ json, maxHeightClass = 'max-h-[480px]', showL
 
 export default function LiveLogViewer({ logs = [], onClear, testId }) {
   const [filter, setFilter] = useState('');
-  const [activeTab, setActiveTab] = useState('ALL'); // 'ALL' | 'API' | 'LOGCAT' | 'ACTION' | 'ERROR'
-  const [viewMode, setViewMode] = useState('structured'); // 'structured' | 'raw'
+  const [activeTab, setActiveTab] = useState('ALL'); // 'ALL' | 'API' | 'ACTION' | 'ERROR' | 'CRASH'
   const [autoScroll, setAutoScroll] = useState(true);
   const [copied, setCopied] = useState(false);
   const [expandedRows, setExpandedRows] = useState(new Set());
@@ -1295,39 +1701,40 @@ export default function LiveLogViewer({ logs = [], onClear, testId }) {
     return correlateLogs(logs);
   }, [logs]);
 
-  // Counts by category
+  // Counts by category (strictly target-app structured categories: API, QA ACTION, ERROR, APP CRASH)
   const categoryCounts = useMemo(() => {
-    const counts = { ALL: 0, API: 0, LOGCAT: 0, ACTION: 0, ERROR: 0, CRASH: 0 };
+    const counts = { ALL: 0, API: 0, ACTION: 0, ERROR: 0, CRASH: 0 };
     parsedLogs.forEach(entry => {
-      // Continuation lines belong only to the full raw App Logcat view
-      if (entry.isCrashContinuationLine) {
-        counts.LOGCAT++;
-        return;
+      if (entry.isCrashContinuationLine) return;
+      if (entry.category === 'API') {
+        counts.API++;
+        counts.ALL++;
+      } else if (entry.category === 'QA ACTION') {
+        counts.ACTION++;
+        counts.ALL++;
+      } else if (entry.category === 'APP CRASH') {
+        counts.CRASH++;
+        counts.ALL++;
+      } else if (entry.category === 'ERROR') {
+        counts.ERROR++;
+        counts.ALL++;
       }
-      counts.ALL++;
-      if (entry.category === 'API') counts.API++;
-      else if (entry.category === 'QA ACTION') counts.ACTION++;
-      else if (entry.category === 'APP CRASH') counts.CRASH++;
-      else if (entry.category === 'ERROR') counts.ERROR++;
-      else counts.LOGCAT++;
     });
     return counts;
   }, [parsedLogs]);
 
-  // Filtered entries according to active tab and search query
+  // Filtered entries according to active tab and search query (No App Logcat in any view or tab)
   const displayedLogs = useMemo(() => {
     return parsedLogs.filter(entry => {
-      // Continuation lines only appear in App Logcat tab
-      if (entry.isCrashContinuationLine && activeTab !== 'LOGCAT') {
-        return false;
-      }
+      // Exclude raw logcat continuation lines and non-allowed categories completely
+      if (entry.isCrashContinuationLine) return false;
+      if (!ALLOWED_CATEGORIES.includes(entry.category)) return false;
 
       // Tab filter
       if (activeTab === 'API' && entry.category !== 'API') return false;
       if (activeTab === 'ACTION' && entry.category !== 'QA ACTION') return false;
       if (activeTab === 'ERROR' && entry.category !== 'ERROR') return false;
       if (activeTab === 'CRASH' && entry.category !== 'APP CRASH') return false;
-      if (activeTab === 'LOGCAT' && entry.category !== 'APP LOGCAT') return false;
 
       // Text search filter
       if (!filter) return true;
@@ -1366,7 +1773,8 @@ export default function LiveLogViewer({ logs = [], onClear, testId }) {
   };
 
   const handleCopyAll = () => {
-    const sanitizedText = parsedLogs.map(l => l.rawText).join('\n');
+    const validLogs = parsedLogs.filter(l => ALLOWED_CATEGORIES.includes(l.category) && !l.isCrashContinuationLine);
+    const sanitizedText = validLogs.map(l => l.rawText).join('\n');
     navigator.clipboard.writeText(sanitizedText);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
@@ -1383,13 +1791,14 @@ export default function LiveLogViewer({ logs = [], onClear, testId }) {
         reportText = JSON.stringify(transactionObj, null, 2);
       } else {
         const api = entry.apiDetails;
+        const method = (api.method && api.method !== 'UNKNOWN') ? api.method : 'UNKNOWN';
         const queryParamsFormatted = api.queryParams && api.queryParams.length > 0
           ? api.queryParams.map(q => `  ${q.key}: ${q.value}`).join('\n')
           : 'None';
 
         reportText = [
           'API Request',
-          `${api.method || 'GET'} ${api.endpoint || 'Unknown URL'}`,
+          `${method} ${api.endpoint || 'Unknown URL'}`,
           '',
           `Status: ${api.status || entry.status || 200} ${api.statusText || HTTP_STATUS_TEXTS[api.status || entry.status || 200] || 'OK'}`,
           `Duration: ${api.duration || entry.duration || 'Not captured'}`,
@@ -1435,13 +1844,15 @@ export default function LiveLogViewer({ logs = [], onClear, testId }) {
 
     for (const entry of parsedLogs) {
       if (entry.isCrashContinuationLine) continue; // Do not duplicate in summary stream
+      if (!ALLOWED_CATEGORIES.includes(entry.category)) continue; // Only export target-app structured records
       if (entry.category === 'APP CRASH') {
         lines.push(formatCrashReport(entry));
         lines.push('----------------------------------------------------------------\n');
       } else if (entry.category === 'API' && entry.apiDetails) {
         const api = entry.apiDetails;
+        const method = (api.method && api.method !== 'UNKNOWN') ? api.method : 'UNKNOWN';
         lines.push(`[API] [${entry.time || 'N/A'}]`);
-        lines.push(`${api.method || 'GET'} ${api.endpoint}`);
+        lines.push(`${method} ${api.endpoint}`);
         lines.push(`Status: ${api.status || entry.status || 200} ${api.statusText || 'OK'} | Duration: ${api.duration || 'N/A'} | Size: ${api.responseSize || 'N/A'}`);
         if (api.requestHeaders) lines.push(`Request Headers:\n${api.requestHeaders}`);
         if (api.queryParams && api.queryParams.length > 0) {
@@ -1475,12 +1886,22 @@ export default function LiveLogViewer({ logs = [], onClear, testId }) {
       case 'PUT': return 'bg-amber-950/70 text-amber-400 border-amber-800/70';
       case 'DELETE': return 'bg-rose-950/70 text-rose-400 border-rose-800/70';
       case 'PATCH': return 'bg-purple-950/70 text-purple-400 border-purple-800/70';
+      case 'UNKNOWN': return 'bg-slate-800/80 text-slate-400 border-slate-700/80';
       default: return 'bg-slate-800 text-slate-300 border-slate-700';
     }
   };
 
-  const getStatusBadge = (status, statusText) => {
-    if (!status) return null;
+  const getStatusBadge = (status, statusText, isApi = false) => {
+    if (!status) {
+      if (isApi) {
+        return (
+          <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-800/80 text-slate-400 border border-slate-700/60" title="Response status not captured">
+            --
+          </span>
+        );
+      }
+      return null;
+    }
     const num = parseInt(status, 10);
     const text = statusText || HTTP_STATUS_TEXTS[num] || '';
     if (!isNaN(num)) {
@@ -1534,22 +1955,6 @@ export default function LiveLogViewer({ logs = [], onClear, testId }) {
     }
   };
 
-  const getRawLogColorClass = (level, text) => {
-    if (level === 'ERROR' || text.toLowerCase().includes('failed') || text.toLowerCase().includes('error')) {
-      return 'text-rose-400 bg-rose-950/20';
-    }
-    if (level === 'WARN' || text.toLowerCase().includes('warn')) {
-      return 'text-amber-400';
-    }
-    if (text.includes('✓') || text.includes('PASS') || text.includes('completed') || text.includes('100%')) {
-      return 'text-emerald-400 font-semibold';
-    }
-    if (level === 'DEBUG') {
-      return 'text-slate-400';
-    }
-    return 'text-slate-200';
-  };
-
   const consoleInnerContent = (
     <>
       {/* Console Header Bar */}
@@ -1569,37 +1974,12 @@ export default function LiveLogViewer({ logs = [], onClear, testId }) {
           </div>
 
           <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-[#080B10] border border-[#1C2230] text-slate-400">
-            {displayedLogs.length} / {parsedLogs.length} events
+            {displayedLogs.length} / {categoryCounts.ALL} events
           </span>
         </div>
 
-        {/* View Mode & Global Actions */}
+        {/* Console Actions */}
         <div className="flex items-center gap-2">
-          {/* View Mode Toggle */}
-          <div className="flex items-center bg-[#080B10] p-0.5 rounded-lg border border-[#1C2230]">
-            <button
-              onClick={() => setViewMode('structured')}
-              className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors flex items-center gap-1.5 cursor-pointer ${
-                viewMode === 'structured'
-                  ? 'bg-[#16130C] border border-[#F59E0B]/40 text-[#F59E0B] shadow-xs'
-                  : 'text-slate-400 hover:text-slate-200 border border-transparent'
-              }`}
-            >
-              <Layers className="w-3 h-3 text-[#F59E0B]" />
-              Structured
-            </button>
-            <button
-              onClick={() => setViewMode('raw')}
-              className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors flex items-center gap-1.5 cursor-pointer ${
-                viewMode === 'raw'
-                  ? 'bg-[#16130C] border border-[#F59E0B]/40 text-[#F59E0B] shadow-xs'
-                  : 'text-slate-400 hover:text-slate-200 border border-transparent'
-              }`}
-            >
-              <Code2 className="w-3 h-3" />
-              Raw Logcat
-            </button>
-          </div>
 
           {/* Auto Scroll */}
           <button
@@ -1686,8 +2066,7 @@ export default function LiveLogViewer({ logs = [], onClear, testId }) {
             { key: 'API', label: 'API Calls', count: categoryCounts.API, icon: Globe },
             { key: 'ACTION', label: 'QA Actions', count: categoryCounts.ACTION, icon: Activity },
             { key: 'ERROR', label: 'Errors', count: categoryCounts.ERROR, icon: AlertCircle },
-            { key: 'CRASH', label: 'App Crashes', count: categoryCounts.CRASH, icon: Flame },
-            { key: 'LOGCAT', label: 'App Logcat', count: categoryCounts.LOGCAT, icon: FileText }
+            { key: 'CRASH', label: 'App Crashes', count: categoryCounts.CRASH, icon: Flame }
           ].map(tab => {
             const isActive = activeTab === tab.key;
             const Icon = tab.icon;
@@ -1761,22 +2140,11 @@ export default function LiveLogViewer({ logs = [], onClear, testId }) {
             <Terminal className="w-8 h-8 text-slate-600 mb-2" />
             <p className="text-xs text-slate-400 font-medium">No execution events found</p>
             <p className="text-[11px] text-slate-600 mt-1 max-w-sm">
-              {filter ? `No events matching "${filter}"` : 'Logs and API events will appear here in real-time as PAD tests run.'}
+              {filter ? `No events matching "${filter}"` : 'Target app API calls, QA actions, errors, and crashes will appear here in real-time.'}
             </p>
           </div>
-        ) : viewMode === 'raw' ? (
-          /* RAW LOGCAT VIEW */
-          displayedLogs.map((entry) => (
-            <div
-              key={entry.id}
-              className={`py-0.5 px-2 rounded hover:bg-[#131924]/80 transition-colors flex items-start gap-2 ${getRawLogColorClass(entry.level, entry.cleanText)}`}
-            >
-              {entry.time && <span className="text-slate-500 shrink-0 select-none">[{entry.time}]</span>}
-              <span className="break-all whitespace-pre-wrap">{entry.cleanText}</span>
-            </div>
-          ))
         ) : (
-          /* STRUCTURED QA VIEW */
+          /* STRUCTURED TARGET APP QA VIEW */
           displayedLogs.map((entry) => {
             const isRowExpanded = expandedRows.has(entry.id);
             const isApi = entry.category === 'API';
@@ -1832,9 +2200,9 @@ export default function LiveLogViewer({ logs = [], onClear, testId }) {
                     <div className="shrink-0">{getCategoryBadge(entry.category)}</div>
 
                     {/* API HTTP Method badge */}
-                    {isApi && entry.apiDetails?.method && (
-                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border shrink-0 ${getMethodBadgeClass(entry.apiDetails.method)}`}>
-                        {entry.apiDetails.method}
+                    {isApi && (
+                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border shrink-0 ${getMethodBadgeClass((entry.apiDetails?.method && entry.apiDetails.method !== 'UNKNOWN') ? entry.apiDetails.method : 'UNKNOWN')}`}>
+                        {(entry.apiDetails?.method && entry.apiDetails.method !== 'UNKNOWN') ? entry.apiDetails.method : 'UNKNOWN'}
                       </span>
                     )}
 
@@ -1881,7 +2249,7 @@ export default function LiveLogViewer({ logs = [], onClear, testId }) {
                         </span>
                       </div>
                     ) : isApi ? (
-                      getStatusBadge(entry.status, entry.apiDetails?.statusText)
+                      getStatusBadge(entry.status, entry.apiDetails?.statusText, true)
                     ) : (
                       getStatusBadge(entry.status)
                     )}
@@ -2001,7 +2369,7 @@ export default function LiveLogViewer({ logs = [], onClear, testId }) {
                               Formatted HTTP Transaction (JSON)
                             </span>
                             <span className="text-[10px] text-slate-500 font-mono">
-                              {entry.apiDetails?.method || 'GET'} {entry.apiDetails?.endpoint}
+                              {(entry.apiDetails?.method && entry.apiDetails.method !== 'UNKNOWN') ? entry.apiDetails.method : 'UNKNOWN'} {entry.apiDetails?.endpoint}
                             </span>
                           </div>
                           <JsonSyntaxViewer
@@ -2022,8 +2390,8 @@ export default function LiveLogViewer({ logs = [], onClear, testId }) {
                                 <Send className="w-3.5 h-3.5" />
                                 <span>REQUEST</span>
                               </div>
-                              <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${getMethodBadgeClass(entry.apiDetails?.method || 'GET')}`}>
-                                {entry.apiDetails?.method || 'GET'}
+                              <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${getMethodBadgeClass((entry.apiDetails?.method && entry.apiDetails.method !== 'UNKNOWN') ? entry.apiDetails.method : 'UNKNOWN')}`}>
+                                {(entry.apiDetails?.method && entry.apiDetails.method !== 'UNKNOWN') ? entry.apiDetails.method : 'UNKNOWN'}
                               </span>
                             </div>
 

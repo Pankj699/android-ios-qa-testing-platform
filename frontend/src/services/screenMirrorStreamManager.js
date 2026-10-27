@@ -1,11 +1,14 @@
 import { api } from './api.js';
-import { generateRecordingFilename } from '../bugdesk/lib/recording-naming.js';
+import { generateRecordingFilename, generateScreenMirrorFilename } from '../bugdesk/lib/recording-naming.js';
+
+export { generateScreenMirrorFilename };
 
 export const getSupportedRecordingMimeType = () => {
   const types = [
+    { mime: 'video/webm;codecs=vp8', ext: 'webm' },
+    { mime: 'video/webm;codecs=h264', ext: 'webm' },
     { mime: 'video/mp4;codecs=avc1', ext: 'mp4' },
     { mime: 'video/mp4', ext: 'mp4' },
-    { mime: 'video/webm;codecs=h264', ext: 'webm' },
     { mime: 'video/webm;codecs=vp9', ext: 'webm' },
     { mime: 'video/webm', ext: 'webm' }
   ];
@@ -19,6 +22,105 @@ export const getSupportedRecordingMimeType = () => {
   return { mime: '', ext: 'webm' };
 };
 
+export class CanvasRecordingBridge {
+  constructor(videoElement, targetFps = 30) {
+    this.videoElement = videoElement;
+    this.targetFps = targetFps;
+    this.canvas = typeof document !== 'undefined' ? document.createElement('canvas') : null;
+    this.ctx = this.canvas ? this.canvas.getContext('2d', { alpha: false, desynchronized: true }) : null;
+
+    const vw = videoElement?.videoWidth || 720;
+    const vh = videoElement?.videoHeight || 1600;
+    if (this.canvas) {
+      this.canvas.width = vw;
+      this.canvas.height = vh;
+    }
+
+    this.isRendering = false;
+    this.rvfcHandle = null;
+    this.rafHandle = null;
+    this.stream = null;
+  }
+
+  start() {
+    if (this.isRendering || !this.videoElement || !this.canvas || !this.ctx) return;
+    this.isRendering = true;
+
+    this._draw();
+
+    if (typeof this.videoElement.requestVideoFrameCallback === 'function') {
+      const onFrame = () => {
+        if (!this.isRendering) return;
+        this._draw();
+        this.rvfcHandle = this.videoElement.requestVideoFrameCallback(onFrame);
+      };
+      this.rvfcHandle = this.videoElement.requestVideoFrameCallback(onFrame);
+    } else {
+      const onFrame = () => {
+        if (!this.isRendering) return;
+        this._draw();
+        this.rafHandle = requestAnimationFrame(onFrame);
+      };
+      this.rafHandle = requestAnimationFrame(onFrame);
+    }
+  }
+
+  _draw() {
+    if (!this.videoElement || !this.ctx || !this.canvas) return;
+    const vw = this.videoElement.videoWidth;
+    const vh = this.videoElement.videoHeight;
+    if (vw > 0 && vh > 0 && (vw !== this.canvas.width || vh !== this.canvas.height)) {
+      this.canvas.width = vw;
+      this.canvas.height = vh;
+    }
+    try {
+      this.ctx.drawImage(this.videoElement, 0, 0, this.canvas.width, this.canvas.height);
+    } catch {
+      // In case video frame is not yet decodable
+    }
+  }
+
+  getStream() {
+    if (!this.stream && this.canvas) {
+      this.start();
+      if (this.canvas.captureStream) {
+        this.stream = this.canvas.captureStream(this.targetFps);
+      } else if (this.canvas.mozCaptureStream) {
+        this.stream = this.canvas.mozCaptureStream(this.targetFps);
+      }
+    }
+    return this.stream;
+  }
+
+  destroy() {
+    this.isRendering = false;
+    if (this.rvfcHandle && typeof this.videoElement?.cancelVideoFrameCallback === 'function') {
+      try {
+        this.videoElement.cancelVideoFrameCallback(this.rvfcHandle);
+      } catch {}
+      this.rvfcHandle = null;
+    }
+    if (this.rafHandle && typeof cancelAnimationFrame === 'function') {
+      try {
+        cancelAnimationFrame(this.rafHandle);
+      } catch {}
+      this.rafHandle = null;
+    }
+    if (this.stream) {
+      try {
+        const tracks = this.stream.getTracks();
+        for (const track of tracks) {
+          track.stop();
+        }
+      } catch {}
+      this.stream = null;
+    }
+    this.ctx = null;
+    this.canvas = null;
+    this.videoElement = null;
+  }
+}
+
 class ScreenMirrorStreamManager {
   constructor() {
     this.activeStreamInfo = null; // { device, videoElement, status: 'connecting'|'waiting_for_frame'|'live'|'stopped'|'error' }
@@ -28,13 +130,15 @@ class ScreenMirrorStreamManager {
     this.recordingStartTime = null;
     this.recordingMimeConfig = null;
 
-    // State machine: 'idle' | 'recording' | 'finalizing' | 'uploading' | 'publishing' | 'completed' | 'error'
+    // State machine: 'idle' | 'recording' | 'finalizing' | 'ready_to_upload' | 'uploading' | 'publishing' | 'completed' | 'error'
     this.state = 'idle';
     this.durationSec = 0;
     this.uploadProgress = 0;
     this.errorMessage = null;
 
-    // Preserved data for failure recovery
+    // Preserved data for failure recovery & upload confirmation
+    this.pendingRecording = null;
+    this.isConfirmingUpload = false;
     this.preservedBlob = null;
     this.preservedFilename = null;
     this.uploadedDriveFile = null; // { id, name, webViewLink }
@@ -82,8 +186,20 @@ class ScreenMirrorStreamManager {
     if (this.state === 'recording' && (this.activeStreamInfo.status === 'stopped' || this.activeStreamInfo.status === 'error')) {
       this.stopRecording({ reason: 'mirror_closed' });
     }
+    this._cleanupBridge();
     this.activeStreamInfo = null;
     this._emitStatusChanged();
+  }
+
+  _cleanupBridge() {
+    if (this.recordingBridge) {
+      try {
+        this.recordingBridge.destroy();
+      } catch (e) {
+        console.warn('[ScreenMirrorStreamManager] Error destroying recording bridge:', e);
+      }
+      this.recordingBridge = null;
+    }
   }
 
   getActiveSession() {
@@ -158,6 +274,14 @@ class ScreenMirrorStreamManager {
     if (!this.isMirrorReady()) return null;
     const videoEl = this.activeStreamInfo.videoElement;
     try {
+      this._cleanupBridge();
+      this.recordingBridge = new CanvasRecordingBridge(videoEl, 30);
+      const stream = this.recordingBridge.getStream();
+      if (stream) return stream;
+    } catch (e) {
+      console.warn('[ScreenMirrorStreamManager] CanvasRecordingBridge error, trying fallback:', e);
+    }
+    try {
       if (videoEl.captureStream) return videoEl.captureStream(30);
       if (videoEl.mozCaptureStream) return videoEl.mozCaptureStream(30);
     } catch (e) {
@@ -177,6 +301,7 @@ class ScreenMirrorStreamManager {
 
     const stream = this.getCaptureStream();
     if (!stream || stream.getVideoTracks().length === 0) {
+      this._cleanupBridge();
       throw new Error('No video stream track available for recording from the mirrored screen.');
     }
 
@@ -191,6 +316,8 @@ class ScreenMirrorStreamManager {
       this.durationSec = 0;
       this.uploadProgress = 0;
       this.errorMessage = null;
+      this.pendingRecording = null;
+      this.isConfirmingUpload = false;
       this.preservedBlob = null;
       this.uploadedDriveFile = null;
       this.publishedUrl = null;
@@ -205,6 +332,7 @@ class ScreenMirrorStreamManager {
         console.error('[MediaRecorder Error]:', err);
         this.state = 'error';
         this.errorMessage = `Recording error: ${err.message || 'MediaRecorder failed'}`;
+        this._cleanupBridge();
         this._stopTimer();
         this._emitRecordingState();
       };
@@ -217,6 +345,7 @@ class ScreenMirrorStreamManager {
     } catch (err) {
       this.state = 'error';
       this.errorMessage = err.message || 'Failed to start screen recording';
+      this._cleanupBridge();
       this._stopTimer();
       this._emitRecordingState();
       throw err;
@@ -243,6 +372,7 @@ class ScreenMirrorStreamManager {
    */
   async stopRecording(options = {}) {
     if (this.state !== 'recording' || !this.recorder) {
+      this._cleanupBridge();
       return null;
     }
 
@@ -253,6 +383,7 @@ class ScreenMirrorStreamManager {
     return new Promise((resolve) => {
       this.recorder.onstop = async () => {
         try {
+          this._cleanupBridge();
           if (this.recordedChunks.length === 0) {
             this.state = 'error';
             this.errorMessage = 'No video data was recorded. Please ensure screen mirroring is displaying frames.';
@@ -266,18 +397,38 @@ class ScreenMirrorStreamManager {
           const blob = new Blob(this.recordedChunks, { type: mimeType });
           this.preservedBlob = blob;
 
-          // Check if truncated
-          if (options.reason === 'mirror_disconnected') {
-            this.errorMessage = 'Screen mirror disconnected during recording. Available footage was preserved.';
-          }
+          const filename = generateScreenMirrorFilename({
+            device: this.activeStreamInfo?.device,
+            ext
+          });
+          this.preservedFilename = filename;
 
-          resolve({
+          // Check if truncated
+          const recId = options.recordingId || `rec_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+          const recordingResult = {
+            recordingId: recId,
             blob,
+            filename,
             mimeType,
             ext,
             durationSec: Math.max(1, this.durationSec),
             device: this.activeStreamInfo?.device
-          });
+          };
+
+          this.pendingRecording = recordingResult;
+          this.isConfirmingUpload = true;
+          this.state = 'ready_to_upload';
+          this._emitRecordingState();
+
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(
+              new CustomEvent('bugdesk:recording-ready', {
+                detail: { recording: recordingResult }
+              })
+            );
+          }
+
+          resolve(recordingResult);
         } catch (e) {
           this.state = 'error';
           this.errorMessage = e.message || 'Error finalizing recording';
@@ -300,6 +451,11 @@ class ScreenMirrorStreamManager {
    * Upload finalized recording to user's default Google Drive folder and publish shareable link.
    */
   async uploadAndPublish({ project, module, round, recording, folderId = null }) {
+    if (this.isUploadingInProgress) {
+      console.warn('[ScreenMirrorStreamManager] uploadAndPublish already in progress, ignoring duplicate call');
+      return null;
+    }
+
     const videoBlob = recording?.blob || this.preservedBlob;
     if (!videoBlob) {
       this.state = 'error';
@@ -308,14 +464,16 @@ class ScreenMirrorStreamManager {
       return null;
     }
 
+    this.isUploadingInProgress = true;
     this.state = 'uploading';
     this.uploadProgress = 0;
     this.errorMessage = null;
     this._emitRecordingState();
 
     try {
+      const client = this.api || api;
       // 1. Verify Google Drive status
-      const driveStatus = await api.getDriveStatus();
+      const driveStatus = await client.getDriveStatus();
       if (!driveStatus?.connected) {
         throw new Error('Google Drive is not connected. Connect your Google Drive account in Settings to enable auto-publishing.');
       }
@@ -333,39 +491,49 @@ class ScreenMirrorStreamManager {
       formData.append('deviceName', this.activeStreamInfo?.device?.name || '');
       formData.append('originalFilename', filename);
 
+      const recId = recording?.recordingId || this.pendingRecording?.recordingId;
+      if (recId) {
+        formData.append('recordingId', recId);
+      }
+
       const targetFolderId = folderId || driveStatus.defaultFolderId;
       if (targetFolderId && targetFolderId !== 'root') {
         formData.append('folderId', targetFolderId);
       }
 
-      // 4. Upload with progress tracking
-      const uploadRes = await api.uploadScreenRecording(formData, (percent) => {
-        this.uploadProgress = percent;
-        this._emitRecordingState();
-      });
+      // 4. Upload with progress tracking (or reuse already uploaded drive file)
+      let fileId = this.uploadedDriveFile?.id;
+      if (!fileId) {
+        const uploadRes = await client.uploadScreenRecording(formData, (percent) => {
+          this.uploadProgress = percent;
+          this._emitRecordingState();
+        });
 
-      if (!uploadRes?.success || !uploadRes.recording) {
-        throw new Error(uploadRes?.error || 'Failed to upload recording to Google Drive');
+        if (!uploadRes?.success || !uploadRes.recording) {
+          throw new Error(uploadRes?.error || 'Failed to upload recording to Google Drive');
+        }
+
+        fileId = uploadRes.recording.google_drive_file_id;
+        this.uploadedDriveFile = {
+          id: fileId,
+          name: uploadRes.recording.filename || filename,
+          webViewLink: uploadRes.recording.google_drive_web_view_link
+        };
       }
-
-      const fileId = uploadRes.recording.google_drive_file_id;
-      this.uploadedDriveFile = {
-        id: fileId,
-        name: uploadRes.recording.filename || filename,
-        webViewLink: uploadRes.recording.google_drive_web_view_link
-      };
 
       // 5. Automatically Publish / create shareable link
       this.state = 'publishing';
       this._emitRecordingState();
 
-      const publishRes = await api.publishDriveFile(fileId);
+      const publishRes = await client.publishDriveFile(fileId);
       if (!publishRes?.success || (!publishRes.shareLink && !publishRes.webViewLink)) {
         throw new Error(publishRes?.error || 'Uploaded successfully, but failed to create shareable link.');
       }
 
       const finalUrl = publishRes.shareLink || publishRes.webViewLink;
       this.publishedUrl = finalUrl;
+      this.pendingRecording = null;
+      this.isConfirmingUpload = false;
       this.state = 'completed';
       this._emitRecordingState();
 
@@ -394,6 +562,8 @@ class ScreenMirrorStreamManager {
       this.errorMessage = err.message || 'Upload & publish failed';
       this._emitRecordingState();
       return null;
+    } finally {
+      this.isUploadingInProgress = false;
     }
   }
 
@@ -444,16 +614,41 @@ class ScreenMirrorStreamManager {
   /**
    * Download the preserved video file locally
    */
-  downloadLocalVideo() {
-    if (!this.preservedBlob || typeof window === 'undefined') return;
+  downloadLocalVideo(customFilename = null) {
+    if (!this.preservedBlob || typeof window === 'undefined') return false;
     const url = URL.createObjectURL(this.preservedBlob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = this.preservedFilename || `screen_recording_${Date.now()}.${this.recordingMimeConfig?.ext || 'webm'}`;
+    a.download = customFilename || this.preservedFilename || generateScreenMirrorFilename({
+      device: this.activeStreamInfo?.device,
+      ext: this.recordingMimeConfig?.ext || 'webm'
+    });
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+    return true;
+  }
+
+  getPendingRecording() {
+    return this.pendingRecording;
+  }
+
+  discardPendingRecording() {
+    this.pendingRecording = null;
+    this.isConfirmingUpload = false;
+    // Clear preserved data so that no stale blob remains after skipping upload
+    this.preservedBlob = null;
+    this.preservedFilename = null;
+    if (this.state === 'ready_to_upload' || this.state === 'finalizing') {
+      this.state = 'idle';
+    }
+    this._emitRecordingState();
+  }
+
+  clearPendingRecording() {
+    this.pendingRecording = null;
+    this.isConfirmingUpload = false;
   }
 
   reset() {
@@ -462,10 +657,13 @@ class ScreenMirrorStreamManager {
     this.durationSec = 0;
     this.uploadProgress = 0;
     this.errorMessage = null;
+    this.isUploadingInProgress = false;
     this.preservedBlob = null;
     this.preservedFilename = null;
     this.uploadedDriveFile = null;
     this.publishedUrl = null;
+    this.pendingRecording = null;
+    this.isConfirmingUpload = false;
     this._emitRecordingState();
   }
 
@@ -494,7 +692,9 @@ class ScreenMirrorStreamManager {
             errorMessage: this.errorMessage,
             publishedUrl: this.publishedUrl,
             hasPreservedBlob: Boolean(this.preservedBlob),
-            hasUploadedFile: Boolean(this.uploadedDriveFile)
+            hasUploadedFile: Boolean(this.uploadedDriveFile),
+            hasPendingRecording: Boolean(this.pendingRecording),
+            isConfirmingUpload: Boolean(this.isConfirmingUpload)
           }
         })
       );

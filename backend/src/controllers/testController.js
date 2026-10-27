@@ -140,7 +140,14 @@ class TestController {
 
   async getTest(req, res, next) {
     try {
-      const test = historyService.getTestById(req.params.id);
+      const active = testRunnerService.activeTests.get(req.params.id);
+      const test = active ? {
+        ...active.testData,
+        steps: active.steps,
+        status: active.status || 'RUNNING',
+        progress: active.progress || 0
+      } : historyService.getTestById(req.params.id);
+
       if (!test) {
         return res.status(404).json({ success: false, error: 'Test not found.' });
       }
@@ -168,7 +175,8 @@ class TestController {
 
   async getTestLogs(req, res, next) {
     try {
-      const test = historyService.getTestById(req.params.id);
+      const active = testRunnerService.activeTests.get(req.params.id);
+      const test = active ? active.testData : historyService.getTestById(req.params.id);
       if (!test) {
         return res.status(404).json({ success: false, error: 'Test not found.' });
       }
@@ -178,8 +186,13 @@ class TestController {
         return res.status(403).json({ success: false, error: 'Forbidden. You do not have permission to view these logs.' });
       }
 
-      const logs = historyService.getTestLog(req.params.id);
-      res.json({ success: true, testId: req.params.id, logs });
+      const diskLogs = historyService.getTestLog(req.params.id);
+      res.json({
+        success: true,
+        testId: req.params.id,
+        logs: diskLogs,
+        activeLogs: active?.logs || []
+      });
     } catch (err) {
       next(err);
     }

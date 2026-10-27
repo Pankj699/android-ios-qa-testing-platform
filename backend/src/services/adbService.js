@@ -1324,6 +1324,10 @@ class AdbService {
       await new Promise(resolve => setTimeout(resolve, 300));
     }
 
+    // Ensure verbose log tags are armed for network observability before launching
+    await this.runSafeAdbCommand(serial, 'adb shell setprop log.tag.Volley VERBOSE').catch(() => {});
+    await this.runSafeAdbCommand(serial, 'adb shell setprop log.tag.OkHttp VERBOSE').catch(() => {});
+
     // 4. Launch default launcher activity via monkey
     const res = await this.execute([
       '-s', serial,
@@ -1337,13 +1341,22 @@ class AdbService {
       throw new Error(`Failed to launch ${packageName}: ${res.raw}`);
     }
 
+    // Fast check for newly spawned PID
+    let freshPid = null;
+    for (let i = 0; i < 4; i++) {
+      await new Promise(resolve => setTimeout(resolve, 80));
+      freshPid = await this.getPid(serial, packageName).catch(() => null);
+      if (freshPid) break;
+    }
+
     const actionText = isRunning ? 'Relaunched' : 'Launched';
-    logger.info(`[ADB Launch] ${actionText} ${packageName} on device ${serial}`);
+    logger.info(`[ADB Launch] ${actionText} ${packageName} on device ${serial} (PID: ${freshPid || 'pending'})`);
 
     return {
       success: true,
       relaunched: isRunning,
       isRunning,
+      pid: freshPid || null,
       message: `${actionText} ${packageName}`
     };
   }

@@ -97,7 +97,8 @@ class TestRunnerService {
           ...active.testData,
           steps: active.steps,
           status: active.status || 'RUNNING',
-          progress: active.progress || 0
+          progress: active.progress || 0,
+          logs: active.logs || []
         }
       });
     } else if (saved) {
@@ -225,6 +226,30 @@ class TestRunnerService {
       level,
       ...(extra.api ? { api: extra.api } : {})
     };
+    if (active) {
+      if (!active.logs) active.logs = [];
+      active.logs.push(logObj);
+      if (active.logs.length > 3000) {
+        const isPriority = (l) => {
+          if (!l) return false;
+          if (l.api || l.category === 'API' || l.type === 'APP_CRASH') return true;
+          const txt = l.text || '';
+          return (
+            txt.includes('FATAL EXCEPTION') ||
+            txt.includes('AndroidRuntime: FATAL') ||
+            txt.includes('[VOLLEY_') ||
+            txt.includes('API_TO_CALL') ||
+            txt.includes('API_URL') ||
+            txt.includes('HTTP response') ||
+            txt.includes('[API]') ||
+            (txt.includes('MarkerLog.finish') && (txt.includes('http://') || txt.includes('https://')))
+          );
+        };
+        const priorityLogs = active.logs.filter(isPriority).slice(-1000);
+        const generalLogs = active.logs.filter((l) => !isPriority(l)).slice(-2000);
+        active.logs = [...priorityLogs, ...generalLogs];
+      }
+    }
     logger.writeTestLog(testId, `[${time}] [${level}] ${text}`);
     this.broadcast(testId, {
       type: 'LOG',
@@ -438,6 +463,9 @@ class TestRunnerService {
         if (freshPid && freshPid !== activeState.currentPid) {
           logger.info(`[InstalledApp PID Watch] Process transition for ${packageName} (${activeState.currentPid || 'none'} -> ${freshPid})`);
           activeState.currentPid = freshPid;
+          // Re-arm verbose tags on process restart
+          adbService.runSafeAdbCommand(deviceSerial, 'adb shell setprop log.tag.Volley VERBOSE').catch(() => {});
+          adbService.runSafeAdbCommand(deviceSerial, 'adb shell setprop log.tag.OkHttp VERBOSE').catch(() => {});
           this.updateStep(testId, 'attach_monitor', 'RUNNING', `PID: ${freshPid}`);
           this.emitLog(testId, `✓ Application process active (PID: ${freshPid})`);
           attachLogcat(freshPid);
@@ -452,7 +480,7 @@ class TestRunnerService {
           }
         }
       } catch (e) {}
-    }, 2000);
+    }, 1000);
     if (activeState.pidWatchInterval?.unref) {
       activeState.pidWatchInterval.unref();
     }

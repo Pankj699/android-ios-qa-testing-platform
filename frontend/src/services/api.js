@@ -24,10 +24,13 @@ async function request(endpoint, options = {}) {
 
   const headers = {
     ...(!options.isFormData ? { 'Content-Type': 'application/json' } : {}),
+    'Cache-Control': 'no-cache, no-store, must-revalidate',
+    'Pragma': 'no-cache',
     ...(options.headers || {})
   };
 
   const config = {
+    cache: 'no-store',
     ...options,
     credentials: 'include', // Automatically send HttpOnly qa_session cookie
     headers
@@ -413,6 +416,55 @@ export const api = {
   injectMixpanelEvent: (sessionId, payload) => request(`/mixpanel/sessions/${encodeURIComponent(sessionId)}/events/inject`, { method: 'POST', body: payload }),
   revalidateMixpanelEvent: (sessionId, eventId, specId) => request(`/mixpanel/sessions/${encodeURIComponent(sessionId)}/events/${encodeURIComponent(eventId)}/validate`, { method: 'POST', body: { specId } }),
   validateMixpanelRaw: (rawPayload, specId, rules) => request('/mixpanel/validate-raw', { method: 'POST', body: { rawPayload, specId, rules } }),
+
+  // BugDesk Shared Device Catalog
+  getBugDeskDevices: () => request('/bug-desk/devices'),
+  createBugDeskDevice: (data) => request('/bug-desk/devices', { method: 'POST', body: data }),
+  updateBugDeskDevice: (id, data) => request(`/bug-desk/devices/${encodeURIComponent(id)}`, { method: 'PATCH', body: data }),
+  deleteBugDeskDevice: (id) => request(`/bug-desk/devices/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+
+  // BugDesk PMS / Redmine Integration Options
+  getBugDeskPmsOptions: (platform = 'android', customUrl = null, apiKey = null) => {
+    const params = new URLSearchParams();
+    if (platform) params.append('platform', platform);
+    if (customUrl) params.append('customUrl', customUrl);
+    const headers = {};
+    if (apiKey && typeof apiKey === 'string' && apiKey.trim()) {
+      headers['X-Redmine-API-Key'] = apiKey.trim();
+    }
+    const q = params.toString() ? `?${params.toString()}` : '';
+    return request(`/bug-desk/pms/options${q}`, { headers });
+  },
+  testBugDeskPmsConnection: (apiKey) => request('/bug-desk/pms/test-connection', {
+    method: 'POST',
+    body: { apiKey }
+  }),
+
+  // Remote Config Manager
+  getRemoteConfigApplications: (platform = 'android') => {
+    const qs = buildQueryString({ platform });
+    return request(`/remote-config/applications${qs ? `?${qs}` : ''}`);
+  },
+  getRemoteConfigs: (platform = 'android', app, extraParams = {}) => {
+    const qs = buildQueryString({ platform, app, ...extraParams, _t: Date.now() });
+    return request(`/remote-config/configs${qs ? `?${qs}` : ''}`);
+  },
+  createRemoteConfig: (data) => request('/remote-config/configs', {
+    method: 'POST',
+    body: data
+  }),
+  updateRemoteConfig: (id, data) => request(`/remote-config/configs/${encodeURIComponent(id)}`, {
+    method: 'PUT',
+    body: data
+  }),
+  toggleRemoteConfigActive: (id, data) => request(`/remote-config/configs/${encodeURIComponent(id)}/toggle`, {
+    method: 'PATCH',
+    body: data
+  }),
+  deleteRemoteConfig: (id, data) => request(`/remote-config/configs/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+    body: data
+  }),
 
   // System
   getDiagnostics: () => request('/system/diagnostics'),

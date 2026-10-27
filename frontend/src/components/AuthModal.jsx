@@ -231,17 +231,17 @@ export default function AuthModal({ isOpen, onClose, onLoginSuccess, initialMode
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fadeIn">
-      <div className="relative w-full max-w-md bg-[#0D111A] border border-[#1E2638] rounded-2xl shadow-2xl overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+      <div className="relative w-full max-w-md glass rounded-2xl border border-[var(--line)] shadow-2xl overflow-hidden">
         {/* Header Banner */}
-        <div className="p-6 border-b border-[#1E2638] bg-[#131924]/80 flex items-start justify-between">
+        <div className="p-6 border-b border-[var(--line)] flex items-start justify-between">
           <div className="flex items-center gap-3.5">
-            <div className="w-11 h-11 rounded-xl bg-[#261D10] border border-[#F59E0B]/40 flex items-center justify-center text-[#F59E0B] shadow-inner">
+            <div className="w-11 h-11 rounded-xl bg-gradient-to-tr from-[var(--violet)] to-[var(--pink)] flex items-center justify-center text-white shadow-md shadow-[var(--violet)]/20">
               <Shield className="w-6 h-6" />
             </div>
             <div>
-              <h2 className="text-base font-bold text-[#FFFFFF] tracking-tight">QA Testing Platform</h2>
-              <p className="text-xs text-[#94A3B8]">
+              <h2 className="text-base font-bold text-[var(--ink)] tracking-tight">QA Testing Platform</h2>
+              <p className="text-xs text-[var(--muted)]">
                 {mode === 'login' && 'Sign in to access devices, builds, and test runs'}
                 {mode === 'register' && 'Create a new QA Tester account'}
                 {mode === 'forgot' && 'Reset your account password'}
@@ -252,7 +252,7 @@ export default function AuthModal({ isOpen, onClose, onLoginSuccess, initialMode
           {onClose && (
             <button
               onClick={onClose}
-              className="p-1.5 rounded-lg hover:bg-[#1E2638] text-[#94A3B8] hover:text-[#FFFFFF] transition-colors"
+              className="p-1.5 rounded-xl text-[var(--muted)] hover:text-[var(--ink)] hover:bg-[var(--card)] transition-colors cursor-pointer"
               title="Close"
             >
               <X className="w-4 h-4" />
@@ -262,19 +262,23 @@ export default function AuthModal({ isOpen, onClose, onLoginSuccess, initialMode
 
         {/* Tab Switcher (Login vs Register) */}
         {(mode === 'login' || mode === 'register') && (
-          <div className="flex border-b border-[#1E2638] bg-[#0A0D14]">
+          <div className="flex border-b border-[var(--line)] bg-[var(--card)]/40 p-1.5 gap-1.5">
             <button
               onClick={() => { setMode('login'); resetErrors(); }}
-              className={`flex-1 py-3 text-xs font-semibold transition-colors border-b-2 ${
-                mode === 'login' ? 'border-[#F59E0B] text-[#F59E0B] bg-[#131924]/60' : 'border-transparent text-[#94A3B8] hover:text-[#FFFFFF]'
+              className={`flex-1 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+                mode === 'login'
+                  ? 'btn-magic text-white shadow-xs'
+                  : 'text-[var(--muted)] hover:text-[var(--ink)]'
               }`}
             >
               Sign In
             </button>
             <button
               onClick={() => { setMode('register'); resetErrors(); }}
-              className={`flex-1 py-3 text-xs font-semibold transition-colors border-b-2 ${
-                mode === 'register' ? 'border-[#F59E0B] text-[#F59E0B] bg-[#131924]/60' : 'border-transparent text-[#94A3B8] hover:text-[#FFFFFF]'
+              className={`flex-1 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+                mode === 'register'
+                  ? 'btn-magic text-white shadow-xs'
+                  : 'text-[var(--muted)] hover:text-[var(--ink)]'
               }`}
             >
               Create Account
@@ -284,16 +288,16 @@ export default function AuthModal({ isOpen, onClose, onLoginSuccess, initialMode
 
         {/* Error Notification */}
         {error && (
-          <div className="mx-6 mt-4 p-3 rounded-lg bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs flex items-start gap-2 leading-relaxed">
-            <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5 text-rose-400" />
+          <div className="mx-6 mt-4 p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-500 text-xs flex items-start gap-2 leading-relaxed">
+            <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5 text-rose-500" />
             <span>{error}</span>
           </div>
         )}
 
         {/* Success Notification */}
         {successMessage && (
-          <div className="mx-6 mt-4 p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs flex items-start gap-2 leading-relaxed">
-            <CheckCircle2 className="w-4 h-4 flex-shrink-0 mt-0.5 text-emerald-400" />
+          <div className="mx-6 mt-4 p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 text-xs flex items-start gap-2 leading-relaxed">
+            <CheckCircle2 className="w-4 h-4 flex-shrink-0 mt-0.5 text-emerald-500" />
             <span>{successMessage}</span>
           </div>
         )}
@@ -304,9 +308,9 @@ export default function AuthModal({ isOpen, onClose, onLoginSuccess, initialMode
           {mode === 'login' && (
             <form onSubmit={handleLogin} className="space-y-4">
               <div className="space-y-1.5">
-                <label htmlFor="login-email" className="text-xs font-medium text-[#CBD5E1]">Email Address</label>
+                <label htmlFor="login-email" className="text-xs font-medium text-[var(--ink)]">Email Address</label>
                 <div className="relative">
-                  <Mail className="w-4 h-4 text-[#64748B] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  <Mail className="w-4 h-4 text-[var(--muted)] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                   <input
                     id="login-email"
                     name="email"
@@ -316,15 +320,15 @@ export default function AuthModal({ isOpen, onClose, onLoginSuccess, initialMode
                     placeholder="name@company.com"
                     required
                     autoComplete="username"
-                    className="w-full pl-9 pr-3 py-2 bg-[#0A0D14] border border-[#1E2638] rounded-lg text-xs text-[#FFFFFF] placeholder-[#475569] focus:outline-none focus:border-[#F59E0B]"
+                    className="w-full pl-9 pr-3 py-2 bg-[var(--card)] border border-[var(--line)] rounded-xl text-xs text-[var(--ink)] placeholder-[var(--muted)] focus:outline-none focus:border-[var(--violet)] focus:ring-2 focus:ring-[var(--violet)]/20 transition-all"
                   />
                 </div>
               </div>
 
               <div className="space-y-1.5">
-                <label htmlFor="login-password" className="text-xs font-medium text-[#CBD5E1]">Password</label>
+                <label htmlFor="login-password" className="text-xs font-medium text-[var(--ink)]">Password</label>
                 <div className="relative">
-                  <Key className="w-4 h-4 text-[#64748B] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  <Key className="w-4 h-4 text-[var(--muted)] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                   <input
                     id="login-password"
                     name="password"
@@ -334,12 +338,12 @@ export default function AuthModal({ isOpen, onClose, onLoginSuccess, initialMode
                     placeholder="Enter your password"
                     required
                     autoComplete="current-password"
-                    className="w-full pl-9 pr-10 py-2 bg-[#0A0D14] border border-[#1E2638] rounded-lg text-xs text-[#FFFFFF] placeholder-[#475569] focus:outline-none focus:border-[#F59E0B]"
+                    className="w-full pl-9 pr-10 py-2 bg-[var(--card)] border border-[var(--line)] rounded-xl text-xs text-[var(--ink)] placeholder-[var(--muted)] focus:outline-none focus:border-[var(--violet)] focus:ring-2 focus:ring-[var(--violet)]/20 transition-all"
                   />
                   <button
                     type="button"
                     onClick={() => setShowLoginPassword((prev) => !prev)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[#64748B] hover:text-[#CBD5E1] focus:text-[#F59E0B] focus:outline-none p-1 rounded transition-colors cursor-pointer"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--muted)] hover:text-[var(--ink)] p-1 rounded-md transition-colors cursor-pointer"
                     aria-label={showLoginPassword ? 'Hide password' : 'Show password'}
                     title={showLoginPassword ? 'Hide password' : 'Show password'}
                     tabIndex={0}
@@ -355,21 +359,21 @@ export default function AuthModal({ isOpen, onClose, onLoginSuccess, initialMode
 
               {/* Remember Me and Forgot Password Row */}
               <div className="flex items-center justify-between pt-0.5">
-                <label htmlFor="remember-me" className="flex items-center gap-2 cursor-pointer select-none text-xs text-[#CBD5E1] hover:text-[#FFFFFF] transition-colors">
+                <label htmlFor="remember-me" className="flex items-center gap-2 cursor-pointer select-none text-xs text-[var(--muted)] hover:text-[var(--ink)] transition-colors">
                   <input
                     type="checkbox"
                     id="remember-me"
                     name="rememberMe"
                     checked={rememberMe}
                     onChange={(e) => setRememberMe(e.target.checked)}
-                    className="w-3.5 h-3.5 rounded bg-[#0A0D14] border border-[#1E2638] text-[#F59E0B] focus:ring-1 focus:ring-[#F59E0B] focus:ring-offset-0 focus:outline-none accent-[#F59E0B] cursor-pointer"
+                    className="w-3.5 h-3.5 rounded bg-[var(--card)] border border-[var(--line)] text-[var(--violet)] focus:ring-0 focus:outline-none cursor-pointer"
                   />
                   <span>Remember me</span>
                 </label>
                 <button
                   type="button"
                   onClick={() => { setMode('forgot'); resetErrors(); }}
-                  className="text-[11px] text-[#F59E0B] hover:underline transition-all"
+                  className="text-[11px] text-[var(--violet)] hover:underline transition-all cursor-pointer"
                 >
                   Forgot Password?
                 </button>
@@ -378,17 +382,17 @@ export default function AuthModal({ isOpen, onClose, onLoginSuccess, initialMode
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full py-2.5 rounded-lg bg-[#F59E0B] hover:bg-[#D97706] disabled:opacity-50 text-xs font-bold text-[#000000] shadow transition-all flex items-center justify-center gap-2 mt-2 cursor-pointer"
+                className="w-full py-2.5 rounded-xl btn-magic disabled:opacity-50 text-xs font-bold text-white shadow-md cursor-pointer flex items-center justify-center gap-2 mt-2"
               >
                 {loading ? 'Authenticating...' : 'Sign In'}
               </button>
 
-              <div className="pt-2 text-center text-xs text-[#94A3B8]">
+              <div className="pt-2 text-center text-xs text-[var(--muted)]">
                 Don't have an account?{' '}
                 <button
                   type="button"
                   onClick={() => { setMode('register'); resetErrors(); }}
-                  className="text-[#F59E0B] font-semibold hover:underline"
+                  className="text-[var(--violet)] font-semibold hover:underline cursor-pointer"
                 >
                   Create Account
                 </button>
@@ -400,9 +404,9 @@ export default function AuthModal({ isOpen, onClose, onLoginSuccess, initialMode
           {mode === 'register' && (
             <form onSubmit={handleRegister} className="space-y-3.5">
               <div className="space-y-1">
-                <label htmlFor="register-name" className="text-xs font-medium text-[#CBD5E1]">Full Name</label>
+                <label htmlFor="register-name" className="text-xs font-medium text-[var(--ink)]">Full Name</label>
                 <div className="relative">
-                  <User className="w-4 h-4 text-[#64748B] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  <User className="w-4 h-4 text-[var(--muted)] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                   <input
                     id="register-name"
                     name="name"
@@ -412,15 +416,15 @@ export default function AuthModal({ isOpen, onClose, onLoginSuccess, initialMode
                     placeholder="e.g. Jane Doe"
                     required
                     autoComplete="name"
-                    className="w-full pl-9 pr-3 py-2 bg-[#0A0D14] border border-[#1E2638] rounded-lg text-xs text-[#FFFFFF] placeholder-[#475569] focus:outline-none focus:border-[#F59E0B]"
+                    className="w-full pl-9 pr-3 py-2 bg-[var(--card)] border border-[var(--line)] rounded-xl text-xs text-[var(--ink)] placeholder-[var(--muted)] focus:outline-none focus:border-[var(--violet)] focus:ring-2 focus:ring-[var(--violet)]/20 transition-all"
                   />
                 </div>
               </div>
 
               <div className="space-y-1">
-                <label htmlFor="register-email" className="text-xs font-medium text-[#CBD5E1]">Email Address</label>
+                <label htmlFor="register-email" className="text-xs font-medium text-[var(--ink)]">Email Address</label>
                 <div className="relative">
-                  <Mail className="w-4 h-4 text-[#64748B] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  <Mail className="w-4 h-4 text-[var(--muted)] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                   <input
                     id="register-email"
                     name="email"
@@ -430,15 +434,15 @@ export default function AuthModal({ isOpen, onClose, onLoginSuccess, initialMode
                     placeholder="name@company.com"
                     required
                     autoComplete="username"
-                    className="w-full pl-9 pr-3 py-2 bg-[#0A0D14] border border-[#1E2638] rounded-lg text-xs text-[#FFFFFF] placeholder-[#475569] focus:outline-none focus:border-[#F59E0B]"
+                    className="w-full pl-9 pr-3 py-2 bg-[var(--card)] border border-[var(--line)] rounded-xl text-xs text-[var(--ink)] placeholder-[var(--muted)] focus:outline-none focus:border-[var(--violet)] focus:ring-2 focus:ring-[var(--violet)]/20 transition-all"
                   />
                 </div>
               </div>
 
               <div className="space-y-1">
-                <label htmlFor="register-password" className="text-xs font-medium text-[#CBD5E1]">Password (min. 8 characters)</label>
+                <label htmlFor="register-password" className="text-xs font-medium text-[var(--ink)]">Password (min. 8 characters)</label>
                 <div className="relative">
-                  <Key className="w-4 h-4 text-[#64748B] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  <Key className="w-4 h-4 text-[var(--muted)] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                   <input
                     id="register-password"
                     name="password"
@@ -448,12 +452,12 @@ export default function AuthModal({ isOpen, onClose, onLoginSuccess, initialMode
                     placeholder="Create a secure password"
                     required
                     autoComplete="new-password"
-                    className="w-full pl-9 pr-10 py-2 bg-[#0A0D14] border border-[#1E2638] rounded-lg text-xs text-[#FFFFFF] placeholder-[#475569] focus:outline-none focus:border-[#F59E0B]"
+                    className="w-full pl-9 pr-10 py-2 bg-[var(--card)] border border-[var(--line)] rounded-xl text-xs text-[var(--ink)] placeholder-[var(--muted)] focus:outline-none focus:border-[var(--violet)] focus:ring-2 focus:ring-[var(--violet)]/20 transition-all"
                   />
                   <button
                     type="button"
                     onClick={() => setShowRegisterPassword((prev) => !prev)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[#64748B] hover:text-[#CBD5E1] focus:text-[#F59E0B] focus:outline-none p-1 rounded transition-colors cursor-pointer"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--muted)] hover:text-[var(--ink)] p-1 rounded-md transition-colors cursor-pointer"
                     aria-label={showRegisterPassword ? 'Hide password' : 'Show password'}
                     title={showRegisterPassword ? 'Hide password' : 'Show password'}
                     tabIndex={0}
@@ -468,9 +472,9 @@ export default function AuthModal({ isOpen, onClose, onLoginSuccess, initialMode
               </div>
 
               <div className="space-y-1">
-                <label htmlFor="register-confirm-password" className="text-xs font-medium text-[#CBD5E1]">Confirm Password</label>
+                <label htmlFor="register-confirm-password" className="text-xs font-medium text-[var(--ink)]">Confirm Password</label>
                 <div className="relative">
-                  <Lock className="w-4 h-4 text-[#64748B] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  <Lock className="w-4 h-4 text-[var(--muted)] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                   <input
                     id="register-confirm-password"
                     name="confirmPassword"
@@ -480,12 +484,12 @@ export default function AuthModal({ isOpen, onClose, onLoginSuccess, initialMode
                     placeholder="Confirm your password"
                     required
                     autoComplete="new-password"
-                    className="w-full pl-9 pr-10 py-2 bg-[#0A0D14] border border-[#1E2638] rounded-lg text-xs text-[#FFFFFF] placeholder-[#475569] focus:outline-none focus:border-[#F59E0B]"
+                    className="w-full pl-9 pr-10 py-2 bg-[var(--card)] border border-[var(--line)] rounded-xl text-xs text-[var(--ink)] placeholder-[var(--muted)] focus:outline-none focus:border-[var(--violet)] focus:ring-2 focus:ring-[var(--violet)]/20 transition-all"
                   />
                   <button
                     type="button"
                     onClick={() => setShowRegisterConfirmPassword((prev) => !prev)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[#64748B] hover:text-[#CBD5E1] focus:text-[#F59E0B] focus:outline-none p-1 rounded transition-colors cursor-pointer"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--muted)] hover:text-[var(--ink)] p-1 rounded-md transition-colors cursor-pointer"
                     aria-label={showRegisterConfirmPassword ? 'Hide password' : 'Show password'}
                     title={showRegisterConfirmPassword ? 'Hide password' : 'Show password'}
                     tabIndex={0}
@@ -502,17 +506,17 @@ export default function AuthModal({ isOpen, onClose, onLoginSuccess, initialMode
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full py-2.5 rounded-lg bg-[#F59E0B] hover:bg-[#D97706] disabled:opacity-50 text-xs font-bold text-[#000000] shadow transition-all flex items-center justify-center gap-2 mt-2 cursor-pointer"
+                className="w-full py-2.5 rounded-xl btn-magic disabled:opacity-50 text-xs font-bold text-white shadow-md cursor-pointer flex items-center justify-center gap-2 mt-2"
               >
                 {loading ? 'Creating Account...' : 'Create Account'}
               </button>
 
-              <div className="pt-2 text-center text-xs text-[#94A3B8]">
+              <div className="pt-2 text-center text-xs text-[var(--muted)]">
                 Already have an account?{' '}
                 <button
                   type="button"
                   onClick={() => { setMode('login'); resetErrors(); }}
-                  className="text-[#F59E0B] font-semibold hover:underline"
+                  className="text-[var(--violet)] font-semibold hover:underline cursor-pointer"
                 >
                   Sign In
                 </button>
@@ -524,9 +528,9 @@ export default function AuthModal({ isOpen, onClose, onLoginSuccess, initialMode
           {mode === 'forgot' && (
             <form onSubmit={handleForgotPassword} className="space-y-4">
               <div className="space-y-1.5">
-                <label className="text-xs font-medium text-[#CBD5E1]">Registered Email Address</label>
+                <label className="text-xs font-medium text-[var(--ink)]">Registered Email Address</label>
                 <div className="relative">
-                  <Mail className="w-4 h-4 text-[#64748B] absolute left-3 top-1/2 -translate-y-1/2" />
+                  <Mail className="w-4 h-4 text-[var(--muted)] absolute left-3 top-1/2 -translate-y-1/2" />
                   <input
                     type="email"
                     value={email}
@@ -534,10 +538,10 @@ export default function AuthModal({ isOpen, onClose, onLoginSuccess, initialMode
                     placeholder="Enter your registered email"
                     required
                     autoComplete="email"
-                    className="w-full pl-9 pr-3 py-2 bg-[#0A0D14] border border-[#1E2638] rounded-lg text-xs text-[#FFFFFF] placeholder-[#475569] focus:outline-none focus:border-[#F59E0B]"
+                    className="w-full pl-9 pr-3 py-2 bg-[var(--card)] border border-[var(--line)] rounded-xl text-xs text-[var(--ink)] placeholder-[var(--muted)] focus:outline-none focus:border-[var(--violet)] focus:ring-2 focus:ring-[var(--violet)]/20 transition-all"
                   />
                 </div>
-                <p className="text-[11px] text-[#64748B] pt-1">
+                <p className="text-[11px] text-[var(--muted)] pt-1">
                   We'll generate single-use reset instructions for your account.
                 </p>
               </div>
@@ -545,7 +549,7 @@ export default function AuthModal({ isOpen, onClose, onLoginSuccess, initialMode
               <button
                 type="submit"
                 disabled={loading || !email}
-                className="w-full py-2.5 rounded-lg bg-[#F59E0B] hover:bg-[#D97706] disabled:opacity-50 text-xs font-bold text-[#000000] shadow transition-all flex items-center justify-center gap-2"
+                className="w-full py-2.5 rounded-xl btn-magic disabled:opacity-50 text-xs font-bold text-white shadow-md cursor-pointer flex items-center justify-center gap-2"
               >
                 {loading ? 'Sending Instructions...' : 'Send Reset Link'}
               </button>
@@ -554,7 +558,7 @@ export default function AuthModal({ isOpen, onClose, onLoginSuccess, initialMode
                 <button
                   type="button"
                   onClick={() => { setMode('login'); resetErrors(); }}
-                  className="text-[#94A3B8] hover:text-[#FFFFFF] flex items-center gap-1 transition-colors"
+                  className="text-[var(--muted)] hover:text-[var(--ink)] flex items-center gap-1 transition-colors cursor-pointer"
                 >
                   <ArrowLeft className="w-3 h-3" />
                   <span>Back to Sign In</span>
@@ -563,7 +567,7 @@ export default function AuthModal({ isOpen, onClose, onLoginSuccess, initialMode
                 <button
                   type="button"
                   onClick={() => { setMode('reset'); resetErrors(); }}
-                  className="text-[#F59E0B] hover:underline"
+                  className="text-[var(--violet)] hover:underline cursor-pointer font-semibold"
                 >
                   Have a reset token?
                 </button>
@@ -578,7 +582,7 @@ export default function AuthModal({ isOpen, onClose, onLoginSuccess, initialMode
                 <div className="space-y-4 text-center py-2">
                   <button
                     onClick={() => { setMode('login'); resetErrors(); }}
-                    className="w-full py-2.5 rounded-lg bg-[#F59E0B] hover:bg-[#D97706] text-xs font-bold text-[#000000] shadow transition-all"
+                    className="w-full py-2.5 rounded-xl btn-magic text-xs font-bold text-white shadow-md cursor-pointer"
                   >
                     Proceed to Sign In
                   </button>
@@ -586,21 +590,21 @@ export default function AuthModal({ isOpen, onClose, onLoginSuccess, initialMode
               ) : (
                 <form onSubmit={handleResetPassword} className="space-y-3.5">
                   <div className="space-y-1">
-                    <label className="text-xs font-medium text-[#CBD5E1]">Reset Token</label>
+                    <label className="text-xs font-medium text-[var(--ink)]">Reset Token</label>
                     <input
                       type="text"
                       value={resetToken}
                       onChange={(e) => setResetToken(e.target.value)}
                       placeholder="Paste 64-character reset token"
                       required
-                      className="w-full px-3 py-2 bg-[#0A0D14] border border-[#1E2638] rounded-lg text-xs font-mono text-[#FFFFFF] placeholder-[#475569] focus:outline-none focus:border-[#F59E0B]"
+                      className="w-full px-3 py-2 bg-[var(--card)] border border-[var(--line)] rounded-xl text-xs font-mono text-[var(--ink)] placeholder-[var(--muted)] focus:outline-none focus:border-[var(--violet)] focus:ring-2 focus:ring-[var(--violet)]/20 transition-all"
                     />
                   </div>
 
                   <div className="space-y-1">
-                    <label htmlFor="reset-new-password" className="text-xs font-medium text-[#CBD5E1]">New Password</label>
+                    <label htmlFor="reset-new-password" className="text-xs font-medium text-[var(--ink)]">New Password</label>
                     <div className="relative">
-                      <Key className="w-4 h-4 text-[#64748B] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                      <Key className="w-4 h-4 text-[var(--muted)] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                       <input
                         id="reset-new-password"
                         name="password"
@@ -610,12 +614,12 @@ export default function AuthModal({ isOpen, onClose, onLoginSuccess, initialMode
                         placeholder="At least 8 characters"
                         required
                         autoComplete="new-password"
-                        className="w-full pl-9 pr-10 py-2 bg-[#0A0D14] border border-[#1E2638] rounded-lg text-xs text-[#FFFFFF] placeholder-[#475569] focus:outline-none focus:border-[#F59E0B]"
+                        className="w-full pl-9 pr-10 py-2 bg-[var(--card)] border border-[var(--line)] rounded-xl text-xs text-[var(--ink)] placeholder-[var(--muted)] focus:outline-none focus:border-[var(--violet)] focus:ring-2 focus:ring-[var(--violet)]/20 transition-all"
                       />
                       <button
                         type="button"
                         onClick={() => setShowResetPassword((prev) => !prev)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-[#64748B] hover:text-[#CBD5E1] focus:text-[#F59E0B] focus:outline-none p-1 rounded transition-colors cursor-pointer"
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--muted)] hover:text-[var(--ink)] p-1 rounded-md transition-colors cursor-pointer"
                         aria-label={showResetPassword ? 'Hide password' : 'Show password'}
                         title={showResetPassword ? 'Hide password' : 'Show password'}
                         tabIndex={0}
@@ -630,9 +634,9 @@ export default function AuthModal({ isOpen, onClose, onLoginSuccess, initialMode
                   </div>
 
                   <div className="space-y-1">
-                    <label htmlFor="reset-confirm-password" className="text-xs font-medium text-[#CBD5E1]">Confirm New Password</label>
+                    <label htmlFor="reset-confirm-password" className="text-xs font-medium text-[var(--ink)]">Confirm New Password</label>
                     <div className="relative">
-                      <Lock className="w-4 h-4 text-[#64748B] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                      <Lock className="w-4 h-4 text-[var(--muted)] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                       <input
                         id="reset-confirm-password"
                         name="confirmPassword"
@@ -642,12 +646,12 @@ export default function AuthModal({ isOpen, onClose, onLoginSuccess, initialMode
                         placeholder="Confirm your new password"
                         required
                         autoComplete="new-password"
-                        className="w-full pl-9 pr-10 py-2 bg-[#0A0D14] border border-[#1E2638] rounded-lg text-xs text-[#FFFFFF] placeholder-[#475569] focus:outline-none focus:border-[#F59E0B]"
+                        className="w-full pl-9 pr-10 py-2 bg-[var(--card)] border border-[var(--line)] rounded-xl text-xs text-[var(--ink)] placeholder-[var(--muted)] focus:outline-none focus:border-[var(--violet)] focus:ring-2 focus:ring-[var(--violet)]/20 transition-all"
                       />
                       <button
                         type="button"
                         onClick={() => setShowResetConfirmPassword((prev) => !prev)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-[#64748B] hover:text-[#CBD5E1] focus:text-[#F59E0B] focus:outline-none p-1 rounded transition-colors cursor-pointer"
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--muted)] hover:text-[var(--ink)] p-1 rounded-md transition-colors cursor-pointer"
                         aria-label={showResetConfirmPassword ? 'Hide password' : 'Show password'}
                         title={showResetConfirmPassword ? 'Hide password' : 'Show password'}
                         tabIndex={0}
@@ -664,7 +668,7 @@ export default function AuthModal({ isOpen, onClose, onLoginSuccess, initialMode
                   <button
                     type="submit"
                     disabled={loading}
-                    className="w-full py-2.5 rounded-lg bg-[#F59E0B] hover:bg-[#D97706] disabled:opacity-50 text-xs font-bold text-[#000000] shadow transition-all flex items-center justify-center gap-2 mt-2 cursor-pointer"
+                    className="w-full py-2.5 rounded-xl btn-magic disabled:opacity-50 text-xs font-bold text-white shadow-md cursor-pointer flex items-center justify-center gap-2 mt-2"
                   >
                     {loading ? 'Resetting Password...' : 'Reset Password'}
                   </button>
@@ -673,7 +677,7 @@ export default function AuthModal({ isOpen, onClose, onLoginSuccess, initialMode
                     <button
                       type="button"
                       onClick={() => { setMode('login'); resetErrors(); }}
-                      className="text-[#94A3B8] hover:text-[#FFFFFF] inline-flex items-center gap-1 transition-colors"
+                      className="text-[var(--muted)] hover:text-[var(--ink)] inline-flex items-center gap-1 transition-colors cursor-pointer"
                     >
                       <ArrowLeft className="w-3 h-3" />
                       <span>Back to Sign In</span>
@@ -685,7 +689,7 @@ export default function AuthModal({ isOpen, onClose, onLoginSuccess, initialMode
           )}
 
           <div className="pt-2 text-center">
-            <p className="text-[11px] text-[#64748B]">
+            <p className="text-[11px] text-[var(--muted)]">
               Only authenticated users can upload builds, claim hardware, and execute PAD automation.
             </p>
           </div>

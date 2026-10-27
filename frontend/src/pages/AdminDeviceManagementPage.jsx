@@ -24,13 +24,13 @@ import {
 import { api } from '../services/api';
 import { socketService } from '../services/socket';
 import DeviceThumbnail from '../components/DeviceThumbnail';
+import { toast } from '../utils/toast';
 
 export default function AdminDeviceManagementPage({ currentUser }) {
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState({ models: [], summary: { totalModels: 0, withImages: 0, missingImages: 0, connectedCount: 0 } });
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState('all'); // all, connected, has_image, missing_image
-  const [notification, setNotification] = useState(null);
 
   // Upload modal state
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
@@ -54,10 +54,11 @@ export default function AdminDeviceManagementPage({ currentUser }) {
   const [restartProgress, setRestartProgress] = useState(null);
 
   const showNotification = (message, type = 'success') => {
-    setNotification({ message, type });
-    setTimeout(() => {
-      setNotification(null);
-    }, 4500);
+    if (type === 'error') {
+      toast.error(message);
+    } else {
+      toast.success(message);
+    }
   };
 
   const fetchModels = useCallback(async () => {
@@ -441,39 +442,33 @@ export default function AdminDeviceManagementPage({ currentUser }) {
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-12">
-      {/* Toast Notification */}
-      {notification && (
-        <div className={`fixed top-4 right-4 z-50 flex items-center gap-2 px-4 py-3 rounded-xl shadow-xl text-xs font-semibold animate-fade-in transition-all ${
-          notification.type === 'success'
-            ? 'bg-[#064E3B] text-[#34D399] border border-[#059669]'
-            : 'bg-[#4C0519] text-[#FECDD3] border border-[#E11D48]'
-        }`}>
-          {notification.type === 'success' ? <Check className="w-4 h-4" /> : <X className="w-4 h-4" />}
-          <span>{notification.message}</span>
-        </div>
-      )}
-
       {/* Header Section */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-[#1C2230] pb-5">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-[var(--line)] pb-5">
         <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-xl font-bold text-white tracking-tight flex items-center gap-2">
-              <Smartphone className="w-6 h-6 text-[#F59E0B]" />
-              <span>Device Management</span>
-            </h1>
-            <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-[#78350F] text-[#FDE68A] border border-[#F59E0B]/30 uppercase">
-              Admin Only
-            </span>
+          <div className="flex items-center gap-3">
+            <div className="brand-mark w-10 h-10 rounded-2xl flex items-center justify-center text-white font-bold shrink-0 shadow-brand">
+              <Smartphone className="w-5 h-5 text-white" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h1 className="text-2xl sm:text-[26px] font-extrabold text-[#1F2544] dark:text-white tracking-tight font-sans">
+                  Device <span className="text-heading-gradient">Management</span>
+                </h1>
+                <span className="chip-badge uppercase text-[10px] tracking-wider font-bold text-violet-600 dark:text-violet-300 bg-violet-500/10 border-violet-500/20">
+                  Admin Only
+                </span>
+              </div>
+              <p className="text-xs sm:text-[13px] text-[#6B7194] dark:text-[#94A3B8] mt-1">
+                Manage device catalog models and upload custom thumbnail images. Uploaded images are shared across all users and sessions.
+              </p>
+            </div>
           </div>
-          <p className="text-xs text-[#94A3B8] mt-1">
-            Manage device catalog models and upload custom thumbnail images. Uploaded images are shared across all users and sessions.
-          </p>
         </div>
 
         <div className="flex items-center gap-2">
           <button
             onClick={() => setAddModalOpen(true)}
-            className="flex items-center gap-2 px-3.5 py-2 bg-[#F59E0B] hover:bg-[#D97706] text-black font-bold text-xs rounded-lg transition-all shadow-sm"
+            className="btn-magic flex items-center gap-2 px-3.5 py-2 text-white font-bold text-xs rounded-xl shadow-md cursor-pointer"
           >
             <Plus className="w-3.5 h-3.5" />
             <span>Add Device Model</span>
@@ -481,10 +476,10 @@ export default function AdminDeviceManagementPage({ currentUser }) {
 
           <button
             onClick={() => setRestartModalOpen(true)}
-            className="flex items-center gap-2 px-3.5 py-2 bg-[#16130C] hover:bg-[#261D10] text-[#EF4444] font-semibold text-xs rounded-lg border border-[#EF4444]/30 transition-all"
+            className="btn-soft flex items-center gap-2 px-3.5 py-2 text-rose-600 dark:text-rose-400 font-semibold text-xs rounded-xl border border-rose-200 dark:border-rose-900/40 transition-all cursor-pointer hover:bg-rose-50 dark:hover:bg-rose-950/30"
             title="Controlled Backend Restart"
           >
-            <Server className="w-3.5 h-3.5 text-[#EF4444]" />
+            <Server className="w-3.5 h-3.5 text-rose-500" />
             <span>Restart Backend</span>
           </button>
         </div>
@@ -492,53 +487,61 @@ export default function AdminDeviceManagementPage({ currentUser }) {
 
       {/* Telemetry Summary Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <div className="bg-[#10131B] border border-[#1C2230] rounded-xl p-4">
+        <div className="glass rounded-card p-4">
           <div className="flex items-center justify-between">
-            <span className="text-xs text-[#94A3B8] font-medium">Total Models</span>
-            <Layers className="w-4 h-4 text-[#F59E0B]" />
+            <span className="text-xs text-[var(--muted)] font-medium">Total Models</span>
+            <div className="w-7 h-7 rounded-lg bg-[var(--violet)]/10 text-[var(--violet)] flex items-center justify-center">
+              <Layers className="w-4 h-4" />
+            </div>
           </div>
-          <div className="text-2xl font-bold text-white font-mono mt-2">{data.summary.totalModels}</div>
-          <p className="text-[10px] text-[#64748B] mt-1">Registered in catalog</p>
+          <div className="text-2xl font-bold text-[var(--ink)] font-mono mt-2">{data.summary.totalModels}</div>
+          <p className="text-[10px] text-[var(--muted)] mt-1">Registered in catalog</p>
         </div>
 
-        <div className="bg-[#10131B] border border-[#1C2230] rounded-xl p-4">
+        <div className="glass rounded-card p-4">
           <div className="flex items-center justify-between">
-            <span className="text-xs text-[#94A3B8] font-medium">With Custom Image</span>
-            <CheckCircle2 className="w-4 h-4 text-[#10B981]" />
+            <span className="text-xs text-[var(--muted)] font-medium">With Custom Image</span>
+            <div className="w-7 h-7 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
+              <CheckCircle2 className="w-4 h-4" />
+            </div>
           </div>
-          <div className="text-2xl font-bold text-[#34D399] font-mono mt-2">{data.summary.withImages}</div>
-          <p className="text-[10px] text-[#64748B] mt-1">Real thumbnails active</p>
+          <div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400 font-mono mt-2">{data.summary.withImages}</div>
+          <p className="text-[10px] text-[var(--muted)] mt-1">Real thumbnails active</p>
         </div>
 
-        <div className="bg-[#10131B] border border-[#1C2230] rounded-xl p-4">
+        <div className="glass rounded-card p-4">
           <div className="flex items-center justify-between">
-            <span className="text-xs text-[#94A3B8] font-medium">Missing Image</span>
-            <Sparkles className="w-4 h-4 text-[#94A3B8]" />
+            <span className="text-xs text-[var(--muted)] font-medium">Missing Image</span>
+            <div className="w-7 h-7 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center">
+              <Sparkles className="w-4 h-4" />
+            </div>
           </div>
-          <div className="text-2xl font-bold text-[#FBBF24] font-mono mt-2">{data.summary.missingImages}</div>
-          <p className="text-[10px] text-[#64748B] mt-1">Using SVG fallback</p>
+          <div className="text-2xl font-bold text-amber-600 dark:text-amber-400 font-mono mt-2">{data.summary.missingImages}</div>
+          <p className="text-[10px] text-[var(--muted)] mt-1">Using SVG fallback</p>
         </div>
 
-        <div className="bg-[#10131B] border border-[#1C2230] rounded-xl p-4">
+        <div className="glass rounded-card p-4">
           <div className="flex items-center justify-between">
-            <span className="text-xs text-[#94A3B8] font-medium">Connected Devices</span>
-            <Wifi className="w-4 h-4 text-[#38BDF8]" />
+            <span className="text-xs text-[var(--muted)] font-medium">Connected Devices</span>
+            <div className="w-7 h-7 rounded-lg bg-sky-500/10 text-sky-600 dark:text-sky-400 flex items-center justify-center">
+              <Wifi className="w-4 h-4" />
+            </div>
           </div>
-          <div className="text-2xl font-bold text-[#38BDF8] font-mono mt-2">{data.summary.connectedCount}</div>
-          <p className="text-[10px] text-[#64748B] mt-1">Physically online now</p>
+          <div className="text-2xl font-bold text-sky-600 dark:text-sky-400 font-mono mt-2">{data.summary.connectedCount}</div>
+          <p className="text-[10px] text-[var(--muted)] mt-1">Physically online now</p>
         </div>
       </div>
 
       {/* Filter and Search Bar */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-[#10131B] border border-[#1C2230] p-3 rounded-xl">
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 glass rounded-card p-3">
         <div className="relative w-full sm:w-80">
-          <Search className="w-4 h-4 text-[#64748B] absolute left-3 top-2.5" />
+          <Search className="w-4 h-4 text-[var(--muted)] absolute left-3 top-2.5" />
           <input
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search models, brands..."
-            className="w-full bg-[#080B10] border border-[#1C2230] rounded-lg pl-9 pr-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-[#F59E0B]"
+            className="w-full bg-[var(--card)] border border-[var(--line)] rounded-xl pl-9 pr-3 py-1.5 text-xs text-[var(--ink)] placeholder-[var(--muted)] focus:outline-none focus:border-[var(--violet)] focus:ring-2 focus:ring-[var(--violet)]/20 transition-all"
           />
         </div>
 
@@ -552,10 +555,10 @@ export default function AdminDeviceManagementPage({ currentUser }) {
             <button
               key={tab.id}
               onClick={() => setFilter(tab.id)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap ${
+              className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all whitespace-nowrap ${
                 filter === tab.id
-                  ? 'bg-[#F59E0B] text-black shadow-xs'
-                  : 'bg-[#080B10] text-[#94A3B8] hover:text-white border border-[#1C2230]'
+                  ? 'btn-magic text-white shadow-sm'
+                  : 'btn-soft text-[var(--muted)] hover:text-[var(--ink)]'
               }`}
             >
               {tab.label}
@@ -564,7 +567,7 @@ export default function AdminDeviceManagementPage({ currentUser }) {
 
           <button
             onClick={() => fetchModels()}
-            className="p-1.5 rounded-lg bg-[#080B10] hover:bg-[#1C2230] text-[#94A3B8] hover:text-white border border-[#1C2230] transition-all ml-1"
+            className="p-1.5 rounded-xl btn-soft text-[var(--muted)] hover:text-[var(--ink)] transition-all ml-1 shadow-xs"
             title="Refresh"
           >
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
@@ -574,15 +577,15 @@ export default function AdminDeviceManagementPage({ currentUser }) {
 
       {/* Device Models Grid */}
       {loading ? (
-        <div className="p-12 text-center text-slate-400">
-          <RefreshCw className="w-8 h-8 text-[#F59E0B] animate-spin mx-auto mb-3" />
+        <div className="p-12 text-center text-[var(--muted)]">
+          <RefreshCw className="w-8 h-8 text-[var(--violet)] animate-spin mx-auto mb-3" />
           <p className="text-xs">Loading device models...</p>
         </div>
       ) : data.models.length === 0 ? (
-        <div className="p-12 text-center bg-[#10131B] border border-[#1C2230] rounded-xl text-slate-400">
-          <Smartphone className="w-10 h-10 mx-auto mb-3 text-slate-600" />
-          <h3 className="text-sm font-semibold text-slate-200">No Device Models Found</h3>
-          <p className="text-xs text-slate-500 mt-1">
+        <div className="p-12 text-center glass rounded-card text-[var(--muted)]">
+          <Smartphone className="w-10 h-10 mx-auto mb-3 opacity-40" />
+          <h3 className="text-sm font-semibold text-[var(--ink)]">No Device Models Found</h3>
+          <p className="text-xs text-[var(--muted)] mt-1">
             {search || filter !== 'all' ? 'Try adjusting your search or filters.' : 'Click "Add Device Model" to register your first model.'}
           </p>
         </div>
@@ -591,12 +594,12 @@ export default function AdminDeviceManagementPage({ currentUser }) {
           {data.models.map((model) => (
             <div
               key={`${model.manufacturer}:${model.model}`}
-              className="bg-[#10131B] border border-[#1C2230] rounded-xl p-4 flex flex-col justify-between hover:border-[#F59E0B]/30 transition-all"
+              className="glass rounded-card p-4 flex flex-col justify-between hover:border-[var(--violet)]/40 hover:shadow-lg transition-all"
             >
               <div>
                 {/* Header row: Thumbnail + Info */}
                 <div className="flex items-start gap-3.5">
-                  <div className="relative">
+                  <div className="relative shrink-0">
                     <DeviceThumbnail
                       device={{ manufacturer: model.manufacturer, model: model.model, displayName: model.displayName }}
                       size="lg"
@@ -605,31 +608,31 @@ export default function AdminDeviceManagementPage({ currentUser }) {
 
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-xs font-bold text-white truncate" title={model.displayName}>
+                      <span className="text-xs font-bold text-[var(--ink)] truncate" title={model.displayName}>
                         {model.displayName}
                       </span>
                       {model.isConnected && (
-                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-mono font-bold bg-[#064E3B] text-[#34D399] border border-[#059669]">
-                          <span className="w-1.5 h-1.5 rounded-full bg-[#10B981] animate-pulse"></span>
+                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[9px] font-mono font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
                           Online ({model.connectedCount})
                         </span>
                       )}
                     </div>
 
-                    <div className="text-[11px] text-[#94A3B8] font-mono mt-1">
-                      <span className="capitalize">{model.manufacturer}</span> • <span className="font-semibold text-slate-300">{model.model}</span>
+                    <div className="text-[11px] text-[var(--muted)] font-mono mt-1">
+                      <span className="capitalize">{model.manufacturer}</span> • <span className="font-semibold text-[var(--ink)]">{model.model}</span>
                     </div>
 
                     {/* Image Status Pill */}
                     <div className="mt-2">
                       {model.hasImage ? (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-[#0C4A6E] text-[#38BDF8] border border-[#0284C7]">
-                          <CheckCircle2 className="w-3 h-3 text-[#38BDF8]" />
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-sky-500/10 text-sky-600 dark:text-sky-400 border border-sky-500/30">
+                          <CheckCircle2 className="w-3 h-3 text-sky-500" />
                           Custom Thumbnail Active
                         </span>
                       ) : (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-[#080B10] text-[#94A3B8] border border-[#1C2230]">
-                          <Sparkles className="w-3 h-3 text-[#F59E0B]" />
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/30">
+                          <Sparkles className="w-3 h-3 text-amber-500" />
                           SVG Fallback Illustration
                         </span>
                       )}
@@ -639,28 +642,28 @@ export default function AdminDeviceManagementPage({ currentUser }) {
 
                 {/* Metadata details if image uploaded */}
                 {model.hasImage && (
-                  <div className="mt-3 pt-3 border-t border-[#1C2230] text-[10px] text-[#64748B] font-mono grid grid-cols-2 gap-1">
+                  <div className="mt-3 pt-3 border-t border-[var(--line)] text-[10px] text-[var(--muted)] font-mono grid grid-cols-2 gap-1.5">
                     <div>
-                      Resolution: <span className="text-slate-300">{model.width}x{model.height}</span>
+                      Resolution: <span className="text-[var(--ink)] font-semibold">{model.width}x{model.height}</span>
                     </div>
                     <div>
-                      Size: <span className="text-slate-300">{(model.fileSize / 1024).toFixed(1)} KB</span>
+                      Size: <span className="text-[var(--ink)] font-semibold">{(model.fileSize / 1024).toFixed(1)} KB</span>
                     </div>
                     <div>
-                      Type: <span className="text-slate-300 uppercase">{model.mimeType?.replace('image/', '')}</span>
+                      Type: <span className="text-[var(--ink)] font-semibold uppercase">{model.mimeType?.replace('image/', '')}</span>
                     </div>
                     <div>
-                      Fit: <span className={model.isTrimmed ? 'text-emerald-400 font-semibold' : 'text-slate-300'}>{model.isTrimmed ? 'Trimmed' : 'Original'}</span>
+                      Fit: <span className={model.isTrimmed ? 'text-emerald-500 font-semibold' : 'text-[var(--ink)]'}>{model.isTrimmed ? 'Trimmed' : 'Original'}</span>
                     </div>
                   </div>
                 )}
               </div>
 
               {/* Actions row */}
-              <div className="mt-4 pt-3 border-t border-[#1C2230] flex items-center justify-between gap-2">
+              <div className="mt-4 pt-3 border-t border-[var(--line)] flex items-center justify-between gap-2">
                 <button
                   onClick={() => handleOpenUpload(model)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-[#F59E0B] hover:bg-[#D97706] text-black font-bold text-xs rounded-lg transition-all shadow-xs"
+                  className="btn-magic flex items-center gap-1.5 px-3 py-1.5 text-white font-bold text-xs rounded-xl shadow-xs cursor-pointer"
                 >
                   <Upload className="w-3.5 h-3.5" />
                   <span>{model.hasImage ? 'Replace Image' : 'Upload Image'}</span>
@@ -670,10 +673,10 @@ export default function AdminDeviceManagementPage({ currentUser }) {
                   {model.hasImage && model.isTrimmed && model.hasOriginal && (
                     <button
                       onClick={() => handleRestoreOriginal(model)}
-                      className="flex items-center gap-1 px-2 py-1.5 rounded-lg bg-[#080B10] hover:bg-[#1C2230] text-[#F59E0B] hover:text-[#FBBF24] border border-[#F59E0B]/30 text-[11px] font-mono transition-all"
+                      className="btn-soft flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-[var(--violet)] text-[11px] font-mono transition-all cursor-pointer shadow-xs"
                       title="Restore preserved raw original image"
                     >
-                      <RotateCcw className="w-3 h-3 text-[#F59E0B]" />
+                      <RotateCcw className="w-3 h-3 text-[var(--violet)]" />
                       <span>Restore Orig</span>
                     </button>
                   )}
@@ -681,7 +684,7 @@ export default function AdminDeviceManagementPage({ currentUser }) {
                   {model.hasImage && (
                     <button
                       onClick={() => handleRemoveImage(model)}
-                      className="p-1.5 rounded-lg bg-[#080B10] hover:bg-[#4C0519] text-[#FECDD3] hover:text-[#F43F5E] border border-[#1C2230] transition-all"
+                      className="p-1.5 rounded-xl btn-soft text-[var(--muted)] hover:text-rose-500 border border-[var(--line)] transition-all cursor-pointer"
                       title="Remove custom image (restore fallback)"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
@@ -691,7 +694,7 @@ export default function AdminDeviceManagementPage({ currentUser }) {
                   {!model.isConnected && (
                     <button
                       onClick={() => handleDeleteModel(model)}
-                      className="p-1.5 rounded-lg bg-[#080B10] hover:bg-[#4C0519] text-[#94A3B8] hover:text-rose-400 border border-[#1C2230] transition-all"
+                      className="p-1.5 rounded-xl btn-soft text-[var(--muted)] hover:text-rose-500 border border-[var(--line)] transition-all cursor-pointer"
                       title="Delete model from catalog"
                     >
                       <X className="w-3.5 h-3.5" />
@@ -706,44 +709,46 @@ export default function AdminDeviceManagementPage({ currentUser }) {
 
       {/* Upload Image Modal */}
       {uploadModalOpen && selectedModel && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xs animate-fade-in">
-          <div className="bg-[#10131B] border border-[#1C2230] rounded-2xl w-full max-w-md p-6 space-y-4 shadow-2xl">
-            <div className="flex items-center justify-between border-b border-[#1C2230] pb-3">
-              <h2 className="text-sm font-bold text-white flex items-center gap-2">
-                <Upload className="w-4 h-4 text-[#F59E0B]" />
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+          <div className="glass rounded-2xl w-full max-w-md p-6 space-y-4 shadow-2xl border border-[var(--line)]">
+            <div className="flex items-center justify-between border-b border-[var(--line)] pb-3">
+              <h2 className="text-sm font-bold text-[var(--ink)] flex items-center gap-2">
+                <div className="w-6 h-6 rounded-lg bg-[var(--violet)]/10 text-[var(--violet)] flex items-center justify-center">
+                  <Upload className="w-3.5 h-3.5" />
+                </div>
                 <span>Upload Device Thumbnail</span>
               </h2>
-              <button onClick={handleCloseUpload} className="text-[#64748B] hover:text-white">
+              <button onClick={handleCloseUpload} className="text-[var(--muted)] hover:text-[var(--ink)]">
                 <X className="w-4 h-4" />
               </button>
             </div>
 
             <form onSubmit={handleUploadSubmit} className="space-y-4">
               <div>
-                <label className="block text-[11px] font-mono text-[#94A3B8] mb-1">Target Model Identifier</label>
-                <div className="p-2.5 bg-[#080B10] border border-[#1C2230] rounded-lg text-xs font-mono text-white flex items-center justify-between">
+                <label className="block text-[11px] font-mono text-[var(--muted)] mb-1">Target Model Identifier</label>
+                <div className="p-2.5 bg-[var(--card)] border border-[var(--line)] rounded-xl text-xs font-mono text-[var(--ink)] flex items-center justify-between">
                   <span>{selectedModel.manufacturer} • {selectedModel.model}</span>
-                  <span className="text-[10px] text-[#64748B]">Normalized Key</span>
+                  <span className="text-[10px] text-[var(--muted)]">Normalized Key</span>
                 </div>
               </div>
 
               <div>
-                <label className="block text-[11px] font-mono text-[#94A3B8] mb-1">Display Name (Optional)</label>
+                <label className="block text-[11px] font-mono text-[var(--muted)] mb-1">Display Name (Optional)</label>
                 <input
                   type="text"
                   value={displayNameInput}
                   onChange={(e) => setDisplayNameInput(e.target.value)}
                   placeholder="e.g. Vivo V2143 (Android 13)"
-                  className="w-full bg-[#080B10] border border-[#1C2230] rounded-lg px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-[#F59E0B]"
+                  className="w-full bg-[var(--card)] border border-[var(--line)] rounded-xl px-3 py-2 text-xs text-[var(--ink)] placeholder-[var(--muted)] focus:outline-none focus:border-[var(--violet)] focus:ring-2 focus:ring-[var(--violet)]/20 transition-all"
                 />
               </div>
 
               {/* Dropzone & Preview */}
               <div>
-                <label className="block text-[11px] font-mono text-[#94A3B8] mb-1">Select Image File (PNG, JPG, WebP &le; 2MB)</label>
+                <label className="block text-[11px] font-mono text-[var(--muted)] mb-1">Select Image File (PNG, JPG, WebP &le; 2MB)</label>
                 <div
                   onClick={() => fileInputRef.current?.click()}
-                  className="border-2 border-dashed border-[#1C2230] hover:border-[#F59E0B] rounded-xl p-4 text-center cursor-pointer bg-[#080B10] transition-all"
+                  className="border-2 border-dashed border-[var(--line)] hover:border-[var(--violet)] rounded-2xl p-4 text-center cursor-pointer bg-[var(--card)]/50 transition-all"
                 >
                   <input
                     ref={fileInputRef}
@@ -757,14 +762,14 @@ export default function AdminDeviceManagementPage({ currentUser }) {
                     <div className="space-y-3" onClick={(e) => e.stopPropagation()}>
                       {/* Trimming preview comparison tabs */}
                       {trimmedPreviewUrl && (
-                        <div className="flex items-center justify-center gap-1.5 p-1 bg-[#080B10] rounded-lg border border-[#1C2230] text-[11px] font-mono">
+                        <div className="flex items-center justify-center gap-1.5 p-1 bg-[var(--card)] rounded-xl border border-[var(--line)] text-[11px] font-mono">
                           <button
                             type="button"
                             onClick={() => { setPreviewTab('trimmed'); setTrimMarginsEnabled(true); }}
-                            className={`px-2.5 py-1 rounded-md transition-all font-semibold ${
+                            className={`px-2.5 py-1 rounded-lg transition-all font-semibold ${
                               previewTab === 'trimmed' && trimMarginsEnabled
-                                ? 'bg-[#064E3B] text-[#34D399] border border-[#059669]'
-                                : 'text-[#94A3B8] hover:text-white'
+                                ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30'
+                                : 'text-[var(--muted)] hover:text-[var(--ink)]'
                             }`}
                           >
                             Trimmed ({trimmedDimensions?.width}x{trimmedDimensions?.height})
@@ -772,10 +777,10 @@ export default function AdminDeviceManagementPage({ currentUser }) {
                           <button
                             type="button"
                             onClick={() => { setPreviewTab('original'); setTrimMarginsEnabled(false); }}
-                            className={`px-2.5 py-1 rounded-md transition-all font-semibold ${
+                            className={`px-2.5 py-1 rounded-lg transition-all font-semibold ${
                               previewTab === 'original' || !trimMarginsEnabled
-                                ? 'bg-[#1C2230] text-white border border-[#334155]'
-                                : 'text-[#94A3B8] hover:text-white'
+                                ? 'bg-[var(--card)] text-[var(--ink)] border border-[var(--line)] shadow-xs'
+                                : 'text-[var(--muted)] hover:text-[var(--ink)]'
                             }`}
                           >
                             Original ({originalDimensions?.width}x{originalDimensions?.height})
@@ -784,7 +789,7 @@ export default function AdminDeviceManagementPage({ currentUser }) {
                       )}
 
                       {/* Frame preview */}
-                      <div className="w-24 h-36 mx-auto bg-[#080B10] rounded-xl overflow-hidden border border-[#1C2230] p-1 flex items-center justify-center shadow-inner">
+                      <div className="w-24 h-36 mx-auto bg-[var(--card)] rounded-xl overflow-hidden border border-[var(--line)] p-1 flex items-center justify-center shadow-inner">
                         <img
                           src={trimMarginsEnabled && trimmedPreviewUrl && previewTab === 'trimmed' ? trimmedPreviewUrl : previewUrl}
                           alt="Thumbnail Preview"
@@ -794,7 +799,7 @@ export default function AdminDeviceManagementPage({ currentUser }) {
 
                       {/* Trimming toggle */}
                       {trimmedPreviewUrl && (
-                        <label className="flex items-center justify-center gap-2 text-xs text-slate-300 cursor-pointer pt-1">
+                        <label className="flex items-center justify-center gap-2 text-xs text-[var(--ink)] cursor-pointer pt-1">
                           <input
                             type="checkbox"
                             checked={trimMarginsEnabled}
@@ -802,19 +807,19 @@ export default function AdminDeviceManagementPage({ currentUser }) {
                               setTrimMarginsEnabled(e.target.checked);
                               setPreviewTab(e.target.checked ? 'trimmed' : 'original');
                             }}
-                            className="rounded border-[#1C2230] bg-[#080B10] text-[#F59E0B] focus:ring-0"
+                            className="rounded border-[var(--line)] bg-[var(--card)] text-[var(--violet)] focus:ring-0"
                           />
                           <span>Trim outer whitespace margins (Recommended)</span>
                         </label>
                       )}
 
                       <div className="text-center">
-                        <p className="text-xs font-semibold text-[#34D399] truncate max-w-[280px] mx-auto">{selectedFile?.name}</p>
-                        <p className="text-[10px] text-[#64748B]">
+                        <p className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 truncate max-w-[280px] mx-auto">{selectedFile?.name}</p>
+                        <p className="text-[10px] text-[var(--muted)]">
                           {(selectedFile?.size / 1024).toFixed(1)} KB •
                           <span
                             onClick={() => fileInputRef.current?.click()}
-                            className="text-[#F59E0B] hover:underline cursor-pointer ml-1"
+                            className="text-[var(--violet)] hover:underline cursor-pointer ml-1 font-semibold"
                           >
                             Change file
                           </span>
@@ -823,26 +828,26 @@ export default function AdminDeviceManagementPage({ currentUser }) {
                     </div>
                   ) : (
                     <div className="space-y-2 py-4">
-                      <ImageIcon className="w-8 h-8 text-[#64748B] mx-auto" />
-                      <p className="text-xs text-slate-300 font-semibold">Click to browse or drag and drop image here</p>
-                      <p className="text-[10px] text-[#64748B]">PNG, JPEG, or WebP up to 2MB (Recommended ratio 9:16 portrait)</p>
+                      <ImageIcon className="w-8 h-8 text-[var(--muted)] mx-auto opacity-60" />
+                      <p className="text-xs text-[var(--ink)] font-semibold">Click to browse or drag and drop image here</p>
+                      <p className="text-[10px] text-[var(--muted)]">PNG, JPEG, or WebP up to 2MB (Recommended ratio 9:16 portrait)</p>
                     </div>
                   )}
                 </div>
               </div>
 
-              <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#1C2230]">
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-[var(--line)]">
                 <button
                   type="button"
                   onClick={handleCloseUpload}
-                  className="px-4 py-2 rounded-lg bg-[#080B10] hover:bg-[#1C2230] text-slate-300 border border-[#1C2230] text-xs font-semibold"
+                  className="btn-soft px-4 py-2 rounded-xl text-xs font-semibold"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={uploading || !selectedFile}
-                  className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[#F59E0B] text-black text-xs font-bold hover:bg-[#D97706] disabled:opacity-50 shadow-sm"
+                  className="btn-magic flex items-center gap-2 px-4 py-2 text-white text-xs font-bold disabled:opacity-50 shadow-md cursor-pointer rounded-xl"
                 >
                   {uploading ? (
                     <>
@@ -864,67 +869,69 @@ export default function AdminDeviceManagementPage({ currentUser }) {
 
       {/* Add Device Model Modal */}
       {addModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xs animate-fade-in">
-          <div className="bg-[#10131B] border border-[#1C2230] rounded-2xl w-full max-w-md p-6 space-y-4 shadow-2xl">
-            <div className="flex items-center justify-between border-b border-[#1C2230] pb-3">
-              <h2 className="text-sm font-bold text-white flex items-center gap-2">
-                <Plus className="w-4 h-4 text-[#F59E0B]" />
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+          <div className="glass rounded-2xl w-full max-w-md p-6 space-y-4 shadow-2xl border border-[var(--line)]">
+            <div className="flex items-center justify-between border-b border-[var(--line)] pb-3">
+              <h2 className="text-sm font-bold text-[var(--ink)] flex items-center gap-2">
+                <div className="w-6 h-6 rounded-lg bg-[var(--violet)]/10 text-[var(--violet)] flex items-center justify-center">
+                  <Plus className="w-3.5 h-3.5" />
+                </div>
                 <span>Register Device Model in Catalog</span>
               </h2>
-              <button onClick={() => setAddModalOpen(false)} className="text-[#64748B] hover:text-white">
+              <button onClick={() => setAddModalOpen(false)} className="text-[var(--muted)] hover:text-[var(--ink)]">
                 <X className="w-4 h-4" />
               </button>
             </div>
 
             <form onSubmit={handleAddModelSubmit} className="space-y-4">
               <div>
-                <label className="block text-[11px] font-mono text-[#94A3B8] mb-1">Manufacturer *</label>
+                <label className="block text-[11px] font-mono text-[var(--muted)] mb-1">Manufacturer *</label>
                 <input
                   type="text"
                   value={newMfg}
                   onChange={(e) => setNewMfg(e.target.value)}
                   placeholder="e.g. vivo, motorola, samsung, apple"
                   required
-                  className="w-full bg-[#080B10] border border-[#1C2230] rounded-lg px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-[#F59E0B]"
+                  className="w-full bg-[var(--card)] border border-[var(--line)] rounded-xl px-3 py-2 text-xs text-[var(--ink)] placeholder-[var(--muted)] focus:outline-none focus:border-[var(--violet)] focus:ring-2 focus:ring-[var(--violet)]/20 transition-all"
                 />
               </div>
 
               <div>
-                <label className="block text-[11px] font-mono text-[#94A3B8] mb-1">Exact Model Identifier *</label>
+                <label className="block text-[11px] font-mono text-[var(--muted)] mb-1">Exact Model Identifier *</label>
                 <input
                   type="text"
                   value={newModel}
                   onChange={(e) => setNewModel(e.target.value)}
                   placeholder="e.g. v2143, motog965g, lxx523, sm-e025f"
                   required
-                  className="w-full bg-[#080B10] border border-[#1C2230] rounded-lg px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-[#F59E0B]"
+                  className="w-full bg-[var(--card)] border border-[var(--line)] rounded-xl px-3 py-2 text-xs text-[var(--ink)] placeholder-[var(--muted)] focus:outline-none focus:border-[var(--violet)] focus:ring-2 focus:ring-[var(--violet)]/20 transition-all"
                 />
-                <p className="text-[10px] text-[#64748B] mt-1">This should match the internal Android model or iOS hardware ID.</p>
+                <p className="text-[10px] text-[var(--muted)] mt-1">This should match the internal Android model or iOS hardware ID.</p>
               </div>
 
               <div>
-                <label className="block text-[11px] font-mono text-[#94A3B8] mb-1">Display Name (Optional)</label>
+                <label className="block text-[11px] font-mono text-[var(--muted)] mb-1">Display Name (Optional)</label>
                 <input
                   type="text"
                   value={newDisplayName}
                   onChange={(e) => setNewDisplayName(e.target.value)}
                   placeholder="e.g. Vivo V2143 (Android 13)"
-                  className="w-full bg-[#080B10] border border-[#1C2230] rounded-lg px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-[#F59E0B]"
+                  className="w-full bg-[var(--card)] border border-[var(--line)] rounded-xl px-3 py-2 text-xs text-[var(--ink)] placeholder-[var(--muted)] focus:outline-none focus:border-[var(--violet)] focus:ring-2 focus:ring-[var(--violet)]/20 transition-all"
                 />
               </div>
 
-              <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#1C2230]">
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-[var(--line)]">
                 <button
                   type="button"
                   onClick={() => setAddModalOpen(false)}
-                  className="px-4 py-2 rounded-lg bg-[#080B10] hover:bg-[#1C2230] text-slate-300 border border-[#1C2230] text-xs font-semibold"
+                  className="btn-soft px-4 py-2 rounded-xl text-xs font-semibold"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={addingModel}
-                  className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[#F59E0B] text-black text-xs font-bold hover:bg-[#D97706] disabled:opacity-50 shadow-sm"
+                  className="btn-magic flex items-center gap-2 px-4 py-2 rounded-xl text-white text-xs font-bold disabled:opacity-50 shadow-md cursor-pointer"
                 >
                   {addingModel ? (
                     <>
@@ -946,33 +953,35 @@ export default function AdminDeviceManagementPage({ currentUser }) {
 
       {/* Controlled Backend Restart Modal */}
       {restartModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xs animate-fade-in">
-          <div className="bg-[#10131B] border border-[#EF4444]/40 rounded-2xl w-full max-w-md p-6 space-y-4 shadow-2xl">
-            <div className="flex items-center gap-3 text-[#EF4444]">
-              <Server className="w-6 h-6 shrink-0" />
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+          <div className="glass rounded-2xl w-full max-w-md p-6 space-y-4 shadow-2xl border border-rose-500/30">
+            <div className="flex items-center gap-3 text-rose-500">
+              <div className="w-10 h-10 rounded-xl bg-rose-500/10 text-rose-500 flex items-center justify-center shrink-0">
+                <Server className="w-5 h-5" />
+              </div>
               <div>
-                <h2 className="text-sm font-bold text-white">Controlled Backend Restart</h2>
-                <p className="text-[11px] text-[#94A3B8]">Safe listener recycle on port 8080 without port collisions</p>
+                <h2 className="text-sm font-bold text-[var(--ink)]">Controlled Backend Restart</h2>
+                <p className="text-[11px] text-[var(--muted)]">Safe listener recycle on port 8080 without port collisions</p>
               </div>
             </div>
 
-            <p className="text-xs text-slate-300 leading-relaxed">
+            <p className="text-xs text-[var(--muted)] leading-relaxed">
               This safely recycles the Node.js server listener and device configuration stores. Existing certificates, HTTPS settings, and connected device sessions remain intact.
             </p>
 
             {restartProgress && (
-              <div className="p-3 bg-[#080B10] border border-[#1C2230] rounded-xl text-xs font-mono text-[#F59E0B] flex items-center gap-2">
+              <div className="p-3 bg-[var(--card)] border border-[var(--line)] rounded-xl text-xs font-mono text-amber-500 flex items-center gap-2">
                 <RefreshCw className="w-4 h-4 animate-spin shrink-0" />
                 <span>{restartProgress}</span>
               </div>
             )}
 
-            <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#1C2230]">
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-[var(--line)]">
               <button
                 type="button"
                 onClick={() => setRestartModalOpen(false)}
                 disabled={restarting}
-                className="px-4 py-2 rounded-lg bg-[#080B10] hover:bg-[#1C2230] text-slate-300 border border-[#1C2230] text-xs font-semibold disabled:opacity-50"
+                className="btn-soft px-4 py-2 rounded-xl text-xs font-semibold disabled:opacity-50"
               >
                 Cancel
               </button>
@@ -980,7 +989,7 @@ export default function AdminDeviceManagementPage({ currentUser }) {
                 type="button"
                 onClick={executeRestart}
                 disabled={restarting}
-                className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[#991B1B] hover:bg-[#B91C1C] text-white text-xs font-bold disabled:opacity-50 shadow-sm"
+                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold disabled:opacity-50 shadow-md cursor-pointer transition-all"
               >
                 {restarting ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Server className="w-3.5 h-3.5" />}
                 <span>{restarting ? 'Restarting...' : 'Confirm Restart'}</span>

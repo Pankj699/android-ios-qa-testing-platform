@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { UploadCloud, FileArchive, CheckCircle2, AlertCircle, Loader2, X, Package } from 'lucide-react';
 import { api } from '../services/api';
 import BuildThumbnail from './BuildThumbnail';
+import { toast } from '../utils/toast';
 
 export default function AabUploadModal({ isOpen, onClose, onBuildUploaded }) {
   const [dragActive, setDragActive] = useState(false);
@@ -107,7 +108,9 @@ export default function AabUploadModal({ isOpen, onClose, onBuildUploaded }) {
         handleClose();
       }, 1500);
     } catch (err) {
-      setError(err.message || 'Failed to upload and analyze build.');
+      const errMsg = err.message || 'Failed to upload and analyze build.';
+      setError(errMsg);
+      toast.error(errMsg);
     } finally {
       setUploading(false);
     }
@@ -119,22 +122,22 @@ export default function AabUploadModal({ isOpen, onClose, onBuildUploaded }) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-150">
-      <div className="w-full max-w-lg bg-[#131924] border border-[#1E2638] rounded-2xl shadow-2xl overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+      <div className="w-full max-w-lg glass rounded-2xl border border-[var(--line)] shadow-2xl overflow-hidden">
         {/* Header */}
-        <div className="px-6 py-4 border-b border-[#1E2638] flex items-center justify-between bg-[#0D111A]">
-          <div className="flex items-center gap-2.5">
-            <div className="p-2 rounded-lg bg-[#261D10] text-[#F59E0B] border border-[#78350F]">
+        <div className="px-6 py-4 border-b border-[var(--line)] flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-[var(--violet)] to-[var(--pink)] text-white flex items-center justify-center shadow-md shadow-[var(--violet)]/20">
               <Package className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="font-semibold text-white text-sm">Upload Build (.aab or .apk)</h3>
-              <p className="text-xs text-slate-400">Play Asset Delivery & Standalone Package Inspection</p>
+              <h3 className="font-bold text-[var(--ink)] text-sm">Upload Build (.aab or .apk)</h3>
+              <p className="text-xs text-[var(--muted)]">Play Asset Delivery & Standalone Package Inspection</p>
             </div>
           </div>
           <button
             onClick={handleClose}
-            className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-[#1E2638] transition-colors"
+            className="p-1.5 rounded-xl text-[var(--muted)] hover:text-[var(--ink)] hover:bg-[var(--card)] transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -143,26 +146,26 @@ export default function AabUploadModal({ isOpen, onClose, onBuildUploaded }) {
         {/* Content */}
         <div className="p-6 space-y-4">
           {error && (
-            <div className="p-3 rounded-lg bg-rose-500/10 border border-rose-500/30 text-xs text-rose-300 flex items-start gap-2.5">
-              <AlertCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+            <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-xs text-rose-500 flex items-start gap-2.5">
+              <AlertCircle className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />
               <div>{error}</div>
             </div>
           )}
 
           {uploadedBuild && (
             <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30 space-y-3">
-              <div className="flex items-center gap-2 text-xs font-semibold text-emerald-300">
-                <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+              <div className="flex items-center gap-2 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+                <CheckCircle2 className="w-4 h-4 text-emerald-500" />
                 <span>Build Analyzed & Ready for Testing!</span>
               </div>
               <div className="flex items-center gap-3 pt-1">
                 <BuildThumbnail build={uploadedBuild} size="md" />
-                <div className="text-xs text-slate-300 space-y-0.5 min-w-0">
-                  <div className="font-semibold text-white truncate">{uploadedBuild.applicationName || uploadedBuild.fileName}</div>
-                  <div><span className="text-slate-400">Package:</span> <span className="font-mono text-emerald-200">{uploadedBuild.packageName}</span></div>
-                  <div><span className="text-slate-400">Version:</span> {uploadedBuild.versionName} ({uploadedBuild.versionCode})</div>
+                <div className="text-xs text-[var(--muted)] space-y-0.5 min-w-0">
+                  <div className="font-semibold text-[var(--ink)] truncate">{uploadedBuild.applicationName || uploadedBuild.fileName}</div>
+                  <div><span className="text-[var(--muted)]">Package:</span> <span className="font-mono text-emerald-600 dark:text-emerald-400 font-semibold">{uploadedBuild.packageName}</span></div>
+                  <div><span className="text-[var(--muted)]">Version:</span> <span className="text-[var(--ink)]">{uploadedBuild.versionName} ({uploadedBuild.versionCode})</span></div>
                   {uploadedBuild.assetPacks?.length > 0 && (
-                    <div><span className="text-slate-400">Asset Packs:</span> {uploadedBuild.assetPacks.length} detected</div>
+                    <div><span className="text-[var(--muted)]">Asset Packs:</span> <span className="text-[var(--ink)]">{uploadedBuild.assetPacks.length} detected</span></div>
                   )}
                 </div>
               </div>
@@ -176,12 +179,12 @@ export default function AabUploadModal({ isOpen, onClose, onBuildUploaded }) {
               onDragOver={handleDrag}
               onDrop={handleDrop}
               onClick={() => fileInputRef.current?.click()}
-              className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all ${
+              className={`border-2 border-dashed rounded-2xl p-8 text-center cursor-pointer transition-all ${
                 dragActive
-                  ? 'border-[#F59E0B] bg-[#261D10]/50'
+                  ? 'border-[var(--violet)] bg-[var(--violet)]/10 scale-[0.99]'
                   : file
-                  ? 'border-[#1E2638] bg-[#0A0D14]'
-                  : 'border-[#1E2638] hover:border-[#F59E0B]/60 bg-[#0A0D14] hover:bg-[#1E2638]/20'
+                  ? 'border-[var(--line)] bg-[var(--card)]'
+                  : 'border-[var(--line)] hover:border-[var(--violet)]/60 bg-[var(--card)]/50 hover:bg-[var(--card)]'
               }`}
             >
               <input
@@ -194,27 +197,27 @@ export default function AabUploadModal({ isOpen, onClose, onBuildUploaded }) {
 
               {file ? (
                 <div className="space-y-2">
-                  <div className="w-12 h-12 rounded-xl bg-[#261D10] border border-[#78350F] text-[#F59E0B] flex items-center justify-center mx-auto">
+                  <div className="w-12 h-12 rounded-xl bg-[var(--violet)]/10 text-[var(--violet)] flex items-center justify-center mx-auto">
                     <FileArchive className="w-6 h-6" />
                   </div>
                   <div>
-                    <p className="text-xs font-semibold text-white">{file.name}</p>
-                    <p className="text-[11px] text-slate-400 font-mono mt-0.5">{formatFileSize(file.size)}</p>
+                    <p className="text-xs font-semibold text-[var(--ink)]">{file.name}</p>
+                    <p className="text-[11px] text-[var(--muted)] font-mono mt-0.5">{formatFileSize(file.size)}</p>
                   </div>
-                  <span className="inline-block text-[11px] text-[#F59E0B] hover:underline">Click to choose another file</span>
+                  <span className="inline-block text-[11px] text-[var(--violet)] font-semibold hover:underline">Click to choose another file</span>
                 </div>
               ) : (
                 <div className="space-y-2">
-                  <div className="w-12 h-12 rounded-xl bg-[#131924] border border-[#1E2638] text-slate-400 flex items-center justify-center mx-auto">
+                  <div className="w-12 h-12 rounded-xl bg-[var(--card)] border border-[var(--line)] text-[var(--muted)] flex items-center justify-center mx-auto shadow-xs">
                     <UploadCloud className="w-6 h-6" />
                   </div>
                   <div>
-                    <p className="text-xs font-medium text-slate-200">
-                      Drag & Drop your <span className="text-[#F59E0B] font-mono">.aab</span> or <span className="text-[#F59E0B] font-mono">.apk</span> build here
+                    <p className="text-xs font-medium text-[var(--ink)]">
+                      Drag & Drop your <span className="text-[var(--violet)] font-mono font-bold">.aab</span> or <span className="text-[var(--violet)] font-mono font-bold">.apk</span> build here
                     </p>
-                    <p className="text-[11px] text-slate-400 mt-1">or browse from your computer</p>
+                    <p className="text-[11px] text-[var(--muted)] mt-1">or browse from your computer</p>
                   </div>
-                  <p className="text-[10px] text-slate-400">Supports Android App Bundles (.aab) and APKs (.apk)</p>
+                  <p className="text-[10px] text-[var(--muted)]">Supports Android App Bundles (.aab) and APKs (.apk)</p>
                 </div>
               )}
             </div>
@@ -225,7 +228,7 @@ export default function AabUploadModal({ isOpen, onClose, onBuildUploaded }) {
               <button
                 type="button"
                 onClick={handleClose}
-                className="px-4 py-2 rounded-lg bg-[#1E2638] hover:bg-[#263248] text-xs font-medium text-slate-300 border border-[#334155] transition-colors"
+                className="btn-soft px-4 py-2 rounded-xl text-xs font-semibold"
               >
                 Cancel
               </button>
@@ -233,7 +236,7 @@ export default function AabUploadModal({ isOpen, onClose, onBuildUploaded }) {
                 type="button"
                 onClick={handleUploadAndAnalyze}
                 disabled={!file || uploading}
-                className="px-4 py-2 rounded-lg bg-[#F59E0B] hover:bg-[#D97706] disabled:opacity-50 text-xs font-bold text-black transition-colors flex items-center gap-2 shadow-lg shadow-amber-500/10"
+                className="btn-magic px-4 py-2 rounded-xl disabled:opacity-50 text-xs font-bold text-white transition-all flex items-center gap-2 shadow-md cursor-pointer"
               >
                 {uploading ? (
                   <>

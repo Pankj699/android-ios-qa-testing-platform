@@ -1,12 +1,5 @@
 import { jsPDF } from "jspdf";
-import { buildBodyLines, buildHeading } from "./report-format";
-
-const BOLD_LINES = new Set([
-  "Follow the following steps & generate the issue.",
-  "Actual Result",
-  "Expected Result",
-  "Note for Developer: Check all options after applying the solution.",
-]);
+import { buildBodyLines, buildHeading, getNoteLines, isBoldLine } from "./report-format";
 
 export function exportReportToPDF(report) {
   const doc = new jsPDF({ unit: "pt", format: "a4" });
@@ -27,9 +20,21 @@ export function exportReportToPDF(report) {
 
   function writeLine(text, bold) {
     doc.setFont("helvetica", bold ? "bold" : "normal");
+    const clean = (text || "").trim();
+    const isUrl = /^https?:\/\/[^\s]+$/i.test(clean);
+    if (isUrl) {
+      doc.setTextColor(124, 108, 246);
+    } else {
+      doc.setTextColor(30, 41, 59);
+    }
     const wrapped = doc.splitTextToSize(text || " ", maxWidth);
     ensureSpace(wrapped.length);
-    doc.text(wrapped, marginX, y);
+    if (isUrl) {
+      doc.textWithLink(wrapped, marginX, y, { url: clean });
+    } else {
+      doc.text(wrapped, marginX, y);
+    }
+    doc.setTextColor(30, 41, 59);
     y += wrapped.length * lineHeight;
   }
 
@@ -39,12 +44,14 @@ export function exportReportToPDF(report) {
   y += 6;
 
   doc.setFontSize(11);
+  const noteLines = getNoteLines(report?.notes !== undefined ? report?.notes : report?.note);
+  const noteLinesSet = new Set(noteLines.filter(Boolean));
   for (const line of buildBodyLines(report)) {
     if (line === "") {
       y += lineHeight * 0.5;
       continue;
     }
-    writeLine(line, BOLD_LINES.has(line));
+    writeLine(line, isBoldLine(line, noteLinesSet));
   }
 
   doc.save(`${(report.title || "bug-report").slice(0, 60).replace(/[^a-z0-9]+/gi, "-") || "bug-report"}.pdf`);

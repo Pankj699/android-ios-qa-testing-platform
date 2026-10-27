@@ -129,3 +129,74 @@ export function isActionShortcut(event, expectedCode, expectedKey, macLigature =
 
   return false;
 }
+
+/**
+ * Detect whether a modal, confirmation dialog, or interactive modal overlay
+ * currently owns the keyboard interaction.
+ */
+export function isModalDialogOpen(customDocument, options = {}) {
+  const doc = customDocument || (typeof document !== 'undefined' ? document : null);
+  if (!doc) return false;
+
+  // 1. Check if document has any visible modal dialogs (Radix Dialog, custom modal overlays)
+  const modalSelectors = [
+    '[role="dialog"][data-state="open"]',
+    '[role="dialog"]:not([data-state="closed"])',
+    '[aria-modal="true"]',
+    '.fixed.inset-0.z-50',
+    '.fixed.inset-0.z-\\[100\\]',
+    '.fixed.inset-0.z-\\[50\\]'
+  ];
+
+  const queryAll = doc.querySelectorAll
+    ? (sel) => Array.from(doc.querySelectorAll(sel))
+    : (sel) => {
+        const single = doc.querySelector ? doc.querySelector(sel) : null;
+        return single ? [single] : [];
+      };
+
+  for (const selector of modalSelectors) {
+    const elements = queryAll(selector);
+    for (const el of elements) {
+      if (options.ignoreRemoteConfig) {
+        if (el.hasAttribute && el.hasAttribute('data-remote-config-dialog')) continue;
+        if (typeof el.closest === 'function' && el.closest('[data-remote-config-dialog]')) continue;
+      }
+      if (typeof window !== 'undefined' && window.getComputedStyle) {
+        const style = window.getComputedStyle(el);
+        if (style && (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0')) {
+          continue;
+        }
+      }
+      return true;
+    }
+  }
+
+  // 2. Check if activeElement is inside a modal or dialog
+  const activeEl = doc.activeElement;
+  if (activeEl && typeof activeEl.closest === 'function') {
+    if (options.ignoreRemoteConfig && activeEl.closest('[data-remote-config-dialog]')) {
+      return false;
+    }
+    if (activeEl.closest('[role="dialog"], [aria-modal="true"], .fixed.inset-0.z-50, .fixed.inset-0.z-\\[100\\]')) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+/**
+ * Standardized cross-platform matcher for Ctrl + Enter (Windows/Linux)
+ * and Cmd + Enter (macOS) to generate reports or submit forms.
+ */
+export function isGenerateShortcut(event) {
+  if (!event) return false;
+  if (!event.ctrlKey && !event.metaKey) return false;
+  if (event.altKey) return false;
+  if (event.repeat) return false;
+
+  return event.key === 'Enter' || event.code === 'Enter';
+}
+
+export const isSubmitShortcut = isGenerateShortcut;

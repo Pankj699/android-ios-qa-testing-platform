@@ -322,6 +322,9 @@ function setupWebSocket(server, extraServer = null) {
                   if (freshPid && freshPid !== ws.currentAppPid) {
                     logger.info(`[DeviceLogcat PID Watch] Switched PID for ${targetPkg} on ${data.serial}: ${ws.currentAppPid || 'none'} -> ${freshPid}`);
                     ws.currentAppPid = freshPid;
+                    // Re-arm verbose network tags for newly spawned app process
+                    adbService.runSafeAdbCommand(data.serial, 'adb shell setprop log.tag.Volley VERBOSE').catch(() => {});
+                    adbService.runSafeAdbCommand(data.serial, 'adb shell setprop log.tag.OkHttp VERBOSE').catch(() => {});
                     attachLogcatStream(freshPid);
                   } else if (!freshPid && ws.currentAppPid) {
                     ws.currentAppPid = null;
@@ -331,7 +334,7 @@ function setupWebSocket(server, extraServer = null) {
                     }
                   }
                 } catch (e) {}
-              }, 2000);
+              }, 1000);
             } else {
               // Raw diagnostic stream
               attachLogcatStream(null);

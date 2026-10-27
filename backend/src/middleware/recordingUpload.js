@@ -4,7 +4,7 @@ const fs = require('fs');
 const config = require('../config');
 const { sanitizeFilename } = require('../utils/fileUtils');
 
-const ALLOWED_EXTENSIONS = new Set(['.webm', '.mp4', '.mkv']);
+const ALLOWED_EXTENSIONS = new Set(['.webm', '.mp4', '.mkv', '.mov']);
 const ALLOWED_MIME_PREFIXES = ['video/webm', 'video/mp4', 'video/x-matroska', 'video/quicktime'];
 
 const storage = multer.diskStorage({
@@ -39,7 +39,7 @@ const fileFilter = (req, file, cb) => {
   } else {
     cb(
       new Error(
-        `Invalid video file type '${ext || mime}'. Only webm, mp4, and mkv video recordings are accepted.`
+        `Invalid video file type '${ext || mime}'. Only webm, mp4, mov, and mkv video recordings are accepted.`
       ),
       false
     );

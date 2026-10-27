@@ -26,6 +26,8 @@ import {
 } from 'lucide-react';
 import { api } from '../services/api';
 import { formatDeviceModelName } from '../utils/deviceFormatter';
+import CustomSelect from '../components/ui/select';
+import { toast } from '../utils/toast';
 import {
   formatValueForBug,
   getAttributeDisplayValues,
@@ -55,8 +57,14 @@ export default function MixpanelValidatorPage({
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [loading, setLoading] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
-  const [error, setError] = useState(null);
-  const [successMsg, setSuccessMsg] = useState(null);
+
+  const setError = (err) => {
+    if (err) toast.error(err);
+  };
+
+  const setSuccessMsg = (msg) => {
+    if (msg) toast.success(msg);
+  };
 
   // Filters & Search
   const [searchTerm, setSearchTerm] = useState('');
@@ -549,24 +557,28 @@ export default function MixpanelValidatorPage({
   };
 
   return (
-    <div className="flex-1 flex flex-col h-full bg-[#080B11] text-slate-200 overflow-hidden">
+    <div className="flex-1 flex flex-col h-full text-slate-800 dark:text-slate-200 overflow-hidden">
       {/* 1. Top Header Card & Capture Toolbar */}
-      <div className="bg-[#10131B] border border-[#1C2230] rounded-2xl p-4 shadow-sm mb-4 shrink-0">
+      <div className="glass rounded-card p-4 shadow-sm mb-4 shrink-0 border border-[var(--line)]">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           {/* Left: Icon, Title & Subtitle */}
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-purple-500/15 border border-purple-500/30 flex items-center justify-center text-purple-400 shadow-inner shrink-0">
-              <FileSpreadsheet className="w-5 h-5" />
+          <div className="flex items-center gap-3.5">
+            <div className="brand-mark w-10 h-10 rounded-2xl flex items-center justify-center text-white font-bold shrink-0 shadow-brand">
+              <FileSpreadsheet className="w-5 h-5 text-white" />
             </div>
             <div>
               <div className="flex items-center gap-2.5">
-                <h1 className="text-[15.5px] font-bold text-white tracking-wide">Mixpanel Event Validator</h1>
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                <h1 className="text-2xl sm:text-[26px] font-extrabold text-[#1F2544] dark:text-white tracking-tight font-sans">
+                  Mixpanel Event <span className="text-heading-gradient">Validator</span>
+                </h1>
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20 font-mono">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
                   Device Stream (ADB)
                 </span>
               </div>
-              <p className="text-[12.5px] text-slate-400 mt-0.5">Validate real-time native analytics events against Excel event specs</p>
+              <p className="text-xs sm:text-[13px] text-[#6B7194] dark:text-[#94A3B8] mt-1">
+                Validate real-time native analytics events against Excel event specifications.
+              </p>
             </div>
           </div>
 
@@ -585,36 +597,38 @@ export default function MixpanelValidatorPage({
             <button
               onClick={() => fileInputRef.current?.click()}
               disabled={isUploading}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12.5px] font-medium bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 border border-blue-500/30 transition-colors disabled:opacity-50"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-pill text-[12.5px] font-semibold bg-violet-500/10 hover:bg-violet-500/20 text-violet-700 dark:text-violet-300 border border-violet-500/30 transition-all disabled:opacity-50 shadow-sm"
             >
               <Upload className="w-3.5 h-3.5" />
               <span>{isUploading ? 'Parsing...' : 'Upload Excel Spec'}</span>
             </button>
 
             {/* Specification Selector Pill */}
-            <div className="flex items-center bg-[#080B10] px-3 py-1.5 rounded-lg border border-[#1C2230] text-[12.5px]">
-              <span className="text-slate-400 mr-1.5 font-medium">Spec:</span>
+            <div className="flex items-center bg-white/80 dark:bg-slate-950/60 pl-3 pr-1.5 py-1 rounded-pill border border-[var(--line)] text-[12.5px] shadow-sm">
+              <span className="text-slate-500 dark:text-slate-400 mr-1 font-semibold text-xs">Spec:</span>
               {specifications.length > 0 ? (
-                <select
-                  value={selectedSpecId}
-                  onChange={(e) => setSelectedSpecId(e.target.value)}
-                  className="bg-transparent text-[12.5px] text-white font-medium focus:outline-none cursor-pointer max-w-[170px] truncate"
-                >
-                  {specifications.map((s) => (
-                    <option key={s.id} value={s.id} className="bg-[#10131B] text-slate-200">
-                      {s.name} (v{s.version} • {s.events_count} ev)
-                    </option>
-                  ))}
-                </select>
+                <CustomSelect
+                  value={selectedSpecId || ''}
+                  onChange={(val) => {
+                    const id = val?.target ? val.target.value : val;
+                    setSelectedSpecId(id);
+                  }}
+                  options={specifications.map((s) => ({
+                    value: s.id,
+                    label: `${s.name} (v${s.version} • ${s.events_count} ev)`
+                  }))}
+                  placeholder="Select spec"
+                  className="h-7 max-w-[190px] border-0 bg-transparent text-xs font-semibold shadow-none px-2 rounded-lg"
+                />
               ) : (
-                <span className="text-xs text-amber-400/90 italic">No specs uploaded</span>
+                <span className="text-xs text-amber-500 italic font-medium px-2">No specs uploaded</span>
               )}
 
               {activeSpec && (
                 <button
                   onClick={() => handleDeleteSpec(activeSpec.id)}
                   title="Delete this specification"
-                  className="text-slate-400 hover:text-rose-400 transition-colors ml-2 p-0.5"
+                  className="text-slate-400 hover:text-rose-500 transition-colors ml-1 p-0.5"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
                 </button>
@@ -622,26 +636,26 @@ export default function MixpanelValidatorPage({
             </div>
 
             {/* Device Selector Pill */}
-            <div className="flex items-center bg-[#080B10] px-3 py-1.5 rounded-lg border border-[#1C2230] text-[12.5px]">
-              <Smartphone className="w-3.5 h-3.5 text-slate-400 mr-1.5" />
-              <span className="text-slate-400 mr-1.5 font-medium">Device:</span>
+            <div className="flex items-center bg-white/80 dark:bg-slate-950/60 pl-3 pr-1.5 py-1 rounded-pill border border-[var(--line)] text-[12.5px] shadow-sm">
+              <Smartphone className="w-3.5 h-3.5 text-slate-400 mr-1" />
+              <span className="text-slate-500 dark:text-slate-400 mr-1 font-semibold text-xs">Device:</span>
               {devices.length > 0 ? (
-                <select
+                <CustomSelect
                   value={selectedDevice?.serial || selectedDevice?.id || ''}
-                  onChange={(e) => {
-                    const dev = devices.find(d => (d.serial || d.id) === e.target.value);
+                  onChange={(val) => {
+                    const id = val?.target ? val.target.value : val;
+                    const dev = devices.find(d => (d.serial || d.id) === id);
                     if (dev) setSelectedDevice(dev);
                   }}
-                  className="bg-transparent text-[12.5px] text-white font-medium focus:outline-none cursor-pointer max-w-[140px] truncate"
-                >
-                  {devices.map((d) => (
-                    <option key={d.serial || d.id} value={d.serial || d.id} className="bg-[#10131B] text-slate-200">
-                      {formatDeviceModelName(d) || d.model || d.name || d.serial}
-                    </option>
-                  ))}
-                </select>
+                  options={devices.map((d) => ({
+                    value: d.serial || d.id,
+                    label: formatDeviceModelName(d) || d.model || d.name || d.serial
+                  }))}
+                  placeholder="Select device"
+                  className="h-7 max-w-[170px] border-0 bg-transparent text-xs font-semibold shadow-none px-2 rounded-lg"
+                />
               ) : (
-                <span className="text-xs text-rose-400/90 italic">No devices</span>
+                <span className="text-xs text-rose-500 italic font-medium px-2">No devices</span>
               )}
             </div>
 
@@ -650,7 +664,7 @@ export default function MixpanelValidatorPage({
               <button
                 onClick={handleStopCapture}
                 disabled={loading}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12.5px] font-semibold bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 border border-rose-500/40 transition-colors"
+                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-pill text-[12.5px] font-bold bg-rose-500/15 hover:bg-rose-500/25 text-rose-600 dark:text-rose-300 border border-rose-500/40 transition-all shadow-sm"
               >
                 <Square className="w-3.5 h-3.5 fill-current" />
                 Stop Capture
@@ -659,7 +673,7 @@ export default function MixpanelValidatorPage({
               <button
                 onClick={handleStartCapture}
                 disabled={loading || !selectedDevice || specifications.length === 0}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12.5px] font-semibold bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                className="btn-magic inline-flex items-center gap-1.5 px-4 py-1.5 rounded-pill text-[12.5px] font-bold text-white shadow-md transition-all disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 <Play className="w-3.5 h-3.5 fill-current" />
                 Start Capture
@@ -675,7 +689,7 @@ export default function MixpanelValidatorPage({
                 }
                 setInjectModalOpen(true);
               }}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12.5px] font-medium bg-purple-600 hover:bg-purple-500 text-white shadow-sm transition-colors"
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-pill text-[12.5px] font-semibold bg-violet-600 hover:bg-violet-700 text-white shadow-sm transition-all"
             >
               <Plus className="w-3.5 h-3.5" />
               <span>Inject Event</span>
@@ -684,42 +698,22 @@ export default function MixpanelValidatorPage({
         </div>
       </div>
 
-      {/* Notifications / Alerts */}
-      {error && (
-        <div className="mb-3 px-4 py-2.5 bg-rose-500/10 border border-rose-500/20 rounded-xl flex items-center justify-between text-xs text-rose-400">
-          <div className="flex items-center gap-2">
-            <AlertCircle className="w-4 h-4 shrink-0" />
-            <span>{error}</span>
-          </div>
-          <button onClick={() => setError(null)} className="text-rose-400/80 hover:text-rose-200">✕</button>
-        </div>
-      )}
-      {successMsg && (
-        <div className="mb-3 px-4 py-2 bg-emerald-500/10 border border-emerald-500/20 rounded-xl flex items-center justify-between text-xs text-emerald-400">
-          <div className="flex items-center gap-2">
-            <Check className="w-4 h-4 shrink-0" />
-            <span>{successMsg}</span>
-          </div>
-          <button onClick={() => setSuccessMsg(null)} className="text-emerald-400/80 hover:text-emerald-200">✕</button>
-        </div>
-      )}
-
       {/* 2. Main Two-Pane Split Workspace */}
       <div id="mixpanel-workspace-container" className="flex-1 flex flex-col lg:flex-row gap-3 min-h-0 overflow-hidden">
         {/* LEFT PANE: Event Stream & Filters */}
         <div
           style={{ width: typeof window !== 'undefined' && window.innerWidth >= 1024 ? `${leftWidthPercent}%` : '100%' }}
-          className="bg-[#10131B] border border-[#1C2230] rounded-2xl flex flex-col overflow-hidden min-w-[300px] shrink-0"
+          className="glass rounded-card flex flex-col overflow-hidden min-w-[300px] shrink-0 border border-[var(--line)] shadow-sm"
         >
           {/* List Title & Clear Events Action */}
           <div className="p-4 pb-2.5 flex items-center justify-between">
-            <h2 className="text-[15px] font-bold text-white tracking-wide">Events ({events.length})</h2>
+            <h2 className="text-[15px] font-bold text-slate-900 dark:text-white tracking-wide">Events ({events.length})</h2>
             <button
               type="button"
               onClick={() => setClearConfirmOpen(true)}
               disabled={events.length === 0 || !activeSession || isClearingEvents}
               title="Clear all recorded events in this session"
-              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 border border-[#1C2230] hover:border-rose-500/30 transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:text-slate-400 disabled:hover:bg-transparent disabled:hover:border-[#1C2230]"
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-pill text-xs font-semibold text-slate-600 dark:text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-500/10 border border-[var(--line)] hover:border-rose-500/30 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
             >
               <Trash2 className="w-3.5 h-3.5" />
               <span>Clear Events</span>
@@ -729,13 +723,13 @@ export default function MixpanelValidatorPage({
           {/* Search Input */}
           <div className="px-4 pb-2.5">
             <div className="relative">
-              <Search className="w-3.5 h-3.5 absolute left-3 top-2.5 text-slate-500" />
+              <Search className="w-3.5 h-3.5 absolute left-3 top-2.5 text-slate-400" />
               <input
                 type="text"
                 placeholder="Search event name or ID..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full bg-[#080B10] border border-[#1C2230] rounded-xl pl-9 pr-3 py-2 text-[13px] text-[#E2E8F0] placeholder-slate-500 focus:outline-none focus:border-indigo-500/70 transition-colors"
+                className="w-full bg-white/80 dark:bg-slate-950/60 border border-[var(--line)] rounded-xl pl-9 pr-3 py-2 text-[13px] text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:border-violet-500/70 transition-all shadow-inner"
               />
             </div>
           </div>
@@ -753,10 +747,10 @@ export default function MixpanelValidatorPage({
               <button
                 key={pill.id}
                 onClick={() => setStatusFilter(pill.id)}
-                className={`px-2.5 py-1 rounded-md transition-colors whitespace-nowrap text-[12.5px] ${
+                className={`px-2.5 py-1 rounded-pill transition-all whitespace-nowrap text-[12px] ${
                   statusFilter === pill.id
-                    ? 'bg-indigo-600 text-white font-medium shadow-sm'
-                    : 'bg-[#080B10] text-slate-400 hover:text-slate-200 hover:bg-[#161B26] border border-[#1C2230]'
+                    ? 'bg-gradient-to-r from-violet-600 to-indigo-600 text-white font-bold shadow-sm'
+                    : 'bg-white/60 dark:bg-slate-900/60 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-white dark:hover:bg-slate-800 border border-[var(--line)] font-medium'
                 }`}
               >
                 {pill.label}
@@ -770,15 +764,15 @@ export default function MixpanelValidatorPage({
               <div className="p-8 text-center text-slate-500">
                 {activeSession ? (
                   <div className="space-y-2">
-                    <Activity className="w-8 h-8 text-slate-600 mx-auto animate-pulse" />
-                    <p className="text-xs text-slate-400 font-medium">Listening for Mixpanel events...</p>
-                    <p className="text-[11px] text-slate-600">Perform user actions in the app to capture and validate.</p>
+                    <Activity className="w-8 h-8 text-slate-400 dark:text-slate-600 mx-auto animate-pulse" />
+                    <p className="text-xs text-slate-600 dark:text-slate-400 font-medium">Listening for Mixpanel events...</p>
+                    <p className="text-[11px] text-slate-400 dark:text-slate-500">Perform user actions in the app to capture and validate.</p>
                   </div>
                 ) : (
                   <div className="space-y-2">
-                    <FileSpreadsheet className="w-8 h-8 text-slate-600 mx-auto" />
-                    <p className="text-xs text-slate-400 font-medium">No active capture session</p>
-                    <p className="text-[11px] text-slate-600">Select an Excel specification and device, then click "Start Capture".</p>
+                    <FileSpreadsheet className="w-8 h-8 text-slate-400 dark:text-slate-600 mx-auto" />
+                    <p className="text-xs text-slate-600 dark:text-slate-400 font-medium">No active capture session</p>
+                    <p className="text-[11px] text-slate-400 dark:text-slate-500">Select an Excel specification and device, then click "Start Capture".</p>
                   </div>
                 )}
               </div>
@@ -793,26 +787,26 @@ export default function MixpanelValidatorPage({
                     onClick={() => setSelectedEvent(ev)}
                     className={`px-3.5 py-2.5 rounded-xl cursor-pointer transition-all flex items-center justify-between gap-3 ${
                       isSelected
-                        ? 'bg-indigo-950/40 border border-indigo-500/40 shadow-sm'
-                        : 'hover:bg-[#080B10] border border-transparent'
+                        ? 'bg-violet-500/15 border border-violet-500/40 shadow-sm'
+                        : 'hover:bg-slate-100/60 dark:hover:bg-slate-900/60 border border-transparent'
                     }`}
                   >
                     {/* Left: Event Name */}
                     <div className="min-w-0 flex-1">
-                      <span className="text-[13.5px] font-semibold text-white truncate font-mono block tracking-tight" title={ev.event_name}>
+                      <span className="text-[13.5px] font-semibold text-slate-900 dark:text-white truncate font-mono block tracking-tight" title={ev.event_name}>
                         {ev.event_name}
                       </span>
                     </div>
 
                     {/* Middle: Compact Timestamp */}
-                    <div className="text-xs text-slate-400 whitespace-nowrap">
+                    <div className="text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap">
                       {formatTimeOnly(ev.event_time)}
                     </div>
 
                     {/* Right: Validation Status Badge + Chevron (No Device Badge) */}
                     <div className="flex items-center gap-1.5 shrink-0">
                       {statusBadge}
-                      <ChevronRight className="w-3.5 h-3.5 text-slate-500 ml-0.5" />
+                      <ChevronRight className="w-3.5 h-3.5 text-slate-400 ml-0.5" />
                     </div>
                   </div>
                 );
@@ -824,26 +818,26 @@ export default function MixpanelValidatorPage({
         {/* DRAGGABLE DIVIDER (Desktop only) */}
         <div
           onMouseDown={handleMouseDown}
-          className="hidden lg:flex items-center justify-center w-1.5 hover:w-2 bg-transparent hover:bg-indigo-500/40 transition-all cursor-col-resize group rounded select-none shrink-0"
+          className="hidden lg:flex items-center justify-center w-1.5 hover:w-2 bg-transparent hover:bg-violet-500/40 transition-all cursor-col-resize group rounded select-none shrink-0"
           title="Drag to resize panels"
         >
-          <GripVertical className="w-3 h-3 text-slate-600 group-hover:text-indigo-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+          <GripVertical className="w-3 h-3 text-slate-400 group-hover:text-violet-500 opacity-0 group-hover:opacity-100 transition-opacity" />
         </div>
 
         {/* RIGHT PANE: Event Inspector & Validation Table */}
-        <div className="flex-1 bg-[#10131B] border border-[#1C2230] rounded-2xl flex flex-col overflow-hidden p-5 min-w-[340px]">
+        <div className="flex-1 glass rounded-card flex flex-col overflow-hidden p-5 min-w-[340px] border border-[var(--line)] shadow-sm">
           {selectedEvent ? (
             <div className="flex-1 flex flex-col overflow-hidden">
               {/* Event Header */}
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-[#1C2230]">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-[var(--line)]">
                 <div>
-                  <h2 className="text-[19px] font-bold text-white font-mono tracking-tight">{selectedEvent.event_name}</h2>
-                  <div className="flex items-center gap-3 text-[12.5px] text-slate-400 mt-1 flex-wrap">
+                  <h2 className="text-[19px] font-extrabold text-slate-900 dark:text-white font-mono tracking-tight">{selectedEvent.event_name}</h2>
+                  <div className="flex items-center gap-3 text-[12.5px] text-slate-500 dark:text-slate-400 mt-1 flex-wrap">
                     <span>Time: {formatTimeOnly(selectedEvent.event_time)}</span>
-                    <span className="text-slate-600">•</span>
-                    <span>ID: <strong className="text-slate-300 font-mono">{selectedEvent.distinct_id || 'n/a'}</strong></span>
+                    <span className="text-slate-300 dark:text-slate-600">•</span>
+                    <span>ID: <strong className="text-slate-800 dark:text-slate-300 font-mono">{selectedEvent.distinct_id || 'n/a'}</strong></span>
                     {getStatusBadge(selectedEvent.validation_status)}
-                    <span className="px-2.5 py-0.5 rounded-md text-[12px] font-mono bg-[#080B10] text-slate-300 border border-[#1C2230]">
+                    <span className="px-2.5 py-0.5 rounded-pill text-[12px] font-mono bg-white/80 dark:bg-slate-950/60 text-slate-700 dark:text-slate-300 border border-[var(--line)]">
                       Source: {selectedEvent.source || 'ADB_STREAM'}
                     </span>
                   </div>
@@ -854,18 +848,18 @@ export default function MixpanelValidatorPage({
                   <button
                     onClick={handleOpenBugModal}
                     title="Generate Redmine-ready bug statements from event attributes"
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12.5px] font-medium bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/30 transition-colors shadow-sm"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-pill text-[12.5px] font-semibold bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-300 border border-rose-500/30 transition-all shadow-sm"
                   >
-                    <Bug className="w-3.5 h-3.5 text-rose-400" />
+                    <Bug className="w-3.5 h-3.5 text-rose-500" />
                     <span>Generate Bug</span>
                   </button>
 
                   <button
                     onClick={() => handleRevalidateEvent(selectedEvent.id)}
                     title="Re-run validation engine against active specification"
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12.5px] font-medium bg-[#080B10] hover:bg-[#161B26] text-slate-300 border border-[#1C2230] transition-colors"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-pill text-[12.5px] font-semibold bg-white/80 dark:bg-slate-900/80 hover:bg-white dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 border border-[var(--line)] transition-all shadow-sm"
                   >
-                    <RefreshCw className="w-3.5 h-3.5 text-indigo-400" />
+                    <RefreshCw className="w-3.5 h-3.5 text-violet-500" />
                     <span>Revalidate</span>
                   </button>
                 </div>
@@ -873,10 +867,10 @@ export default function MixpanelValidatorPage({
 
               {/* Synthetic Event Warning Banner */}
               {selectedEvent.source === 'SYNTHETIC_INJECTION' && (
-                <div className="mt-3 p-3 rounded-xl bg-amber-950/30 border border-amber-800/50 flex items-start gap-2.5 text-[12.5px] text-amber-200">
-                  <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                <div className="mt-3 p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-start gap-2.5 text-[12.5px] text-amber-800 dark:text-amber-200">
+                  <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
                   <div>
-                    <strong className="font-semibold text-amber-300">Synthetic Event:</strong> This event was manually injected for simulation testing. It does not originate from physical device telemetry or Android Logcat.
+                    <strong className="font-bold text-amber-900 dark:text-amber-300">Synthetic Event:</strong> This event was manually injected for simulation testing. It does not originate from physical device telemetry or Android Logcat.
                   </div>
                 </div>
               )}
@@ -889,24 +883,24 @@ export default function MixpanelValidatorPage({
                   onClick={() => setActiveAttrFilter('ALL')}
                   aria-label={`Show all ${allAttributes.length} attributes`}
                   aria-pressed={activeAttrFilter === 'ALL'}
-                  className={`rounded-xl p-2.5 flex items-center gap-2.5 transition-all cursor-pointer text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 ${
+                  className={`rounded-2xl p-2.5 flex items-center gap-2.5 transition-all cursor-pointer text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-400 ${
                     activeAttrFilter === 'ALL'
-                      ? 'bg-indigo-950/45 border-2 border-indigo-500/80 ring-1 ring-indigo-500/30 shadow-sm'
-                      : 'bg-[#080B10] hover:bg-[#141824] border border-[#1C2230] hover:border-[#283244]'
+                      ? 'bg-violet-500/15 border-2 border-violet-500/80 ring-1 ring-violet-500/30 shadow-sm'
+                      : 'bg-white/70 dark:bg-slate-950/60 hover:bg-white dark:hover:bg-slate-900 border border-[var(--line)] shadow-sm'
                   }`}
                 >
                   <div
                     className={`w-7 h-7 rounded-lg flex items-center justify-center text-[13px] font-bold shrink-0 transition-colors ${
                       activeAttrFilter === 'ALL'
-                        ? 'bg-indigo-500/25 border border-indigo-500/40 text-indigo-300'
-                        : 'bg-[#141824] border border-[#1C2230] text-slate-300'
+                        ? 'bg-violet-500/25 border border-violet-500/40 text-violet-700 dark:text-violet-300'
+                        : 'bg-slate-200/60 dark:bg-slate-800 border border-[var(--line)] text-slate-700 dark:text-slate-300'
                     }`}
                   >
                     {allAttributes.length}
                   </div>
                   <div className="text-[13px] min-w-0">
-                    <strong className="text-[15.5px] font-bold text-white mr-1.5">{allAttributes.length}</strong>
-                    <span className="text-slate-300 font-medium">All</span>
+                    <strong className="text-[15.5px] font-extrabold text-slate-900 dark:text-white mr-1.5">{allAttributes.length}</strong>
+                    <span className="text-slate-600 dark:text-slate-300 font-semibold">All</span>
                   </div>
                 </button>
 
@@ -916,24 +910,24 @@ export default function MixpanelValidatorPage({
                   onClick={() => setActiveAttrFilter(prev => prev === 'MATCHED' ? 'ALL' : 'MATCHED')}
                   aria-label={`Filter by Matched attributes (${metrics.matched})`}
                   aria-pressed={activeAttrFilter === 'MATCHED'}
-                  className={`rounded-xl p-2.5 flex items-center gap-2.5 transition-all cursor-pointer text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 ${
+                  className={`rounded-2xl p-2.5 flex items-center gap-2.5 transition-all cursor-pointer text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 ${
                     activeAttrFilter === 'MATCHED'
-                      ? 'bg-emerald-950/50 border-2 border-emerald-500/90 ring-1 ring-emerald-500/40 shadow-sm'
-                      : 'bg-emerald-950/20 hover:bg-emerald-950/35 border border-emerald-800/40 hover:border-emerald-700/60'
+                      ? 'bg-emerald-500/15 border-2 border-emerald-500/90 ring-1 ring-emerald-500/40 shadow-sm'
+                      : 'bg-emerald-500/5 hover:bg-emerald-500/10 border border-emerald-500/20 shadow-sm'
                   }`}
                 >
                   <div
                     className={`w-7 h-7 rounded-lg flex items-center justify-center text-[13px] font-bold shrink-0 transition-colors ${
                       activeAttrFilter === 'MATCHED'
-                        ? 'bg-emerald-500/30 border border-emerald-400/60 text-emerald-300'
-                        : 'bg-emerald-500/20 border border-emerald-500/30 text-emerald-400'
+                        ? 'bg-emerald-500/30 border border-emerald-400/60 text-emerald-800 dark:text-emerald-300'
+                        : 'bg-emerald-500/15 border border-emerald-500/25 text-emerald-600 dark:text-emerald-400'
                     }`}
                   >
                     {metrics.matched}
                   </div>
                   <div className="text-[13px] min-w-0">
-                    <strong className="text-[15.5px] font-bold text-white mr-1.5">{metrics.matched}</strong>
-                    <span className="text-slate-300 font-medium">Matched</span>
+                    <strong className="text-[15.5px] font-extrabold text-slate-900 dark:text-white mr-1.5">{metrics.matched}</strong>
+                    <span className="text-slate-600 dark:text-slate-300 font-semibold">Matched</span>
                   </div>
                 </button>
 
@@ -943,24 +937,24 @@ export default function MixpanelValidatorPage({
                   onClick={() => setActiveAttrFilter(prev => prev === 'MISSING' ? 'ALL' : 'MISSING')}
                   aria-label={`Filter by Missing attributes (${metrics.missing})`}
                   aria-pressed={activeAttrFilter === 'MISSING'}
-                  className={`rounded-xl p-2.5 flex items-center gap-2.5 transition-all cursor-pointer text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-400 ${
+                  className={`rounded-2xl p-2.5 flex items-center gap-2.5 transition-all cursor-pointer text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-400 ${
                     activeAttrFilter === 'MISSING'
-                      ? 'bg-rose-950/50 border-2 border-rose-500/90 ring-1 ring-rose-500/40 shadow-sm'
-                      : 'bg-rose-950/20 hover:bg-rose-950/35 border border-rose-800/40 hover:border-rose-700/60'
+                      ? 'bg-rose-500/15 border-2 border-rose-500/90 ring-1 ring-rose-500/40 shadow-sm'
+                      : 'bg-rose-500/5 hover:bg-rose-500/10 border border-rose-500/20 shadow-sm'
                   }`}
                 >
                   <div
                     className={`w-7 h-7 rounded-lg flex items-center justify-center text-[13px] font-bold shrink-0 transition-colors ${
                       activeAttrFilter === 'MISSING'
-                        ? 'bg-rose-500/30 border border-rose-400/60 text-rose-300'
-                        : 'bg-rose-500/20 border border-rose-500/30 text-rose-400'
+                        ? 'bg-rose-500/30 border border-rose-400/60 text-rose-800 dark:text-rose-300'
+                        : 'bg-rose-500/15 border border-rose-500/25 text-rose-600 dark:text-rose-400'
                     }`}
                   >
                     {metrics.missing}
                   </div>
                   <div className="text-[13px] min-w-0">
-                    <strong className="text-[15.5px] font-bold text-white mr-1.5">{metrics.missing}</strong>
-                    <span className="text-slate-300 font-medium">Missing</span>
+                    <strong className="text-[15.5px] font-extrabold text-slate-900 dark:text-white mr-1.5">{metrics.missing}</strong>
+                    <span className="text-slate-600 dark:text-slate-300 font-semibold">Missing</span>
                   </div>
                 </button>
 
@@ -970,24 +964,24 @@ export default function MixpanelValidatorPage({
                   onClick={() => setActiveAttrFilter(prev => prev === 'EXTRA' ? 'ALL' : 'EXTRA')}
                   aria-label={`Filter by Extra attributes (${metrics.extra})`}
                   aria-pressed={activeAttrFilter === 'EXTRA'}
-                  className={`rounded-xl p-2.5 flex items-center gap-2.5 transition-all cursor-pointer text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 ${
+                  className={`rounded-2xl p-2.5 flex items-center gap-2.5 transition-all cursor-pointer text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 ${
                     activeAttrFilter === 'EXTRA'
-                      ? 'bg-amber-950/50 border-2 border-amber-500/90 ring-1 ring-amber-500/40 shadow-sm'
-                      : 'bg-amber-950/20 hover:bg-amber-950/35 border border-amber-800/40 hover:border-amber-700/60'
+                      ? 'bg-amber-500/15 border-2 border-amber-500/90 ring-1 ring-amber-500/40 shadow-sm'
+                      : 'bg-amber-500/5 hover:bg-amber-500/10 border border-amber-500/20 shadow-sm'
                   }`}
                 >
                   <div
                     className={`w-7 h-7 rounded-lg flex items-center justify-center text-[13px] font-bold shrink-0 transition-colors ${
                       activeAttrFilter === 'EXTRA'
-                        ? 'bg-amber-500/30 border border-amber-400/60 text-amber-300'
-                        : 'bg-amber-500/20 border border-amber-500/30 text-amber-400'
+                        ? 'bg-amber-500/30 border border-amber-400/60 text-amber-800 dark:text-amber-300'
+                        : 'bg-amber-500/15 border border-amber-500/25 text-amber-600 dark:text-amber-400'
                     }`}
                   >
                     {metrics.extra}
                   </div>
                   <div className="text-[13px] min-w-0">
-                    <strong className="text-[15.5px] font-bold text-white mr-1.5">{metrics.extra}</strong>
-                    <span className="text-slate-300 font-medium">Extra</span>
+                    <strong className="text-[15.5px] font-extrabold text-slate-900 dark:text-white mr-1.5">{metrics.extra}</strong>
+                    <span className="text-slate-600 dark:text-slate-300 font-semibold">Extra</span>
                   </div>
                 </button>
 
@@ -997,37 +991,37 @@ export default function MixpanelValidatorPage({
                   onClick={() => setActiveAttrFilter(prev => prev === 'INCORRECT' ? 'ALL' : 'INCORRECT')}
                   aria-label={`Filter by Incorrect attributes (${metrics.incorrect})`}
                   aria-pressed={activeAttrFilter === 'INCORRECT'}
-                  className={`rounded-xl p-2.5 flex items-center gap-2.5 transition-all cursor-pointer text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-400 ${
+                  className={`rounded-2xl p-2.5 flex items-center gap-2.5 transition-all cursor-pointer text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-400 ${
                     activeAttrFilter === 'INCORRECT'
-                      ? 'bg-rose-950/45 border-2 border-rose-500/80 ring-1 ring-rose-500/35 shadow-sm'
-                      : 'bg-[#080B10] hover:bg-[#141824] border border-[#1C2230] hover:border-[#283244]'
+                      ? 'bg-rose-500/15 border-2 border-rose-500/80 ring-1 ring-rose-500/35 shadow-sm'
+                      : 'bg-rose-500/5 hover:bg-rose-500/10 border border-rose-500/20 shadow-sm'
                   }`}
                 >
                   <div
                     className={`w-7 h-7 rounded-lg flex items-center justify-center text-[13px] font-bold shrink-0 transition-colors ${
                       activeAttrFilter === 'INCORRECT'
-                        ? 'bg-rose-900/40 border border-rose-600/50 text-rose-300'
-                        : 'bg-[#141824] border border-[#1C2230] text-slate-300'
+                        ? 'bg-rose-500/30 border border-rose-600/50 text-rose-800 dark:text-rose-300'
+                        : 'bg-rose-500/15 border border-rose-500/25 text-rose-600 dark:text-rose-400'
                     }`}
                   >
                     {metrics.incorrect}
                   </div>
                   <div className="text-[13px] min-w-0">
-                    <strong className="text-[15.5px] font-bold text-white mr-1.5">{metrics.incorrect}</strong>
-                    <span className="text-slate-300 font-medium">Incorrect</span>
+                    <strong className="text-[15.5px] font-extrabold text-slate-900 dark:text-white mr-1.5">{metrics.incorrect}</strong>
+                    <span className="text-slate-600 dark:text-slate-300 font-semibold">Incorrect</span>
                   </div>
                 </button>
               </div>
 
               {/* Tabs: Attributes vs Raw JSON */}
-              <div className="mt-4 pt-3 border-t border-[#1C2230] flex items-center justify-between gap-2 flex-wrap">
+              <div className="mt-4 pt-3 border-t border-[var(--line)] flex items-center justify-between gap-2 flex-wrap">
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => setActiveTab('attributes')}
-                    className={`px-3 py-1.5 rounded-lg text-[12.5px] flex items-center gap-1.5 transition-colors ${
+                    className={`px-3.5 py-1.5 rounded-pill text-[12.5px] flex items-center gap-1.5 transition-all ${
                       activeTab === 'attributes'
-                        ? 'bg-indigo-950/50 text-indigo-400 border border-indigo-500/30 font-semibold'
-                        : 'text-slate-400 hover:text-slate-200 font-medium'
+                        ? 'bg-violet-500/15 text-violet-700 dark:text-violet-300 border border-violet-500/30 font-bold shadow-sm'
+                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 font-semibold'
                     }`}
                   >
                     <Activity className="w-3.5 h-3.5" />
@@ -1035,10 +1029,10 @@ export default function MixpanelValidatorPage({
                   </button>
                   <button
                     onClick={() => setActiveTab('raw')}
-                    className={`px-3 py-1.5 rounded-lg text-[12.5px] flex items-center gap-1.5 transition-colors ${
+                    className={`px-3.5 py-1.5 rounded-pill text-[12.5px] flex items-center gap-1.5 transition-all ${
                       activeTab === 'raw'
-                        ? 'bg-indigo-950/50 text-indigo-400 border border-indigo-500/30 font-semibold'
-                        : 'text-slate-400 hover:text-slate-200 font-medium'
+                        ? 'bg-violet-500/15 text-violet-700 dark:text-violet-300 border border-violet-500/30 font-bold shadow-sm'
+                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 font-semibold'
                     }`}
                   >
                     <span className="font-mono text-[12.5px]">{'{ }'}</span>
@@ -1049,13 +1043,13 @@ export default function MixpanelValidatorPage({
                 {/* Active Filter Pill & Reset Action */}
                 {activeTab === 'attributes' && activeAttrFilter !== 'ALL' && (
                   <div className="flex items-center gap-2">
-                    <span className="text-xs text-slate-400">
-                      Filtered by: <strong className="text-white capitalize">{getStatusTitle(activeAttrFilter)}</strong>
+                    <span className="text-xs text-slate-500 dark:text-slate-400">
+                      Filtered by: <strong className="text-slate-900 dark:text-white capitalize">{getStatusTitle(activeAttrFilter)}</strong>
                     </span>
                     <button
                       type="button"
                       onClick={() => setActiveAttrFilter('ALL')}
-                      className="px-2.5 py-0.5 rounded-md text-xs font-medium text-indigo-400 hover:text-indigo-300 bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/30 transition-colors cursor-pointer"
+                      className="px-2.5 py-0.5 rounded-pill text-xs font-semibold text-violet-600 hover:text-violet-700 bg-violet-500/10 hover:bg-violet-500/20 border border-violet-500/30 transition-all cursor-pointer"
                       title="Show all attributes"
                     >
                       All Attributes
@@ -1072,11 +1066,11 @@ export default function MixpanelValidatorPage({
                       {visibleAttributes.map((attr, idx) => (
                         <div
                           key={idx}
-                          className="bg-[#080B10] hover:bg-[#141824] border border-[#1C2230] hover:border-[#283244] rounded-xl p-3.5 flex flex-col justify-between transition-colors min-h-[76px]"
+                          className="bg-white/70 dark:bg-slate-950/60 hover:bg-white dark:hover:bg-slate-900 border border-[var(--line)] hover:border-violet-500/30 rounded-2xl p-3.5 flex flex-col justify-between transition-all min-h-[76px] shadow-sm"
                         >
                           <div className="flex items-start justify-between gap-2">
                             <span
-                              className="font-mono text-[13.5px] font-semibold text-white tracking-tight truncate flex-1"
+                              className="font-mono text-[13.5px] font-bold text-slate-900 dark:text-white tracking-tight truncate flex-1"
                               title={attr.name}
                             >
                               {attr.name}
@@ -1096,15 +1090,15 @@ export default function MixpanelValidatorPage({
                       ))}
                     </div>
                   ) : (
-                    <div className="p-8 text-center text-slate-400 text-[13px] bg-[#080B10] rounded-xl border border-[#1C2230] space-y-3">
-                      <p className="font-medium text-slate-300">
+                    <div className="p-8 text-center text-slate-600 dark:text-slate-400 text-[13px] bg-white/70 dark:bg-slate-950/60 rounded-2xl border border-[var(--line)] space-y-3 shadow-sm">
+                      <p className="font-semibold text-slate-800 dark:text-slate-300">
                         {getEmptyStateMessage(activeAttrFilter)}
                       </p>
                       {activeAttrFilter !== 'ALL' && allAttributes.length > 0 && (
                         <button
                           type="button"
                           onClick={() => setActiveAttrFilter('ALL')}
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-[#10131B] hover:bg-[#161B26] text-indigo-400 hover:text-indigo-300 border border-indigo-500/30 transition-colors cursor-pointer"
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-pill text-xs font-semibold bg-violet-500/10 hover:bg-violet-500/20 text-violet-700 dark:text-violet-300 border border-violet-500/30 transition-all cursor-pointer"
                         >
                           <span>Show All Attributes ({allAttributes.length})</span>
                         </button>
@@ -1116,18 +1110,18 @@ export default function MixpanelValidatorPage({
 
               {/* Tab 2: Raw JSON Viewer */}
               {activeTab === 'raw' && (
-                <div className="flex-1 flex flex-col bg-[#080B10] mt-3 p-4 rounded-xl border border-[#1C2230] overflow-hidden">
-                  <div className="flex items-center justify-between pb-2 mb-2 border-b border-[#1C2230]">
-                    <span className="text-[12.5px] text-slate-400 font-mono">Raw Event Payload</span>
+                <div className="flex-1 flex flex-col bg-slate-950 mt-3 p-4 rounded-2xl border border-slate-800 overflow-hidden shadow-sm">
+                  <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-800">
+                    <span className="text-[12.5px] text-slate-400 font-mono font-medium">Raw Event Payload</span>
                     <button
                       onClick={() => handleCopyJson(parsedPayload)}
-                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded bg-[#10131B] hover:bg-[#161B26] text-slate-300 text-[12.5px] border border-[#1C2230] transition-colors"
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-pill bg-slate-900 hover:bg-slate-800 text-slate-300 text-[12.5px] border border-slate-700 transition-colors"
                     >
                       {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
                       <span>{copied ? 'Copied' : 'Copy JSON'}</span>
                     </button>
                   </div>
-                  <pre className="flex-1 overflow-auto text-[12.5px] font-mono text-indigo-300 bg-[#0A0D14] p-3 rounded-lg border border-[#1C2230] leading-relaxed">
+                  <pre className="flex-1 overflow-auto text-[12.5px] font-mono text-violet-300 bg-slate-950/60 p-3 rounded-xl border border-slate-900 leading-relaxed">
                     {JSON.stringify(parsedPayload, null, 2)}
                   </pre>
                 </div>
@@ -1135,9 +1129,9 @@ export default function MixpanelValidatorPage({
             </div>
           ) : (
             <div className="flex-1 flex flex-col items-center justify-center p-8 text-center text-slate-500">
-              <Eye className="w-10 h-10 text-slate-600 mb-3" />
-              <h3 className="text-[15px] font-semibold text-white">No Event Selected</h3>
-              <p className="text-[12.5px] text-slate-500 mt-1 max-w-sm">
+              <Eye className="w-10 h-10 text-slate-400 dark:text-slate-600 mb-3" />
+              <h3 className="text-[15px] font-bold text-slate-900 dark:text-white">No Event Selected</h3>
+              <p className="text-[12.5px] text-slate-500 dark:text-slate-400 mt-1 max-w-sm">
                 Select an event from the stream list on the left to inspect parameter validation, actual payload, and specification compliance.
               </p>
             </div>
@@ -1147,45 +1141,45 @@ export default function MixpanelValidatorPage({
 
       {/* Manual Event Injection Modal */}
       {injectModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-[#10131B] border border-[#1C2230] rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl">
-            <div className="px-5 py-4 border-b border-[#1C2230] flex items-center justify-between">
+        <div className="fixed inset-0 z-50 bg-black/60 dark:bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="glass dark:bg-slate-900/95 bg-white/95 border border-[var(--line)] rounded-card w-full max-w-lg overflow-hidden shadow-2xl">
+            <div className="px-5 py-4 border-b border-[var(--line)] flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <Plus className="w-4 h-4 text-purple-400" />
-                <h3 className="text-sm font-bold text-white">Inject Synthetic Event</h3>
+                <Plus className="w-4 h-4 text-violet-500" />
+                <h3 className="text-sm font-bold text-slate-900 dark:text-white">Inject Synthetic Event</h3>
               </div>
               <button
                 onClick={() => setInjectModalOpen(false)}
-                className="text-slate-400 hover:text-white"
+                className="text-slate-400 hover:text-slate-700 dark:hover:text-white"
               >
                 ✕
               </button>
             </div>
 
             <div className="p-5 space-y-3">
-              <p className="text-xs text-slate-400">
+              <p className="text-xs text-slate-500 dark:text-slate-400">
                 Provide a raw Mixpanel JSON event payload. It will be injected into session{' '}
-                <strong className="text-slate-200 font-mono">{activeSession?.id?.substring(0, 8)}...</strong>, validated against the active specification, and tagged with source <code className="text-purple-300">SYNTHETIC_INJECTION</code>.
+                <strong className="text-slate-800 dark:text-slate-200 font-mono">{activeSession?.id?.substring(0, 8)}...</strong>, validated against the active specification, and tagged with source <code className="text-violet-600 dark:text-violet-300">SYNTHETIC_INJECTION</code>.
               </p>
 
               <textarea
                 rows={9}
                 value={injectPayloadText}
                 onChange={(e) => setInjectPayloadText(e.target.value)}
-                className="w-full bg-[#080B10] border border-[#1C2230] rounded-xl p-3 text-xs font-mono text-indigo-300 focus:outline-none focus:border-purple-500/70"
+                className="w-full bg-slate-950 border border-slate-800 rounded-2xl p-3.5 text-xs font-mono text-violet-300 focus:outline-none focus:border-violet-500/70"
               />
             </div>
 
-            <div className="px-5 py-3.5 bg-[#080B10] border-t border-[#1C2230] flex items-center justify-end gap-2">
+            <div className="px-5 py-3.5 bg-slate-50/60 dark:bg-slate-950/60 border-t border-[var(--line)] flex items-center justify-end gap-2">
               <button
                 onClick={() => setInjectModalOpen(false)}
-                className="px-3.5 py-1.5 rounded-lg text-xs text-slate-400 hover:text-white hover:bg-[#161B26] transition-colors"
+                className="px-3.5 py-1.5 rounded-pill text-xs font-semibold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-all"
               >
                 Cancel
               </button>
               <button
                 onClick={handleInjectEvent}
-                className="px-4 py-1.5 rounded-lg text-xs font-semibold bg-purple-600 hover:bg-purple-500 text-white transition-colors shadow-sm"
+                className="btn-magic px-4 py-1.5 rounded-pill text-xs font-bold text-white transition-all shadow-md"
               >
                 Inject & Validate
               </button>
@@ -1196,24 +1190,24 @@ export default function MixpanelValidatorPage({
 
       {/* Bug Writer Modal */}
       {bugModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-[#10131B] border border-[#1C2230] rounded-2xl w-full max-w-3xl overflow-hidden shadow-2xl flex flex-col max-h-[88vh]">
+        <div className="fixed inset-0 z-50 bg-black/60 dark:bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="glass dark:bg-slate-900/95 bg-white/95 border border-[var(--line)] rounded-card w-full max-w-3xl overflow-hidden shadow-2xl flex flex-col max-h-[88vh]">
             {/* Modal Header */}
-            <div className="px-5 py-4 border-b border-[#1C2230] flex items-center justify-between shrink-0 bg-[#080B10]">
+            <div className="px-5 py-4 border-b border-[var(--line)] flex items-center justify-between shrink-0 bg-slate-50/60 dark:bg-slate-950/60">
               <div className="flex items-center gap-3 min-w-0">
-                <div className="w-8 h-8 rounded-lg bg-rose-500/15 border border-rose-500/30 flex items-center justify-center text-rose-400 shrink-0">
+                <div className="w-8 h-8 rounded-xl bg-rose-500/15 border border-rose-500/30 flex items-center justify-center text-rose-500 shrink-0">
                   <Bug className="w-4 h-4" />
                 </div>
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
-                    <h3 className="text-sm font-bold text-white tracking-wide">
+                    <h3 className="text-sm font-bold text-slate-900 dark:text-white tracking-wide">
                       {bugModalView === 'select' ? 'Mixpanel Bug Writer' : 'Edit Bug Description'}
                     </h3>
-                    <span className="px-2 py-0.5 rounded text-[11px] font-mono font-medium bg-[#10131B] text-slate-300 border border-[#1C2230] truncate max-w-[240px]">
+                    <span className="px-2 py-0.5 rounded text-[11px] font-mono font-medium bg-white/80 dark:bg-slate-900/80 text-slate-700 dark:text-slate-300 border border-[var(--line)] truncate max-w-[240px]">
                       {selectedEvent?.event_name || 'Event'}
                     </span>
                   </div>
-                  <p className="text-[11.5px] text-slate-400 mt-0.5">
+                  <p className="text-[11.5px] text-slate-500 dark:text-slate-400 mt-0.5">
                     {bugModalView === 'select'
                       ? 'Select attributes to generate Redmine-ready bug statements'
                       : 'Review and customize the generated text before copying into Redmine'}
@@ -1222,7 +1216,7 @@ export default function MixpanelValidatorPage({
               </div>
               <button
                 onClick={handleCloseBugModal}
-                className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-[#161B26] transition-colors"
+                className="text-slate-400 hover:text-slate-700 dark:hover:text-white p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
                 title="Close"
               >
                 ✕
@@ -1233,21 +1227,21 @@ export default function MixpanelValidatorPage({
             {bugModalView === 'select' && (
               <>
                 {/* Selection Toolbar */}
-                <div className="px-5 py-2.5 bg-[#080B10] border-b border-[#1C2230] flex items-center justify-between text-xs shrink-0">
-                  <div className="text-slate-300">
-                    <span className="font-semibold text-white">{selectedAttrNames.size}</span>
-                    <span className="text-slate-400"> of {allAttributes.length} attributes selected</span>
+                <div className="px-5 py-2.5 bg-slate-50/40 dark:bg-slate-950/40 border-b border-[var(--line)] flex items-center justify-between text-xs shrink-0">
+                  <div className="text-slate-600 dark:text-slate-300">
+                    <span className="font-bold text-slate-900 dark:text-white">{selectedAttrNames.size}</span>
+                    <span className="text-slate-500 dark:text-slate-400"> of {allAttributes.length} attributes selected</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <button
                       onClick={handleSelectAllAttrs}
-                      className="px-2.5 py-1 rounded-lg bg-[#10131B] hover:bg-[#161B26] text-slate-300 hover:text-white border border-[#1C2230] transition-colors font-medium text-[11.5px]"
+                      className="px-2.5 py-1 rounded-pill bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 border border-[var(--line)] transition-all font-semibold text-[11.5px] shadow-sm"
                     >
                       Select All
                     </button>
                     <button
                       onClick={handleClearAllAttrs}
-                      className="px-2.5 py-1 rounded-lg bg-[#10131B] hover:bg-[#161B26] text-slate-400 hover:text-slate-200 border border-[#1C2230] transition-colors font-medium text-[11.5px]"
+                      className="px-2.5 py-1 rounded-pill bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400 border border-[var(--line)] transition-all font-semibold text-[11.5px] shadow-sm"
                     >
                       Clear Selection
                     </button>
@@ -1257,22 +1251,22 @@ export default function MixpanelValidatorPage({
                 {/* Attribute Groups List */}
                 <div className="p-5 flex-1 overflow-y-auto space-y-4">
                   {allAttributes.length === 0 ? (
-                    <div className="py-8 text-center text-slate-500 text-xs bg-[#080B10] rounded-xl border border-[#1C2230]">
+                    <div className="py-8 text-center text-slate-500 text-xs bg-white/70 dark:bg-slate-950/60 rounded-2xl border border-[var(--line)]">
                       No attributes available for this event.
                     </div>
                   ) : (
                     [
-                      { key: 'MISSING', label: 'Missing', items: groupedAttributes.MISSING, badgeColor: 'text-rose-400 bg-rose-500/10 border-rose-500/25' },
-                      { key: 'INCORRECT', label: 'Incorrect', items: groupedAttributes.INCORRECT, badgeColor: 'text-rose-300 bg-rose-900/30 border-rose-700/40' },
-                      { key: 'EXTRA', label: 'Extra', items: groupedAttributes.EXTRA, badgeColor: 'text-amber-400 bg-amber-500/10 border-amber-500/25' },
-                      { key: 'MATCHED', label: 'Matched', items: groupedAttributes.MATCHED, badgeColor: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/25' }
+                      { key: 'MISSING', label: 'Missing', items: groupedAttributes.MISSING, badgeColor: 'text-rose-600 dark:text-rose-400 bg-rose-500/10 border-rose-500/25' },
+                      { key: 'INCORRECT', label: 'Incorrect', items: groupedAttributes.INCORRECT, badgeColor: 'text-rose-700 dark:text-rose-300 bg-rose-900/10 dark:bg-rose-900/30 border-rose-500/30' },
+                      { key: 'EXTRA', label: 'Extra', items: groupedAttributes.EXTRA, badgeColor: 'text-amber-600 dark:text-amber-400 bg-amber-500/10 border-amber-500/25' },
+                      { key: 'MATCHED', label: 'Matched', items: groupedAttributes.MATCHED, badgeColor: 'text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border-emerald-500/25' }
                     ].map(group => {
                       if (!group.items || group.items.length === 0) return null;
                       return (
                         <div key={group.key} className="space-y-2">
                           {/* Group Section Header */}
-                          <div className="flex items-center justify-between pb-1 border-b border-[#1C2230]">
-                            <span className="text-[12.5px] font-semibold text-slate-300 flex items-center gap-2">
+                          <div className="flex items-center justify-between pb-1 border-b border-[var(--line)]">
+                            <span className="text-[12.5px] font-bold text-slate-800 dark:text-slate-200 flex items-center gap-2">
                               <span>{group.label}</span>
                               <span className={`px-2 py-0.5 rounded-full text-[10.5px] font-mono border ${group.badgeColor}`}>
                                 {group.items.length}
@@ -1292,8 +1286,8 @@ export default function MixpanelValidatorPage({
                                   onClick={() => handleToggleAttr(attr.name)}
                                   className={`p-3 rounded-xl border transition-all cursor-pointer flex items-center justify-between gap-3 ${
                                     isChecked
-                                      ? 'bg-indigo-950/35 border-indigo-500/40 shadow-sm'
-                                      : 'bg-[#080B10] hover:bg-[#141824] border-[#1C2230]'
+                                      ? 'bg-violet-500/15 border-violet-500/40 shadow-sm'
+                                      : 'bg-white/70 dark:bg-slate-950/60 hover:bg-white dark:hover:bg-slate-900 border-[var(--line)] shadow-sm'
                                   }`}
                                 >
                                   {/* Left: Checkbox & Name */}
@@ -1302,31 +1296,31 @@ export default function MixpanelValidatorPage({
                                       type="checkbox"
                                       checked={isChecked}
                                       onChange={() => {}} // handled by row onClick
-                                      className="w-4 h-4 rounded text-indigo-600 bg-[#121826] border-slate-700 focus:ring-0 focus:ring-offset-0 cursor-pointer shrink-0"
+                                      className="w-4 h-4 rounded text-violet-600 bg-white dark:bg-slate-900 border-slate-400 dark:border-slate-700 focus:ring-0 focus:ring-offset-0 cursor-pointer shrink-0"
                                     />
                                     <div className="min-w-0 flex-1">
                                       <div className="flex items-center gap-2">
-                                        <span className="font-mono text-[13px] font-semibold text-white tracking-tight truncate">
+                                        <span className="font-mono text-[13px] font-bold text-slate-900 dark:text-white tracking-tight truncate">
                                           {attr.name}
                                         </span>
                                       </div>
                                       {/* Key Value Details */}
-                                      <div className="text-[11.5px] font-mono text-slate-400 mt-0.5 truncate">
+                                      <div className="text-[11.5px] font-mono text-slate-500 dark:text-slate-400 mt-0.5 truncate">
                                         {group.key === 'MISSING' && (
-                                          <span className="text-slate-400 italic">
+                                          <span className="text-slate-500 italic">
                                             Missing from actual payload {expected !== undefined ? `(Expected: ${formatValueForBug(expected)})` : ''}
                                           </span>
                                         )}
                                         {group.key === 'EXTRA' && (
-                                          <span>Actual: <strong className="text-amber-300">{formatValueForBug(actual)}</strong></span>
+                                          <span>Actual: <strong className="text-amber-600 dark:text-amber-300">{formatValueForBug(actual)}</strong></span>
                                         )}
                                         {group.key === 'INCORRECT' && (
                                           <span>
-                                            Expected: <strong className="text-emerald-400">{formatValueForBug(expected)}</strong> • Actual: <strong className="text-rose-400">{formatValueForBug(actual)}</strong>
+                                            Expected: <strong className="text-emerald-600 dark:text-emerald-400">{formatValueForBug(expected)}</strong> • Actual: <strong className="text-rose-600 dark:text-rose-400">{formatValueForBug(actual)}</strong>
                                           </span>
                                         )}
                                         {group.key === 'MATCHED' && (
-                                          <span>Value: <strong className="text-slate-300">{formatValueForBug(actual)}</strong></span>
+                                          <span>Value: <strong className="text-slate-700 dark:text-slate-300">{formatValueForBug(actual)}</strong></span>
                                         )}
                                       </div>
                                     </div>
@@ -1347,25 +1341,25 @@ export default function MixpanelValidatorPage({
                 </div>
 
                 {/* Selection Footer */}
-                <div className="px-5 py-3.5 bg-[#080B10] border-t border-[#1C2230] flex items-center justify-between shrink-0">
-                  <div className="text-xs text-slate-400">
+                <div className="px-5 py-3.5 bg-slate-50/60 dark:bg-slate-950/60 border-t border-[var(--line)] flex items-center justify-between shrink-0">
+                  <div className="text-xs text-slate-500 dark:text-slate-400">
                     {selectedAttrNames.size === 0 ? (
                       <span>Select at least 1 attribute</span>
                     ) : (
-                      <span>Ready to generate statements for <strong className="text-white">{selectedAttrNames.size}</strong> attribute{selectedAttrNames.size > 1 ? 's' : ''}</span>
+                      <span>Ready to generate statements for <strong className="text-slate-900 dark:text-white">{selectedAttrNames.size}</strong> attribute{selectedAttrNames.size > 1 ? 's' : ''}</span>
                     )}
                   </div>
                   <div className="flex items-center gap-2">
                     <button
                       onClick={handleCloseBugModal}
-                      className="px-3.5 py-1.5 rounded-lg text-xs text-slate-400 hover:text-white hover:bg-[#161B26] transition-colors"
+                      className="px-3.5 py-1.5 rounded-pill text-xs font-semibold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-all"
                     >
                       Cancel
                     </button>
                     <button
                       onClick={handleGenerateBug}
                       disabled={selectedAttrNames.size === 0}
-                      className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-semibold bg-rose-600 hover:bg-rose-500 text-white transition-colors shadow-sm disabled:opacity-40 disabled:cursor-not-allowed"
+                      className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-pill text-xs font-bold bg-rose-600 hover:bg-rose-500 text-white transition-all shadow-md disabled:opacity-40 disabled:cursor-not-allowed"
                     >
                       <Bug className="w-3.5 h-3.5" />
                       <span>Generate Bug ({selectedAttrNames.size})</span>
@@ -1379,9 +1373,9 @@ export default function MixpanelValidatorPage({
             {bugModalView === 'edit' && (
               <>
                 <div className="p-5 flex-1 flex flex-col overflow-hidden space-y-3">
-                  <div className="flex items-center justify-between text-xs text-slate-400">
-                    <span className="font-medium text-slate-300">Edit Bug Description (Redmine-ready)</span>
-                    <span className="text-[11px] text-slate-500">Edit freely — text is not overwritten without confirmation</span>
+                  <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
+                    <span className="font-bold text-slate-800 dark:text-slate-300">Edit Bug Description (Redmine-ready)</span>
+                    <span className="text-[11px] text-slate-400">Edit freely — text is not overwritten without confirmation</span>
                   </div>
 
                   <textarea
@@ -1389,16 +1383,16 @@ export default function MixpanelValidatorPage({
                     value={editableBugText}
                     onChange={(e) => setEditableBugText(e.target.value)}
                     placeholder="No statements generated. Return to selection and select attributes."
-                    className="flex-1 w-full bg-[#080B10] border border-[#1C2230] rounded-xl p-4 text-[13px] font-mono text-slate-200 focus:outline-none focus:border-rose-500/70 resize-none leading-relaxed selection:bg-rose-900/50"
+                    className="flex-1 w-full bg-slate-950 border border-slate-800 rounded-2xl p-4 text-[13px] font-mono text-slate-200 focus:outline-none focus:border-rose-500/70 resize-none leading-relaxed selection:bg-rose-900/50"
                   />
                 </div>
 
                 {/* Edit Footer */}
-                <div className="px-5 py-3.5 bg-[#080B10] border-t border-[#1C2230] flex items-center justify-between shrink-0">
+                <div className="px-5 py-3.5 bg-slate-50/60 dark:bg-slate-950/60 border-t border-[var(--line)] flex items-center justify-between shrink-0">
                   <div className="flex items-center gap-2">
                     <button
                       onClick={handleBackToSelection}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-[#10131B] hover:bg-[#161B26] text-slate-300 border border-[#1C2230] transition-colors"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-pill text-xs font-semibold bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 border border-[var(--line)] transition-all shadow-sm"
                     >
                       <ArrowLeft className="w-3.5 h-3.5 text-slate-400" />
                       <span>Back to Selection</span>
@@ -1406,9 +1400,9 @@ export default function MixpanelValidatorPage({
                     <button
                       onClick={handleRegenerateFromEdit}
                       title="Regenerate statements from selected attributes"
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-[#10131B] hover:bg-[#161B26] text-slate-300 border border-[#1C2230] transition-colors"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-pill text-xs font-semibold bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 border border-[var(--line)] transition-all shadow-sm"
                     >
-                      <RotateCcw className="w-3.5 h-3.5 text-indigo-400" />
+                      <RotateCcw className="w-3.5 h-3.5 text-violet-500" />
                       <span>Regenerate</span>
                     </button>
                   </div>
@@ -1416,17 +1410,17 @@ export default function MixpanelValidatorPage({
                   <div className="flex items-center gap-2">
                     <button
                       onClick={handleCloseBugModal}
-                      className="px-3.5 py-1.5 rounded-lg text-xs text-slate-400 hover:text-white hover:bg-[#161B26] transition-colors"
+                      className="px-3.5 py-1.5 rounded-pill text-xs font-semibold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-all"
                     >
                       Close
                     </button>
                     <button
                       onClick={handleCopyBugText}
                       disabled={!editableBugText.trim()}
-                      className={`inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-semibold transition-all shadow-sm ${
+                      className={`inline-flex items-center gap-1.5 px-4 py-1.5 rounded-pill text-xs font-bold transition-all shadow-md ${
                         bugCopied
                           ? 'bg-emerald-600 text-white'
-                          : 'bg-indigo-600 hover:bg-indigo-500 text-white disabled:opacity-40 disabled:cursor-not-allowed'
+                          : 'bg-violet-600 hover:bg-violet-700 text-white disabled:opacity-40 disabled:cursor-not-allowed'
                       }`}
                     >
                       {bugCopied ? <Check className="w-3.5 h-3.5 text-white" /> : <Copy className="w-3.5 h-3.5" />}
@@ -1442,30 +1436,30 @@ export default function MixpanelValidatorPage({
 
       {/* Confirmation Modal for Overwriting Manual Edits */}
       {confirmRegenOpen && (
-        <div className="fixed inset-0 z-60 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-[#10131B] border border-[#1C2230] rounded-2xl w-full max-w-md p-5 shadow-2xl space-y-4">
+        <div className="fixed inset-0 z-60 bg-black/60 dark:bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="glass dark:bg-slate-900/95 bg-white/95 border border-[var(--line)] rounded-card w-full max-w-md p-6 shadow-2xl space-y-4">
             <div className="flex items-start gap-3">
-              <div className="w-9 h-9 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400 shrink-0">
+              <div className="w-9 h-9 rounded-2xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-500 shrink-0">
                 <AlertTriangle className="w-5 h-5" />
               </div>
               <div>
-                <h4 className="text-sm font-bold text-white">Discard Custom Edits?</h4>
-                <p className="text-xs text-slate-400 mt-1 leading-relaxed">
+                <h4 className="text-sm font-bold text-slate-900 dark:text-white">Discard Custom Edits?</h4>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
                   You have modified the generated bug description. Regenerating will discard your custom changes and replace the text with newly generated statements.
                 </p>
               </div>
             </div>
 
-            <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#1C2230]">
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-[var(--line)]">
               <button
                 onClick={handleCancelRegenerate}
-                className="px-3.5 py-1.5 rounded-lg text-xs text-slate-300 hover:text-white bg-[#080B10] hover:bg-[#161B26] border border-[#1C2230] transition-colors"
+                className="px-3.5 py-1.5 rounded-pill text-xs font-semibold text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white bg-white/80 dark:bg-slate-900/80 hover:bg-white dark:hover:bg-slate-800 border border-[var(--line)] transition-all shadow-sm"
               >
                 Keep My Edits
               </button>
               <button
                 onClick={handleConfirmRegenerate}
-                className="px-4 py-1.5 rounded-lg text-xs font-semibold bg-rose-600 hover:bg-rose-500 text-white transition-colors shadow-sm"
+                className="px-4 py-1.5 rounded-pill text-xs font-bold bg-rose-600 hover:bg-rose-500 text-white transition-all shadow-md"
               >
                 Discard & Regenerate
               </button>
@@ -1476,18 +1470,18 @@ export default function MixpanelValidatorPage({
 
       {/* Confirmation Modal for Clearing Recorded Events */}
       {clearConfirmOpen && (
-        <div className="fixed inset-0 z-60 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-fadeIn">
-          <div className="w-full max-w-md bg-[#10131B] border border-[#1C2230] rounded-2xl shadow-2xl p-6 space-y-4">
+        <div className="fixed inset-0 z-60 bg-black/60 dark:bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-fadeIn">
+          <div className="w-full max-w-md glass dark:bg-slate-900/95 bg-white/95 border border-[var(--line)] rounded-card shadow-2xl p-6 space-y-4">
             <div className="flex items-start gap-3">
-              <div className="w-9 h-9 rounded-xl bg-rose-500/15 border border-rose-500/30 flex items-center justify-center text-rose-400 shrink-0">
-                <Trash2 className="w-5 h-5 text-rose-400" />
+              <div className="w-9 h-9 rounded-2xl bg-rose-500/15 border border-rose-500/30 flex items-center justify-center text-rose-500 shrink-0">
+                <Trash2 className="w-5 h-5 text-rose-500" />
               </div>
               <div>
-                <h3 className="text-sm font-bold text-white">Clear All Recorded Events?</h3>
-                <p className="text-xs text-slate-400 mt-1 leading-relaxed">
-                  All <strong className="text-white">{events.length}</strong> recorded event{events.length === 1 ? '' : 's'} in the current capture session will be permanently removed.
+                <h3 className="text-sm font-bold text-slate-900 dark:text-white">Clear All Recorded Events?</h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
+                  All <strong className="text-slate-900 dark:text-white">{events.length}</strong> recorded event{events.length === 1 ? '' : 's'} in the current capture session will be permanently removed.
                   {activeSession?.status === 'ACTIVE' && (
-                    <span className="block mt-1 text-slate-400">
+                    <span className="block mt-1 text-slate-500 dark:text-slate-400">
                       Active ADB capture will continue running, and newly arriving events will appear normally.
                     </span>
                   )}
@@ -1495,12 +1489,12 @@ export default function MixpanelValidatorPage({
               </div>
             </div>
 
-            <div className="flex items-center justify-end gap-3 pt-2 border-t border-[#1C2230]">
+            <div className="flex items-center justify-end gap-3 pt-2 border-t border-[var(--line)]">
               <button
                 type="button"
                 onClick={() => setClearConfirmOpen(false)}
                 disabled={isClearingEvents}
-                className="px-3.5 py-1.5 rounded-lg bg-[#080B10] hover:bg-[#161B26] text-xs font-medium text-slate-300 border border-[#1C2230] transition-colors cursor-pointer"
+                className="px-3.5 py-1.5 rounded-pill bg-white/80 dark:bg-slate-900/80 hover:bg-white dark:hover:bg-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-300 border border-[var(--line)] transition-all shadow-sm cursor-pointer"
               >
                 Cancel
               </button>
@@ -1508,7 +1502,7 @@ export default function MixpanelValidatorPage({
                 type="button"
                 onClick={handleConfirmClearEvents}
                 disabled={isClearingEvents}
-                className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-xs font-semibold text-white shadow transition-colors cursor-pointer disabled:opacity-50"
+                className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-pill bg-rose-600 hover:bg-rose-500 text-xs font-bold text-white shadow-md transition-all cursor-pointer disabled:opacity-50"
               >
                 <Trash2 className="w-3.5 h-3.5" />
                 <span>{isClearingEvents ? 'Clearing...' : 'Clear Events'}</span>
@@ -1526,37 +1520,37 @@ function getStatusBadge(status) {
   switch (status) {
     case 'MATCHED':
       return (
-        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-[11px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/25">
+        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-pill text-[11px] font-bold bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/25">
           <CheckCircle2 className="w-3 h-3" /> MATCHED
         </span>
       );
     case 'MISSING':
       return (
-        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-[11px] font-bold bg-rose-500/10 text-rose-400 border border-rose-500/25">
+        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-pill text-[11px] font-bold bg-rose-500/10 text-rose-700 dark:text-rose-400 border border-rose-500/25">
           <XCircle className="w-3 h-3" /> MISSING
         </span>
       );
     case 'EXTRA':
       return (
-        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-[11px] font-bold bg-amber-500/10 text-amber-400 border border-amber-500/25">
+        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-pill text-[11px] font-bold bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/25">
           <AlertTriangle className="w-3 h-3" /> EXTRA
         </span>
       );
     case 'INCORRECT':
       return (
-        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-[11px] font-bold bg-rose-900/30 text-rose-300 border border-rose-700/40">
+        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-pill text-[11px] font-bold bg-rose-900/10 dark:bg-rose-900/30 text-rose-800 dark:text-rose-300 border border-rose-500/30">
           <AlertCircle className="w-3 h-3" /> INCORRECT
         </span>
       );
     case 'UNMAPPED':
       return (
-        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-[11px] font-bold bg-slate-800 text-slate-400 border border-slate-700">
+        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-pill text-[11px] font-bold bg-slate-200/60 dark:bg-slate-800 text-slate-700 dark:text-slate-400 border border-slate-300 dark:border-slate-700">
           <HelpCircle className="w-3 h-3" /> UNMAPPED
         </span>
       );
     default:
       return (
-        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-[11px] font-medium bg-slate-800 text-slate-400 border border-slate-700">
+        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-pill text-[11px] font-medium bg-slate-200/60 dark:bg-slate-800 text-slate-700 dark:text-slate-400 border border-slate-300 dark:border-slate-700">
           {status || 'PENDING'}
         </span>
       );

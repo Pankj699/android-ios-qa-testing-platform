@@ -186,6 +186,24 @@ const MIGRATIONS = [
       UPDATE mixpanel_events SET source = 'LEGACY_UNSPECIFIED' WHERE source IS NULL;
       CREATE INDEX IF NOT EXISTS idx_mp_events_source ON mixpanel_events(source);
     `
+  },
+  {
+    name: '009_create_bugdesk_devices_table',
+    up: `
+      CREATE TABLE IF NOT EXISTS bugdesk_devices (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        name VARCHAR(255) NOT NULL,
+        os VARCHAR(255) NOT NULL,
+        manufacturer VARCHAR(255),
+        model VARCHAR(255),
+        normalized_key VARCHAR(512) UNIQUE NOT NULL,
+        created_by_user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_bugdesk_devices_created_at ON bugdesk_devices(created_at);
+      CREATE INDEX IF NOT EXISTS idx_bugdesk_devices_normalized_key ON bugdesk_devices(normalized_key);
+    `
   }
 ];
 

@@ -1,13 +1,40 @@
 export function buildHeading(report) {
+  if (!report) return "";
   const roundPart = report.round && typeof report.round === "string" && report.round.trim()
     ? ` (${report.round.trim()})`
     : "";
-  return `${report.project} ${report.module}${roundPart} : ${report.title}`;
+  return `${report.project || ""} ${report.module || ""}${roundPart} : ${report.title || ""}`.trim();
 }
 
 /** Steps formatted as "1. Step text" */
 function buildStepsLines(steps = []) {
   return steps.map((step, i) => `${i + 1}. ${step}`);
+}
+
+/**
+ * Formats user-entered notes into lines prefixed with "Note: ".
+ * Returns an empty array if notes is empty or whitespace.
+ * Avoids duplicate "Note: Note: " prefixes if user already typed it.
+ */
+export function getNoteLines(notes) {
+  if (!notes || typeof notes !== "string" || !notes.trim()) return [];
+  const rawLines = notes.trim().split(/\r?\n/);
+  while (rawLines.length > 0 && !rawLines[0].trim()) rawLines.shift();
+  while (rawLines.length > 0 && !rawLines[rawLines.length - 1].trim()) rawLines.pop();
+  if (rawLines.length === 0) return [];
+
+  const first = rawLines[0].trim();
+  const firstPrefixed = /^note:\s*/i.test(first)
+    ? `Note: ${first.replace(/^note:\s*/i, "").trim()}`
+    : `Note: ${first}`;
+
+  return [firstPrefixed, ...rawLines.slice(1).map((l) => l.trim())];
+}
+
+export function formatNoteDisplay(notes) {
+  if (!notes || typeof notes !== "string" || !notes.trim()) return "";
+  const lines = getNoteLines(notes);
+  return lines.join("\n");
 }
 
 /**
@@ -19,9 +46,9 @@ export function buildBodyLines(report) {
 
   lines.push("Follow the following steps & generate the issue.");
   lines.push("");
-  lines.push(...buildStepsLines(report.steps || []));
+  lines.push(...buildStepsLines(report?.steps || []));
 
-  if (report.includeResults) {
+  if (report?.includeResults) {
     lines.push("");
     lines.push("Actual Result");
     lines.push(report.actualResult || "Analysing by given steps");
@@ -30,26 +57,36 @@ export function buildBodyLines(report) {
     lines.push(report.expectedResult || "Analysing by given steps");
   }
 
-  if (report.attachmentUrl) {
+  if (report?.attachmentUrl) {
     lines.push("");
     lines.push(report.attachmentUrl);
   }
 
+  const noteLines = getNoteLines(report?.notes !== undefined ? report?.notes : report?.note);
+  if (noteLines.length > 0) {
+    lines.push("");
+    lines.push(...noteLines);
+  }
+
   lines.push("");
   lines.push("QA Suggestion:");
-  lines.push(report.qaSuggestion || "-");
+  lines.push(report?.qaSuggestion || "-");
   lines.push("");
   lines.push("Note for Developer: Check all options after applying the solution.");
   lines.push("");
-  lines.push(`Is it generated every time? => ${report.generatedEveryTime ? "Yes" : "No"}`);
-  lines.push(`is it generated in Live version? => ${report.generatedInLive ? "Yes" : "No"}`);
-  lines.push(`Did you attach a Image/Video of the issue? => ${report.hasAttachment ? "Yes" : "No"}`);
+  lines.push(`Is it generated every time? => ${report?.generatedEveryTime ? "Yes" : "No"}`);
+  lines.push(`is it generated in Live version? => ${report?.generatedInLive ? "Yes" : "No"}`);
+  lines.push(`Did you attach a Image/Video of the issue? => ${report?.hasAttachment ? "Yes" : "No"}`);
 
   return lines;
 }
 
 export function buildBodyText(report) {
-  return buildBodyLines(report).map((line) => (isBoldLine(line) ? `*${line}*` : line)).join("\n");
+  const noteLines = getNoteLines(report?.notes !== undefined ? report?.notes : report?.note);
+  const noteLinesSet = new Set(noteLines.filter(Boolean));
+  return buildBodyLines(report)
+    .map((line) => (line !== "" && isBoldLine(line, noteLinesSet) ? `*${line}*` : line))
+    .join("\n");
 }
 
 export function buildPMSReportText(report) {
@@ -64,9 +101,12 @@ const BOLD_LINES = new Set([
   "Note for Developer: Check all options after applying the solution.",
 ]);
 
-function isBoldLine(line) {
+export function isBoldLine(line, noteLinesSet = null) {
+  if (!line || typeof line !== "string") return false;
+  if (noteLinesSet && noteLinesSet.has(line)) return true;
   return (
     BOLD_LINES.has(line) ||
+    line.startsWith("Note:") ||
     line.startsWith("Is it generated every time? =>") ||
     line.startsWith("is it generated in Live version? =>") ||
     line.startsWith("Did you attach a Image/Video of the issue? =>")
@@ -77,17 +117,44 @@ function escapeHtml(text) {
   return text
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;");
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+function linkifyHtml(safeText) {
+  return safeText.replace(/(https?:\/\/[^\s<>"'`]+)/g, (matched) => {
+    let url = matched;
+    let trailing = "";
+    while (url.length > 0 && /[.,;:!?)]$/.test(url)) {
+      if (url.endsWith(")")) {
+        const openCount = (url.match(/\(/g) || []).length;
+        const closeCount = (url.match(/\)/g) || []).length;
+        if (closeCount > openCount) {
+          trailing = url.slice(-1) + trailing;
+          url = url.slice(0, -1);
+          continue;
+        }
+        break;
+      }
+      trailing = url.slice(-1) + trailing;
+      url = url.slice(0, -1);
+    }
+    return `<a href="${url}" target="_blank" rel="noopener noreferrer" style="color: #7c6cf6; text-decoration: underline;">${url}</a>${trailing}`;
+  });
 }
 
 export function buildPMSReportHTML(report) {
+  const noteLines = getNoteLines(report?.notes !== undefined ? report?.notes : report?.note);
+  const noteLinesSet = new Set(noteLines.filter(Boolean));
   const allLines = [buildHeading(report), "", ...buildBodyLines(report)];
   const htmlLines = allLines.map((line) => {
     if (line === "") return "<div>&nbsp;</div>";
     const safe = escapeHtml(line);
-    return isBoldLine(line) ? `<div><b>${safe}</b></div>` : `<div>${safe}</div>`;
+    const linkified = linkifyHtml(safe);
+    return isBoldLine(line, noteLinesSet) ? `<div><b>${linkified}</b></div>` : `<div>${linkified}</div>`;
   });
-  return `<div style="font-family: ui-monospace, monospace; white-space: pre-wrap;">${htmlLines.join("")}</div>`;
+  return `<div style="font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; white-space: pre-wrap;">${htmlLines.join("")}</div>`;
 }
 
 function copyTextFallback(text) {

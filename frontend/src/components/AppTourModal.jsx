@@ -174,21 +174,21 @@ export default function AppTourModal({ isOpen, onClose, onNavigate }) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fadeIn">
-      <div className="w-full max-w-2xl bg-[#131924] border border-[#1E2638] rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+      <div className="w-full max-w-2xl glass rounded-2xl border border-[var(--line)] shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
         {/* Modal Header */}
-        <div className="px-6 py-4 border-b border-[#1E2638] flex items-center justify-between bg-[#0D111A]">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-[#261D10] border border-[#78350F] flex items-center justify-center text-[#F59E0B]">
-              <Compass className="w-4 h-4" />
+        <div className="px-6 py-4 border-b border-[var(--line)] flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-[var(--violet)] to-[var(--pink)] flex items-center justify-center text-white shadow-md shadow-[var(--violet)]/20">
+              <Compass className="w-5 h-5" />
             </div>
             <div>
-              <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+              <span className="text-[11px] font-bold text-[var(--muted)] uppercase tracking-wider">
                 {step.category}
               </span>
               <div className="flex items-center gap-2">
-                <span className="text-sm font-bold text-white">Interactive App Tour</span>
-                <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-[#261D10] text-[#F59E0B] border border-[#78350F]">
+                <span className="text-sm font-bold text-[var(--ink)]">Interactive App Tour</span>
+                <span className="chip-badge chip-badge-primary text-[10px]">
                   {step.badge}
                 </span>
               </div>
@@ -197,7 +197,7 @@ export default function AppTourModal({ isOpen, onClose, onNavigate }) {
 
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-[#1E2638] transition-colors"
+            className="p-1.5 rounded-xl text-[var(--muted)] hover:text-[var(--ink)] hover:bg-[var(--card)] transition-colors cursor-pointer"
             title="Close Tour (Esc)"
           >
             <X className="w-5 h-5" />
@@ -207,26 +207,26 @@ export default function AppTourModal({ isOpen, onClose, onNavigate }) {
         {/* Modal Body */}
         <div className="p-6 overflow-y-auto space-y-5 flex-1">
           {/* Main Card */}
-          <div className="p-5 rounded-xl bg-[#0A0D14] border border-[#1E2638] space-y-4">
+          <div className="p-5 rounded-2xl glass border border-[var(--line)] space-y-4">
             <div className="flex items-start gap-3.5">
-              <div className="w-10 h-10 rounded-xl bg-[#261D10] border border-[#78350F] flex items-center justify-center text-[#F59E0B] shrink-0 mt-0.5">
+              <div className="w-10 h-10 rounded-xl bg-[var(--violet)]/10 text-[var(--violet)] flex items-center justify-center shrink-0 mt-0.5">
                 <StepIcon className="w-5 h-5" />
               </div>
               <div className="space-y-1 flex-1">
-                <h3 className="text-base font-bold text-white">{step.title}</h3>
-                <p className="text-xs text-slate-300 leading-relaxed">{step.description}</p>
+                <h3 className="text-base font-bold text-[var(--ink)]">{step.title}</h3>
+                <p className="text-xs text-[var(--muted)] leading-relaxed">{step.description}</p>
               </div>
             </div>
 
             {/* Feature Highlights */}
-            <div className="space-y-2 pt-2 border-t border-[#1E2638]">
-              <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide">
+            <div className="space-y-2 pt-2 border-t border-[var(--line)]">
+              <span className="text-[11px] font-semibold text-[var(--muted)] uppercase tracking-wide">
                 Key Features & Actions:
               </span>
               <ul className="space-y-1.5">
                 {step.highlights.map((hl, idx) => (
-                  <li key={idx} className="flex items-start gap-2 text-xs text-slate-200">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-[#F59E0B] shrink-0 mt-0.5" />
+                  <li key={idx} className="flex items-start gap-2 text-xs text-[var(--ink)]">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0 mt-0.5" />
                     <span>{hl}</span>
                   </li>
                 ))}
@@ -235,20 +235,20 @@ export default function AppTourModal({ isOpen, onClose, onNavigate }) {
 
             {/* QA Pro Tip Box */}
             {step.tip && (
-              <div className="p-3 rounded-lg bg-[#261D10] border border-[#78350F] flex items-start gap-2.5 text-xs text-[#F59E0B]">
-                <Sparkles className="w-4 h-4 text-[#F59E0B] shrink-0 mt-0.5" />
-                <p><span className="font-bold text-[#F59E0B]">QA Pro Tip: </span><span className="text-amber-200/90">{step.tip}</span></p>
+              <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-start gap-2.5 text-xs text-amber-700 dark:text-amber-300">
+                <Sparkles className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+                <p><span className="font-bold text-amber-600 dark:text-amber-400">QA Pro Tip: </span><span>{step.tip}</span></p>
               </div>
             )}
           </div>
 
           {/* Quick jump to tab action */}
           {step.tab && (
-            <div className="flex items-center justify-between p-3 rounded-xl bg-[#0A0D14] border border-[#1E2638] text-xs text-slate-400">
+            <div className="flex items-center justify-between p-3.5 rounded-xl glass border border-[var(--line)] text-xs text-[var(--muted)]">
               <span>Want to explore this section in the app?</span>
               <button
                 onClick={handleGoToTab}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#1E2638] hover:bg-[#263248] text-slate-200 hover:text-white font-medium border border-[#334155] transition-colors"
+                className="btn-soft flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[var(--violet)] font-semibold transition-all cursor-pointer"
               >
                 <span>Jump to {step.category} Tab</span>
                 <ExternalLink className="w-3.5 h-3.5" />
@@ -258,7 +258,7 @@ export default function AppTourModal({ isOpen, onClose, onNavigate }) {
         </div>
 
         {/* Modal Footer Controls */}
-        <div className="px-6 py-4 border-t border-[#1E2638] bg-[#0D111A] flex items-center justify-between">
+        <div className="px-6 py-4 border-t border-[var(--line)] flex items-center justify-between">
           {/* Progress Indicators */}
           <div className="flex items-center gap-1.5">
             {TOUR_STEPS.map((_, idx) => (
@@ -267,13 +267,13 @@ export default function AppTourModal({ isOpen, onClose, onNavigate }) {
                 onClick={() => setCurrentStep(idx)}
                 className={`h-2 rounded-full transition-all ${
                   idx === currentStep
-                    ? 'w-6 bg-[#F59E0B]'
-                    : 'w-2 bg-[#1E2638] hover:bg-slate-600'
+                    ? 'w-6 bg-[var(--violet)]'
+                    : 'w-2 bg-[var(--line)] hover:bg-[var(--violet)]/40'
                 }`}
                 title={`Step ${idx + 1}`}
               />
             ))}
-            <span className="text-xs text-slate-400 ml-2 font-mono">
+            <span className="text-xs text-[var(--muted)] ml-2 font-mono">
               {currentStep + 1} / {TOUR_STEPS.length}
             </span>
           </div>
@@ -283,7 +283,7 @@ export default function AppTourModal({ isOpen, onClose, onNavigate }) {
             {!isFirst && (
               <button
                 onClick={() => setCurrentStep((prev) => prev - 1)}
-                className="px-3.5 py-2 rounded-xl bg-[#1E2638] hover:bg-[#263248] text-xs font-semibold text-slate-300 hover:text-white border border-[#334155] transition-colors flex items-center gap-1.5"
+                className="btn-soft px-3.5 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
               >
                 <ChevronLeft className="w-4 h-4" />
                 <span>Back</span>
@@ -293,7 +293,7 @@ export default function AppTourModal({ isOpen, onClose, onNavigate }) {
             {isLast ? (
               <button
                 onClick={onClose}
-                className="px-4 py-2 rounded-xl bg-[#F59E0B] hover:bg-[#D97706] text-xs font-bold text-black shadow-lg shadow-amber-500/10 transition-all flex items-center gap-1.5"
+                className="btn-magic px-4 py-2 rounded-xl text-xs font-bold text-white shadow-md flex items-center gap-1.5 cursor-pointer"
               >
                 <CheckCircle2 className="w-4 h-4" />
                 <span>Finish Tour</span>
@@ -301,7 +301,7 @@ export default function AppTourModal({ isOpen, onClose, onNavigate }) {
             ) : (
               <button
                 onClick={() => setCurrentStep((prev) => prev + 1)}
-                className="px-4 py-2 rounded-xl bg-[#F59E0B] hover:bg-[#D97706] text-xs font-bold text-black shadow-lg shadow-amber-500/10 transition-all flex items-center gap-1.5"
+                className="btn-magic px-4 py-2 rounded-xl text-xs font-bold text-white shadow-md flex items-center gap-1.5 cursor-pointer"
               >
                 <span>Next</span>
                 <ChevronRight className="w-4 h-4" />

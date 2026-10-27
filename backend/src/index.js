@@ -29,6 +29,7 @@ const driveRoutes = require('./routes/driveRoutes');
 const recordingRoutes = require('./routes/recordingRoutes');
 const mixpanelRoutes = require('./routes/mixpanelRoutes');
 const bugDeskRoutes = require('./routes/bugDeskRoutes');
+const remoteConfigRoutes = require('./routes/remoteConfigRoutes');
 const bundletoolService = require('./services/bundletoolService');
 
 const healthRoutes = require('./routes/healthRoutes');
@@ -65,6 +66,10 @@ app.use('/api/drive', driveRoutes);
 app.use('/api', recordingRoutes);
 app.use('/api/mixpanel', mixpanelRoutes);
 app.use('/api', bugDeskRoutes);
+app.use('/api/remote-config', remoteConfigRoutes);
+app.use('/api/remote-configs', remoteConfigRoutes);
+app.use('/api/remoteconfig', remoteConfigRoutes);
+app.use('/api/RemoteConfig', remoteConfigRoutes);
 
 // Serve Frontend build in production if present
 const frontendDist = path.join(__dirname, '../../frontend/dist');

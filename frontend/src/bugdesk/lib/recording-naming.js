@@ -38,3 +38,38 @@ export function generateRecordingFilename({
   }
   return `${pPart}_${mPart}_${timestamp}.${cleanExt}`;
 }
+
+/**
+ * Generates standardized, sanitized filenames for direct Screen Mirror recordings.
+ * Example: screen-recording-Samsung-SM-M176B-2026-10-23-174530.webm
+ */
+export function generateScreenMirrorFilename({
+  device = null,
+  ext = 'webm',
+  date = new Date()
+} = {}) {
+  const sanitize = (str) =>
+    (str || '')
+      .trim()
+      .replace(/[^a-zA-Z0-9_-]/g, '-')
+      .replace(/-+/g, '-')
+      .replace(/^-|-$/g, '');
+
+  const rawDeviceName = device?.name || device?.model || device?.serial || 'device';
+  const devicePart = sanitize(rawDeviceName) || 'device';
+
+  const pad = (n) => String(n).padStart(2, '0');
+  const YYYY = date.getFullYear();
+  const MM = pad(date.getMonth() + 1);
+  const DD = pad(date.getDate());
+  const dateStr = `${YYYY}-${MM}-${DD}`;
+
+  const hh = pad(date.getHours());
+  const mm = pad(date.getMinutes());
+  const ss = pad(date.getSeconds());
+  const timeStr = `${hh}${mm}${ss}`;
+
+  const cleanExt = (ext || 'webm').replace(/^\./, '');
+  return `screen-recording-${devicePart}-${dateStr}-${timeStr}.${cleanExt}`;
+}
+
