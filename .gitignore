@@ -26,6 +26,8 @@ scratch_*
 # Backend Runtime Persistence Data and Uploads
 backend/data/*
 !backend/data/.gitkeep
+!backend/data/device_images
+!backend/data/device_images/**
 backend/data/apks/*
 !backend/data/apks/.gitkeep
 backend/data/screenshots/*
