@@ -318,13 +318,8 @@ export default function ScreenMirrorView({ device, onClose, onStopMirror, isActi
     };
   }, []);
 
-  // Dynamic scale calculation when in Fullscreen Mode
+  // Dynamic scale calculation for fitting phone preview into center viewport
   const calculateFittedScreenSize = useCallback(() => {
-    if (!isFullscreen) {
-      setScreenDisplaySize({ width: null, height: null });
-      return;
-    }
-
     const container = viewportRef.current;
     if (!container) return;
     const containerW = container.clientWidth;
@@ -344,9 +339,9 @@ export default function ScreenMirrorView({ device, onClose, onStopMirror, isActi
 
     const aspectRatio = streamW / streamH;
 
-    // Fullscreen scaling: maximize to available fullscreen viewport
-    const availW = Math.max(100, containerW - 32);
-    const availH = Math.max(100, containerH - 32);
+    // Available space accounting for top device info bar (~38px), notch (~8px), softkeys (~36px), and container padding (~20px)
+    const availW = Math.max(100, containerW - 20);
+    const availH = Math.max(100, containerH - (isFullscreen ? 36 : 94));
 
     let targetW, targetH;
     if (availW / availH > aspectRatio) {
@@ -1493,107 +1488,85 @@ export default function ScreenMirrorView({ device, onClose, onStopMirror, isActi
   return (
     <div
       ref={containerRef}
-      className={`relative flex flex-col text-[#FFFFFF] shadow-2xl overflow-hidden transition-all duration-150 ${
+      className={`relative flex flex-row text-[#FFFFFF] shadow-2xl overflow-hidden transition-all duration-150 ${
         isFullscreen
           ? 'w-full h-full bg-[#070A10] rounded-none border-0'
-          : 'w-full h-full max-h-[880px] bg-[#0B0F19] rounded-2xl border border-[#1E2638]'
+          : 'w-full h-full min-h-[520px] max-h-[92vh] bg-[#0B0F19] rounded-2xl border border-[#1E2638]'
       }`}
     >
-      {/* Top Header Bar */}
-      <div className="px-5 py-3 bg-[#131924] border-b border-[#1E2638] flex flex-wrap items-center justify-between gap-3 shrink-0">
-        <div className="flex items-center gap-3.5 min-w-0">
-          <DeviceThumbnail device={device} size="header" className="shadow-md shrink-0" />
-          <div className="min-w-0 space-y-1">
-            <div className="flex items-center gap-2">
-              <h3 className="font-bold text-sm text-[#FFFFFF] truncate max-w-[280px]" title={formatDeviceDisplayName(device)}>
-                {formatDeviceDisplayName(device)}
-              </h3>
-              {mirrorStatus === 'live' && (
-                <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 shrink-0">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                  LIVE MIRROR
-                </span>
-              )}
-              {mirrorStatus === 'connecting' && (
-                <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/15 text-[#F59E0B] border border-amber-500/30 shrink-0">
-                  <RefreshCw className="w-2.5 h-2.5 animate-spin" />
-                  CONNECTING
-                </span>
-              )}
-              {mirrorStatus === 'waiting_for_frame' && (
-                <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/15 text-[#F59E0B] border border-amber-500/30 shrink-0">
-                  <RefreshCw className="w-2.5 h-2.5 animate-spin" />
-                  WAITING FOR VIDEO
-                </span>
-              )}
-              {mirrorStatus === 'error' && (
-                <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/15 text-rose-400 border border-rose-500/30 shrink-0">
-                  ERROR
-                </span>
-              )}
-            </div>
-            <p className="text-[11px] text-[#64748B] font-mono truncate">{device?.serial}</p>
+      {/* 1. LEFT PANEL – Actions (~104px) */}
+      <aside
+        className="w-[60px] sm:w-[84px] md:w-[104px] shrink-0 bg-[#0D111A] border-r border-[#1E2638] flex flex-col items-center justify-between p-2 sm:p-2.5 overflow-y-auto select-none z-10"
+        aria-label="Screen Mirror Actions"
+      >
+        {/* Top Actions: Quality, Screenshot, Record, Refresh, Power */}
+        <div className="w-full flex flex-col items-center gap-2">
+          {/* 1. Resolution / Quality Selector */}
+          <div className="w-full flex flex-col items-center">
+            <span className="hidden md:block text-[9px] font-mono tracking-wider text-[#64748B] uppercase mb-1">
+              Quality
+            </span>
+            <CustomSelect
+              value={qualityPreset}
+              onChange={(val) => handleQualityChange(val?.target ? val.target.value : val)}
+              disabled={mirrorStatus === 'connecting' || isRecording}
+              options={[
+                { value: '1080p', label: '1080p' },
+                { value: '720p', label: '720p' },
+                { value: '480p', label: '480p' }
+              ]}
+              className="h-7 sm:h-8 w-full text-[11px] sm:text-xs font-semibold px-1 sm:px-2 rounded-lg"
+              title="Streaming Resolution Preset"
+            />
           </div>
-        </div>
 
-        {/* Action Controls */}
-        <div className="flex items-center gap-2">
-          {/* Quality Preset */}
-          <CustomSelect
-            value={qualityPreset}
-            onChange={(val) => handleQualityChange(val?.target ? val.target.value : val)}
-            disabled={mirrorStatus === 'connecting' || isRecording}
-            options={[
-              { value: '1080p', label: '1080p (High Res)' },
-              { value: '720p', label: '720p (Low Latency)' },
-              { value: '480p', label: '480p (Fast)' }
-            ]}
-            className="h-8 w-44 text-xs font-semibold"
-            title="Streaming Resolution Preset"
-          />
-
-          {/* Screenshot Button */}
+          {/* 2. Screenshot Button */}
           <button
+            type="button"
             onClick={handleTakeScreenshot}
             disabled={isTakingScreenshot || mirrorStatus !== 'live'}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#261D10] hover:bg-[#3D2C15] disabled:opacity-50 border border-[#78350F] text-xs font-bold text-[#F59E0B] transition-all shadow-sm group cursor-pointer"
-            title="Take instantaneous high-resolution PNG screenshot"
+            className="w-full flex flex-col items-center justify-center p-1.5 sm:p-2 rounded-xl bg-[#261D10] hover:bg-[#3D2C15] disabled:opacity-40 border border-[#78350F] text-[#F59E0B] transition-all shadow-sm group cursor-pointer"
+            title="Take Screenshot"
           >
-            <Camera className={`w-3.5 h-3.5 text-[#F59E0B] ${isTakingScreenshot ? 'animate-bounce' : 'group-hover:scale-110'} transition-transform`} />
-            <span className="hidden sm:inline">{isTakingScreenshot ? 'Capturing...' : 'Screenshot'}</span>
+            <Camera className={`w-4 h-4 text-[#F59E0B] ${isTakingScreenshot ? 'animate-bounce' : 'group-hover:scale-110'} transition-transform`} />
+            <span className="hidden md:inline text-[10px] font-bold mt-1 text-center">
+              {isTakingScreenshot ? 'Capturing...' : 'Screenshot'}
+            </span>
           </button>
 
-          {/* Screen Recording Controls */}
+          {/* 3. Screen Recording Button */}
           {isRecording ? (
-            <div className="flex items-center gap-2">
-              <span className="flex items-center gap-1.5 px-2.5 py-1 bg-rose-500/20 text-rose-400 border border-rose-500/40 rounded-lg text-xs font-mono font-bold animate-pulse">
-                <span className="w-2 h-2 rounded-full bg-rose-500"></span>
-                REC {formatDuration(recordingDurationSec)}
+            <div className="w-full flex flex-col items-center gap-1">
+              <span className="w-full text-center px-1 py-0.5 bg-rose-500/20 text-rose-400 border border-rose-500/40 rounded-lg text-[9px] sm:text-[10px] font-mono font-bold animate-pulse truncate">
+                {formatDuration(recordingDurationSec)}
               </span>
               <button
+                type="button"
                 onClick={handleStopRecordingUnified}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-xs font-bold text-white shadow-sm transition-all cursor-pointer"
-                title="Stop screen recording and auto-publish or preview video"
+                className="w-full flex flex-col items-center justify-center p-1.5 sm:p-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white shadow-sm transition-all cursor-pointer"
+                title="Stop Recording"
               >
-                <Square className="w-3.5 h-3.5 fill-current" />
-                <span>Stop Recording</span>
+                <Square className="w-4 h-4 fill-current" />
+                <span className="hidden md:inline text-[10px] font-bold mt-1">Stop</span>
               </button>
             </div>
           ) : (
             <button
+              type="button"
               onClick={handleStartRecordingUnified}
               disabled={mirrorStatus !== 'live'}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#0D111A] hover:bg-[#1E2638] hover:border-rose-500/40 disabled:opacity-50 border border-[#1E2638] text-xs font-bold text-[#CBD5E1] hover:text-rose-400 transition-all shadow-sm group cursor-pointer"
-              title="Start recording the current streaming screen"
+              className="w-full flex flex-col items-center justify-center p-1.5 sm:p-2 rounded-xl bg-[#0D111A] hover:bg-[#1E2638] hover:border-rose-500/40 disabled:opacity-40 border border-[#1E2638] text-[#CBD5E1] hover:text-rose-400 transition-all shadow-sm group cursor-pointer"
+              title="Start Recording"
             >
-              <Disc className="w-3.5 h-3.5 text-rose-400 group-hover:scale-110 transition-transform" />
-              <span>Start Recording</span>
+              <Disc className="w-4 h-4 text-rose-400 group-hover:scale-110 transition-transform" />
+              <span className="hidden md:inline text-[10px] font-bold mt-1 text-center">Record</span>
             </button>
           )}
 
-          {/* Download Recording (visible after recording completes, hidden during recording) */}
+          {/* Download Completed Recording if available */}
           {completedRecording && !isRecording && (
             <button
+              type="button"
               onClick={() => {
                 try {
                   const a = document.createElement('a');
@@ -1608,118 +1581,167 @@ export default function ScreenMirrorView({ device, onClose, onStopMirror, isActi
                   toast.error('Failed to download recording');
                 }
               }}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 text-xs font-bold text-emerald-400 hover:text-emerald-300 transition-all shadow-sm group cursor-pointer"
-              title="Download the completed screen recording to your computer"
+              className="w-full flex flex-col items-center justify-center p-1.5 sm:p-2 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 hover:text-emerald-300 transition-all shadow-sm group cursor-pointer"
+              title={`Download ${completedRecording.filename}`}
             >
-              <Download className="w-3.5 h-3.5 text-emerald-400 group-hover:scale-110 transition-transform" />
-              <span className="hidden sm:inline">Download Recording</span>
+              <Download className="w-4 h-4 text-emerald-400 group-hover:scale-110 transition-transform" />
+              <span className="hidden md:inline text-[10px] font-bold mt-1 text-center">Download</span>
             </button>
           )}
 
-          {/* Reconnect / Refresh */}
+          {/* 4. Refresh Connection Button */}
           <button
+            type="button"
             onClick={handleRetry}
             disabled={isRecording}
-            className="p-1.5 rounded-lg bg-[#1E2638] hover:bg-[#263248] disabled:opacity-40 text-[#CBD5E1] hover:text-[#FFFFFF] transition-colors border border-[#334155] cursor-pointer"
+            className="w-full flex flex-col items-center justify-center p-1.5 sm:p-2 rounded-xl bg-[#1E2638] hover:bg-[#263248] disabled:opacity-40 text-[#CBD5E1] hover:text-[#FFFFFF] transition-colors border border-[#334155] cursor-pointer"
             title="Restart Mirror Stream"
           >
-            <RefreshCw className="w-3.5 h-3.5" />
+            <RefreshCw className="w-4 h-4" />
+            <span className="hidden md:inline text-[10px] font-bold mt-1">Refresh</span>
           </button>
 
-          {/* Explicit Stop Mirror Session */}
+          {/* 5. Power (Stop Mirror Session) Button */}
           <button
+            type="button"
             onClick={handleExplicitStopMirror}
             disabled={mirrorStatus === 'stopped'}
-            className="p-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/25 disabled:opacity-40 text-rose-400 hover:text-rose-300 transition-colors border border-rose-500/30 cursor-pointer"
+            className="w-full flex flex-col items-center justify-center p-1.5 sm:p-2 rounded-xl bg-rose-500/10 hover:bg-rose-500/25 disabled:opacity-40 text-rose-400 hover:text-rose-300 transition-colors border border-rose-500/30 cursor-pointer"
             title="Stop Screen Mirror session on device"
           >
-            <Power className="w-3.5 h-3.5" />
+            <Power className="w-4 h-4" />
+            <span className="hidden md:inline text-[10px] font-bold mt-1">Power</span>
           </button>
+        </div>
 
-          {/* Fullscreen Video Player Toggle */}
+        {/* Bottom Actions: Expand/Restore, Close */}
+        <div className="w-full flex flex-col items-center gap-2 pt-2 border-t border-[#1E2638]/70">
+          {/* 6. Expand / Restore Button */}
           <button
+            type="button"
             onClick={toggleFullscreen}
-            className={`flex items-center gap-1.5 p-1.5 sm:px-2.5 sm:py-1.5 rounded-lg text-xs font-semibold border transition-all cursor-pointer ${
+            className={`w-full flex flex-col items-center justify-center p-1.5 sm:p-2 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
               isFullscreen
                 ? 'bg-amber-500/20 text-[#F59E0B] border-amber-500/40 hover:bg-amber-500/30'
                 : 'bg-[#1E2638] hover:bg-[#263248] text-[#CBD5E1] hover:text-[#FFFFFF] border-[#334155]'
             }`}
-            title={isFullscreen ? 'Exit Fullscreen (Press ESC)' : 'Enter Fullscreen'}
+            title={isFullscreen ? 'Restore' : 'Expand'}
             aria-label={isFullscreen ? 'Exit Fullscreen' : 'Enter Fullscreen'}
           >
-            {isFullscreen ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
-            <span className="hidden sm:inline">{isFullscreen ? 'Collapse' : 'Expand'}</span>
+            {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+            <span className="hidden md:inline text-[10px] font-bold mt-1">
+              {isFullscreen ? 'Restore' : 'Expand'}
+            </span>
           </button>
 
-          {/* Close button if provided */}
+          {/* 7. Close Screen Mirror Button */}
           {onClose && (
             <button
+              type="button"
               onClick={handleRequestClose}
-              className="p-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 transition-colors cursor-pointer"
-              title="Close Mirror"
+              className="w-full flex flex-col items-center justify-center p-1.5 sm:p-2 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 transition-colors cursor-pointer"
+              title="Close Screen Mirror"
             >
               <X className="w-4 h-4" />
+              <span className="hidden md:inline text-[10px] font-bold mt-1">Close</span>
             </button>
           )}
         </div>
-      </div>
+      </aside>
 
-      {/* Main Viewport Body */}
-      <div
+      {/* 2. CENTER PANEL – Phone Preview */}
+      <main
         ref={viewportRef}
-        className={`relative flex-1 w-full min-h-0 flex flex-col items-center justify-center select-none overflow-hidden ${
-          isFullscreen ? 'p-3 bg-[#05070D]' : 'p-4 bg-[#070A10]'
-        }`}
+        className="flex-1 min-w-0 h-full bg-[#070A10] flex flex-col items-center justify-between p-2 sm:p-3 overflow-hidden relative select-none"
       >
         {/* Shutter Camera Flash Animation */}
         {isShutterActive && (
           <div className="absolute inset-0 bg-white/70 z-30 animate-fadeOut pointer-events-none" />
         )}
 
+        {/* Compact Top Device Header Bar */}
+        <div className="w-full flex items-center justify-between px-3 py-1.5 rounded-xl bg-[#0D111A]/90 border border-[#1E2638] shrink-0 mb-1">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <DeviceThumbnail device={device} size="xs" className="shadow-xs shrink-0" />
+            <span className="font-bold text-xs text-[#FFFFFF] truncate max-w-[160px] sm:max-w-[280px]" title={formatDeviceDisplayName(device)}>
+              {formatDeviceDisplayName(device)}
+            </span>
+            <span className="hidden sm:inline font-mono text-[10px] text-[#64748B] truncate">
+              {device?.serial}
+            </span>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            {mirrorStatus === 'live' && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                LIVE MIRROR
+              </span>
+            )}
+            {mirrorStatus === 'connecting' && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold bg-amber-500/15 text-[#F59E0B] border border-amber-500/30">
+                <RefreshCw className="w-2.5 h-2.5 animate-spin" />
+                CONNECTING
+              </span>
+            )}
+            {mirrorStatus === 'waiting_for_frame' && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold bg-amber-500/15 text-[#F59E0B] border border-amber-500/30">
+                <RefreshCw className="w-2.5 h-2.5 animate-spin" />
+                WAITING
+              </span>
+            )}
+            {mirrorStatus === 'error' && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold bg-rose-500/15 text-rose-400 border border-rose-500/30">
+                ERROR
+              </span>
+            )}
+          </div>
+        </div>
+
         {/* Dynamic Aspect-Ratio Scaled Android Screen Frame */}
         <div
-          className={`relative flex flex-col items-center justify-center transition-all ${
+          className={`relative flex flex-col items-center justify-center transition-all my-auto ${
             isFullscreen
               ? 'rounded-2xl border-2 border-[#1E2638] bg-black shadow-2xl overflow-hidden'
               : 'rounded-3xl border-4 border-[#1E2638] bg-black shadow-2xl p-1.5'
           }`}
           style={
-            isFullscreen && screenDisplaySize.width && screenDisplaySize.height
+            screenDisplaySize.width && screenDisplaySize.height
               ? {
-                  width: `${screenDisplaySize.width}px`,
-                  height: `${screenDisplaySize.height}px`,
-                  maxWidth: 'calc(100vw - 32px)',
-                  maxHeight: 'calc(100vh - 120px)'
+                  width: `${screenDisplaySize.width + 12}px`,
+                  maxWidth: '100%'
                 }
-              : isFullscreen
-              ? {
+              : {
                   aspectRatio: deviceAspectRatio,
-                  maxHeight: 'calc(100vh - 120px)',
-                  maxWidth: 'calc(100vw - 32px)'
+                  maxWidth: '100%'
                 }
-              : undefined
           }
         >
-          {/* Phone Top Notch / Speaker (Normal Mode only) */}
-          {!isFullscreen && (
-            <div className="w-16 h-1 bg-[#1E2638] rounded-full mb-1 shrink-0"></div>
-          )}
+          {/* Phone Top Notch / Speaker */}
+          <div className="w-14 sm:w-16 h-1 bg-[#1E2638] rounded-full mb-1 shrink-0"></div>
 
           {/* Video / Screen Stream Container */}
-          <div className={`relative overflow-hidden bg-[#000000] flex items-center justify-center ${
-            isFullscreen
-              ? 'flex-1 w-full h-full min-h-0 rounded-xl'
-              : 'rounded-2xl min-w-[280px]'
-          }`}>
+          <div
+            className={`relative overflow-hidden bg-[#000000] flex items-center justify-center ${
+              isFullscreen
+                ? 'flex-1 w-full h-full min-h-0 rounded-xl'
+                : 'rounded-2xl w-full'
+            }`}
+            style={
+              screenDisplaySize.width && screenDisplaySize.height
+                ? {
+                    width: `${screenDisplaySize.width}px`,
+                    height: `${screenDisplaySize.height}px`
+                  }
+                : {
+                    aspectRatio: deviceAspectRatio
+                  }
+            }
+          >
             {device?.platform === 'ios' && iosStreamUrl ? (
               <iframe
                 src={iosStreamUrl}
                 allow="clipboard-read; clipboard-write; autoplay"
-                className={`border-0 bg-black object-contain ${
-                  isFullscreen
-                    ? 'w-full h-full'
-                    : 'w-[320px] h-[580px] rounded-2xl'
-                }`}
+                className="w-full h-full border-0 bg-black object-contain rounded-2xl"
                 style={{ aspectRatio: deviceAspectRatio }}
                 title="iOS Live Screen"
                 onLoad={() => {
@@ -1743,11 +1765,7 @@ export default function ScreenMirrorView({ device, onClose, onStopMirror, isActi
                     setResolution(`${imgRef.current.naturalWidth} × ${imgRef.current.naturalHeight}`);
                   }
                 }}
-                className={`cursor-pointer object-contain shadow-inner active:opacity-95 ${
-                  isFullscreen
-                    ? 'w-full h-full'
-                    : 'w-auto max-h-[580px] rounded-2xl'
-                }`}
+                className="w-full h-full cursor-pointer object-contain shadow-inner active:opacity-95 rounded-2xl"
                 style={{ aspectRatio: deviceAspectRatio }}
               />
             ) : (
@@ -1760,18 +1778,14 @@ export default function ScreenMirrorView({ device, onClose, onStopMirror, isActi
                 onCanPlay={() => ensureVideoPlaying()}
                 onMouseDown={handleMouseDown}
                 onMouseUp={handleMouseUp}
-                className={`cursor-pointer object-contain shadow-inner active:opacity-95 ${
-                  isFullscreen
-                    ? 'w-full h-full'
-                    : 'w-auto max-h-[580px] rounded-2xl'
-                }`}
+                className="w-full h-full cursor-pointer object-contain shadow-inner active:opacity-95 rounded-2xl"
                 style={{ aspectRatio: deviceAspectRatio }}
               />
             )}
 
             {/* Connecting / Waiting for First Frame Overlay */}
             {(mirrorStatus === 'connecting' || mirrorStatus === 'waiting_for_frame') && !iosStreamUrl && !isBrowserUsb && (
-              <div className="absolute inset-0 bg-black/80 backdrop-blur-xs flex flex-col items-center justify-center gap-3 p-6 text-center">
+              <div className="absolute inset-0 bg-black/80 backdrop-blur-xs flex flex-col items-center justify-center gap-3 p-4 text-center">
                 <div className="w-10 h-10 rounded-full border-2 border-[#F59E0B] border-t-transparent animate-spin"></div>
                 <div>
                   <p className="text-xs font-bold text-[#FFFFFF]">
@@ -1784,7 +1798,7 @@ export default function ScreenMirrorView({ device, onClose, onStopMirror, isActi
 
             {/* Error Overlay with Clean Retry */}
             {mirrorStatus === 'error' && (
-              <div className="absolute inset-0 bg-black/90 backdrop-blur-sm flex flex-col items-center justify-center gap-3 p-6 text-center">
+              <div className="absolute inset-0 bg-black/90 backdrop-blur-sm flex flex-col items-center justify-center gap-3 p-4 text-center">
                 <div className="w-10 h-10 rounded-full bg-rose-500/20 text-rose-400 flex items-center justify-center border border-rose-500/30">
                   <AlertCircle className="w-5 h-5" />
                 </div>
@@ -1795,6 +1809,7 @@ export default function ScreenMirrorView({ device, onClose, onStopMirror, isActi
                   </p>
                 </div>
                 <button
+                  type="button"
                   onClick={handleRetry}
                   className="px-4 py-2 rounded-lg bg-[#F59E0B] hover:bg-[#D97706] text-black font-bold text-xs shadow transition-colors mt-2 cursor-pointer flex items-center gap-1.5"
                 >
@@ -1805,128 +1820,148 @@ export default function ScreenMirrorView({ device, onClose, onStopMirror, isActi
             )}
           </div>
 
-          {/* Virtual Navigation Bar inside phone frame (Normal Mode only) */}
-          {!isFullscreen && (
-            device?.platform === 'ios' ? (
-              <div className="w-full mt-2 pt-1 flex items-center justify-center py-1 shrink-0">
-                <div className="w-32 h-1 bg-[#64748B] rounded-full"></div>
-              </div>
-            ) : (
-              <div className="w-full mt-2 pt-1 border-t border-[#1E2638] flex items-center justify-around text-[#64748B] shrink-0">
-                <button
-                  onClick={() => sendInputEvent({ type: 'keyevent', keycode: 187 })}
-                  className="p-2 rounded-lg hover:bg-[#1E2638] hover:text-[#FFFFFF] transition-colors cursor-pointer"
-                  title="Recent Apps (App Switcher)"
-                >
-                  <Square className="w-4 h-4" />
-                </button>
+          {/* Virtual Navigation Bar inside phone frame */}
+          {device?.platform === 'ios' ? (
+            <div className="w-full mt-1.5 pt-1 flex items-center justify-center py-1 shrink-0">
+              <div className="w-24 sm:w-32 h-1 bg-[#64748B] rounded-full"></div>
+            </div>
+          ) : (
+            <div className="w-full mt-1.5 pt-0.5 border-t border-[#1E2638] flex items-center justify-around text-[#64748B] shrink-0">
+              <button
+                type="button"
+                onClick={() => sendInputEvent({ type: 'keyevent', keycode: 187 })}
+                className="p-1 sm:p-1.5 rounded-lg hover:bg-[#1E2638] hover:text-[#FFFFFF] transition-colors cursor-pointer"
+                title="Recent Apps (App Switcher)"
+              >
+                <Square className="w-3.5 h-3.5" />
+              </button>
 
-                <button
-                  onClick={() => sendInputEvent({ type: 'keyevent', keycode: 3 })}
-                  className="p-2 rounded-lg hover:bg-[#1E2638] hover:text-[#FFFFFF] transition-colors cursor-pointer"
-                  title="Home Button"
-                >
-                  <Circle className="w-4 h-4" />
-                </button>
+              <button
+                type="button"
+                onClick={() => sendInputEvent({ type: 'keyevent', keycode: 3 })}
+                className="p-1 sm:p-1.5 rounded-lg hover:bg-[#1E2638] hover:text-[#FFFFFF] transition-colors cursor-pointer"
+                title="Home Button"
+              >
+                <Circle className="w-3.5 h-3.5" />
+              </button>
 
-                <button
-                  onClick={() => sendInputEvent({ type: 'keyevent', keycode: 4 })}
-                  className="p-2 rounded-lg hover:bg-[#1E2638] hover:text-[#FFFFFF] transition-colors cursor-pointer"
-                  title="Back Button"
-                >
-                  <ChevronLeft className="w-5 h-5" />
-                </button>
-              </div>
-            )
+              <button
+                type="button"
+                onClick={() => sendInputEvent({ type: 'keyevent', keycode: 4 })}
+                className="p-1 sm:p-1.5 rounded-lg hover:bg-[#1E2638] hover:text-[#FFFFFF] transition-colors cursor-pointer"
+                title="Back Button"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+            </div>
           )}
         </div>
-      </div>
+      </main>
 
-      {/* Bottom Telemetry & Navigation Toolbar */}
-      <div className="px-5 py-2.5 bg-[#0D111A] border-t border-[#1E2638] flex flex-wrap items-center justify-between gap-3 text-xs shrink-0">
-        {/* Real Stream Telemetry Metrics */}
-        <div className="flex items-center gap-4">
-          {/* Status Indicator */}
-          <div className="flex items-center gap-2 font-mono text-[11px]">
-            <span className={`w-2 h-2 rounded-full ${mirrorStatus === 'live' ? 'bg-emerald-400 animate-pulse' : 'bg-[#F59E0B]'}`}></span>
-            <span className="text-[#CBD5E1]">
-              {mirrorStatus === 'live' ? 'Stream Active' : mirrorStatus === 'waiting_for_frame' ? 'Waiting for Video' : mirrorStatus === 'connecting' ? 'Connecting...' : 'Disconnected'}
+      {/* 3. RIGHT PANEL – Status and Footer Controls (~104px) */}
+      <aside
+        className="w-[60px] sm:w-[84px] md:w-[104px] shrink-0 bg-[#0D111A] border-l border-[#1E2638] flex flex-col items-center justify-between p-2 sm:p-2.5 overflow-y-auto select-none z-10 text-xs"
+        aria-label="Screen Mirror Status & Controls"
+      >
+        {/* Top Telemetry: Status, FPS, Latency, Resolution */}
+        <div className="w-full flex flex-col items-center gap-3">
+          {/* 1. Connection Status */}
+          <div className="w-full flex flex-col items-center text-center">
+            <span className="hidden md:block text-[9px] font-mono tracking-wider text-[#64748B] uppercase mb-1">
+              Status
+            </span>
+            <div className="flex items-center gap-1.5 font-mono text-[11px]" title={`Status: ${mirrorStatus}`}>
+              <span className={`w-2 h-2 rounded-full shrink-0 ${mirrorStatus === 'live' ? 'bg-emerald-400 animate-pulse' : 'bg-[#F59E0B]'}`}></span>
+              <span className={`hidden md:inline font-bold text-[10px] ${mirrorStatus === 'live' ? 'text-emerald-400' : 'text-[#F59E0B]'}`}>
+                {mirrorStatus === 'live' ? 'Live' : mirrorStatus === 'waiting_for_frame' ? 'Waiting' : mirrorStatus === 'connecting' ? 'Connecting' : 'Offline'}
+              </span>
+            </div>
+          </div>
+
+          {/* 2. FPS */}
+          <div className="w-full flex flex-col items-center text-center">
+            <div className="flex items-center gap-1 text-[#64748B]" title="Frames Per Second">
+              <Activity className="w-3.5 h-3.5 text-[#F59E0B]" />
+              <span className="hidden md:inline text-[9px] font-mono tracking-wider uppercase">FPS</span>
+            </div>
+            <span className="font-mono text-xs font-bold text-[#FFFFFF] mt-0.5">
+              {mirrorStatus === 'live' && fps !== null ? fps : '--'}
             </span>
           </div>
 
-          {/* Real Rendered FPS */}
-          <div className="flex items-center gap-1.5 font-mono text-[11px] text-[#94A3B8]">
-            <Activity className="w-3.5 h-3.5 text-[#F59E0B]" />
-            <span>FPS: <strong className="text-[#FFFFFF]">{mirrorStatus === 'live' && fps !== null ? fps : '--'}</strong></span>
+          {/* 3. Latency */}
+          <div className="w-full flex flex-col items-center text-center">
+            <div className="flex items-center gap-1 text-[#64748B]" title="Round-trip Latency">
+              <Zap className="w-3.5 h-3.5 text-emerald-400" />
+              <span className="hidden md:inline text-[9px] font-mono tracking-wider uppercase">Latency</span>
+            </div>
+            <span className="font-mono text-xs font-bold text-[#FFFFFF] mt-0.5">
+              {latency !== null ? `${latency}ms` : '~24ms'}
+            </span>
           </div>
 
-          {/* Real RTT Latency */}
-          <div className="flex items-center gap-1.5 font-mono text-[11px] text-[#94A3B8]">
-            <Zap className="w-3.5 h-3.5 text-emerald-400" />
-            <span>Latency: <strong className="text-[#FFFFFF]">{latency !== null ? `${latency} ms` : '~24 ms'}</strong></span>
-          </div>
-
-          {/* Resolution */}
-          <div className="hidden sm:flex items-center gap-1.5 font-mono text-[11px] text-[#94A3B8]">
-            <Gauge className="w-3.5 h-3.5 text-purple-400" />
-            <span>Resolution: <strong className="text-[#FFFFFF]">{resolution}</strong></span>
+          {/* 4. Stream Resolution */}
+          <div className="w-full flex flex-col items-center text-center">
+            <div className="flex items-center gap-1 text-[#64748B]" title="Stream Resolution">
+              <Gauge className="w-3.5 h-3.5 text-purple-400" />
+              <span className="hidden md:inline text-[9px] font-mono tracking-wider uppercase">Res</span>
+            </div>
+            <span className="font-mono text-[10px] font-bold text-[#CBD5E1] break-all leading-tight mt-0.5 text-center">
+              {resolution}
+            </span>
           </div>
         </div>
 
-        {/* Android Softkeys in Fullscreen Mode */}
-        {isFullscreen && device?.platform !== 'ios' && (
-          <div className="flex items-center gap-3 bg-[#131924] px-4 py-1 rounded-xl border border-[#1E2638] text-[#CBD5E1]">
+        {/* 5. Divider & Bottom Audio/Power Quick Keys */}
+        <div className="w-full flex flex-col items-center gap-2 pt-2 border-t border-[#1E2638]/70">
+          {/* 6. Speaker / Audio (Volume + & Volume -) */}
+          <div className="w-full flex flex-col items-center gap-1.5">
+            <span className="hidden md:block text-[9px] font-mono tracking-wider text-[#64748B] uppercase">
+              Audio
+            </span>
             <button
-              onClick={() => sendInputEvent({ type: 'keyevent', keycode: 187 })}
-              className="p-1.5 rounded-lg hover:bg-[#1E2638] hover:text-[#FFFFFF] transition-colors cursor-pointer"
-              title="Recent Apps (App Switcher)"
+              type="button"
+              onClick={() => sendInputEvent({ type: 'keyevent', keycode: 24 })}
+              className="w-full flex items-center justify-center gap-1 p-1.5 rounded-lg bg-[#131924] hover:bg-[#1E2638] text-[#CBD5E1] border border-[#1E2638] hover:text-[#FFFFFF] transition-colors cursor-pointer"
+              title="Volume Up"
             >
-              <Square className="w-4 h-4" />
+              <Volume2 className="w-3.5 h-3.5" />
+              <span className="hidden md:inline text-[10px] font-bold">Vol +</span>
             </button>
-
             <button
-              onClick={() => sendInputEvent({ type: 'keyevent', keycode: 3 })}
-              className="p-1.5 rounded-lg hover:bg-[#1E2638] hover:text-[#FFFFFF] transition-colors cursor-pointer"
-              title="Home Button"
+              type="button"
+              onClick={() => sendInputEvent({ type: 'keyevent', keycode: 25 })}
+              className="w-full flex items-center justify-center gap-1 p-1.5 rounded-lg bg-[#131924] hover:bg-[#1E2638] text-[#CBD5E1] border border-[#1E2638] hover:text-[#FFFFFF] transition-colors cursor-pointer"
+              title="Volume Down"
             >
-              <Circle className="w-4 h-4" />
-            </button>
-
-            <button
-              onClick={() => sendInputEvent({ type: 'keyevent', keycode: 4 })}
-              className="p-1.5 rounded-lg hover:bg-[#1E2638] hover:text-[#FFFFFF] transition-colors cursor-pointer"
-              title="Back Button"
-            >
-              <ChevronLeft className="w-5 h-5" />
+              <Volume1 className="w-3.5 h-3.5" />
+              <span className="hidden md:inline text-[10px] font-bold">Vol -</span>
             </button>
           </div>
-        )}
 
-        {/* Android Hardware Quick Keys */}
-        <div className="flex items-center gap-1.5">
+          {/* 7. Mute */}
           <button
-            onClick={() => sendInputEvent({ type: 'keyevent', keycode: 24 })}
-            className="p-1.5 rounded-md bg-[#131924] hover:bg-[#1E2638] text-[#CBD5E1] border border-[#1E2638] hover:text-[#FFFFFF] transition-colors cursor-pointer"
-            title="Volume Up"
+            type="button"
+            onClick={() => sendInputEvent({ type: 'keyevent', keycode: 164 })}
+            className="w-full flex items-center justify-center gap-1 p-1.5 rounded-lg bg-[#131924] hover:bg-[#1E2638] text-[#CBD5E1] border border-[#1E2638] hover:text-[#FFFFFF] transition-colors cursor-pointer"
+            title="Mute Volume"
           >
-            <Volume2 className="w-3.5 h-3.5" />
+            <VolumeX className="w-3.5 h-3.5" />
+            <span className="hidden md:inline text-[10px] font-bold">Mute</span>
           </button>
+
+          {/* 8. Power / Lock / Wake */}
           <button
-            onClick={() => sendInputEvent({ type: 'keyevent', keycode: 25 })}
-            className="p-1.5 rounded-md bg-[#131924] hover:bg-[#1E2638] text-[#CBD5E1] border border-[#1E2638] hover:text-[#FFFFFF] transition-colors cursor-pointer"
-            title="Volume Down"
-          >
-            <Volume1 className="w-3.5 h-3.5" />
-          </button>
-          <button
+            type="button"
             onClick={() => sendInputEvent({ type: 'keyevent', keycode: 26 })}
-            className="p-1.5 rounded-md bg-[#131924] hover:bg-[#1E2638] text-[#CBD5E1] border border-[#1E2638] hover:text-[#FFFFFF] transition-colors cursor-pointer"
-            title="Power / Lock / Wake"
+            className="w-full flex items-center justify-center gap-1 p-1.5 rounded-lg bg-[#131924] hover:bg-rose-500/20 text-[#CBD5E1] hover:text-rose-400 border border-[#1E2638] transition-colors cursor-pointer"
+            title="Device Power / Lock / Wake"
           >
             <Power className="w-3.5 h-3.5 text-rose-400" />
+            <span className="hidden md:inline text-[10px] font-bold">Power</span>
           </button>
         </div>
-      </div>
+      </aside>
 
       {/* High-Resolution Screenshot Preview & Download Modal */}
       {screenshotModal && (

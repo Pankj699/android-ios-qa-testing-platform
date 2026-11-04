@@ -1012,7 +1012,7 @@ export default function App() {
           }`}
           aria-hidden={!mirrorModalOpen}
         >
-          <div className="relative w-full max-w-4xl max-h-[92vh] flex flex-col">
+          <div className="relative w-full max-w-5xl h-[92vh] max-h-[92vh] flex flex-col">
             <ScreenMirrorView
               device={selectedDevice}
               onClose={() => setMirrorModalOpen(false)}

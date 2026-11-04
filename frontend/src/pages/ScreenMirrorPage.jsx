@@ -75,7 +75,7 @@ export default function ScreenMirrorPage({
       {currentDevice ? (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
           {/* Main Mirror Viewport */}
-          <div className="lg:col-span-8 flex justify-center">
+          <div className="lg:col-span-8 flex justify-center h-[82vh] min-h-[640px] max-h-[880px]">
             {isActive ? (
               <ScreenMirrorView device={currentDevice} isActive={isActive} />
             ) : null}
