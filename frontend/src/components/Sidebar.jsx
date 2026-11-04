@@ -24,6 +24,7 @@ import {
   Sparkles
 } from 'lucide-react';
 import Tooltip from './ui/Tooltip';
+import { isAiTestWriterEnabled } from '../utils/featureFlags';
 
 const NAV_GROUPS = [
   {
@@ -79,6 +80,10 @@ export default function Sidebar({
   onToggleCollapse
 }) {
   const isAdmin = currentUser?.role === 'ADMIN';
+  const aiEnabled = isAiTestWriterEnabled();
+  const visibleNavGroups = NAV_GROUPS.filter(
+    (group) => group.id !== 'ai-writer' || aiEnabled
+  );
 
   return (
     <aside
@@ -134,7 +139,7 @@ export default function Sidebar({
 
         {/* Navigation Sections */}
         <nav className={isCollapsed ? 'p-2 space-y-2' : 'p-3 space-y-3'}>
-          {NAV_GROUPS.map((group) => (
+          {visibleNavGroups.map((group) => (
             <div key={group.id} className="space-y-1">
               {group.title && (
                 !isCollapsed ? (

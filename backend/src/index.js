@@ -32,7 +32,7 @@ const bugDeskRoutes = require('./routes/bugDeskRoutes');
 const remoteConfigRoutes = require('./routes/remoteConfigRoutes');
 const roboTestRoutes = require('./routes/roboTestRoutes');
 const bundletoolService = require('./services/bundletoolService');
-const aiRoutes = require('./modules/aiTestWriter/routes');
+const ENABLE_AI_TEST_WRITER = process.env.ENABLE_AI_TEST_WRITER === 'true';
 
 const healthRoutes = require('./routes/healthRoutes');
 
@@ -74,7 +74,19 @@ app.use('/api/remoteconfig', remoteConfigRoutes);
 app.use('/api/RemoteConfig', remoteConfigRoutes);
 app.use('/api/robo', roboTestRoutes);
 app.use('/robo', roboTestRoutes);
-app.use('/api/ai', aiRoutes);
+
+// AI Test Writer Module (Feature Gated)
+if (ENABLE_AI_TEST_WRITER) {
+  const aiRoutes = require('./modules/aiTestWriter/routes');
+  app.use('/api/ai', aiRoutes);
+} else {
+  app.use('/api/ai', (req, res) => {
+    res.status(404).json({
+      error: 'FeatureDisabled',
+      message: 'AI Test Writer is disabled on this server. Set ENABLE_AI_TEST_WRITER=true in your environment to enable.'
+    });
+  });
+}
 
 // Serve Frontend build in production if present
 const frontendDist = path.join(__dirname, '../../frontend/dist');
@@ -132,18 +144,22 @@ async function startServer() {
     logger.error(`[DB] Failed to run database migrations, admin seed, or resume sessions: ${dbErr.message}`);
   }
 
-  // Initialize AI Test Writer & Recover Stale Extractions / Indexings
-  try {
-    const { runAiMigrations } = require('./modules/aiTestWriter/db/migrationRunner');
-    await runAiMigrations();
-    const extractionService = require('./modules/aiTestWriter/services/extractionService');
-    await extractionService.recoverStaleExtractions();
-    extractionService.startPeriodicStaleRecovery();
-    const indexingService = require('./modules/aiTestWriter/services/indexingService');
-    await indexingService.recoverStaleIndexings();
-    indexingService.startPeriodicStaleRecovery();
-  } catch (aiErr) {
-    logger.error(`[AI Platform] Startup initialization / stale recovery error: ${aiErr.message}`);
+  // Initialize AI Test Writer & Recover Stale Extractions / Indexings (if enabled)
+  if (ENABLE_AI_TEST_WRITER) {
+    try {
+      const { runAiMigrations } = require('./modules/aiTestWriter/db/migrationRunner');
+      await runAiMigrations();
+      const extractionService = require('./modules/aiTestWriter/services/extractionService');
+      await extractionService.recoverStaleExtractions();
+      extractionService.startPeriodicStaleRecovery();
+      const indexingService = require('./modules/aiTestWriter/services/indexingService');
+      await indexingService.recoverStaleIndexings();
+      indexingService.startPeriodicStaleRecovery();
+    } catch (aiErr) {
+      logger.error(`[AI Platform] Startup initialization / stale recovery error: ${aiErr.message}`);
+    }
+  } else {
+    logger.info('[AI Platform] AI Test Writer is disabled (ENABLE_AI_TEST_WRITER!=true). Skipping AI migrations & background workers.');
   }
 
   if (config.USE_HTTPS) {

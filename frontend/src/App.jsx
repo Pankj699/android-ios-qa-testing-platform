@@ -37,6 +37,7 @@ import { toast } from './utils/toast';
 import { useDocumentTitle } from './hooks/useDocumentTitle';
 import { useDialogShortcuts } from './hooks/useDialogShortcuts';
 import { getTabFromPathname, isKnownRoutePath } from './utils/navigationTitles';
+import { isAiTestWriterEnabled } from './utils/featureFlags';
 
 import { api } from './services/api';
 import { socketService } from './services/socket';
@@ -87,6 +88,9 @@ const getInitialTab = () => {
     const path = window.location.pathname;
     const tab = getTabFromPathname(path);
     if (tab) {
+      if ((tab === 'ai-documents' || tab === 'ai-requirements' || tab === 'ai-test-writer') && !isAiTestWriterEnabled()) {
+        return 'dashboard';
+      }
       return tab;
     }
   }
@@ -376,6 +380,10 @@ export default function App() {
       const path = window.location.pathname;
       const tabFromPath = getTabFromPathname(path);
       if (tabFromPath) {
+        if ((tabFromPath === 'ai-documents' || tabFromPath === 'ai-requirements' || tabFromPath === 'ai-test-writer') && !isAiTestWriterEnabled()) {
+          setCurrentTab('dashboard');
+          return;
+        }
         setCurrentTab(tabFromPath);
         if (tabFromPath === 'bug-desk') {
           const p = path.toLowerCase();
@@ -398,6 +406,9 @@ export default function App() {
   }, []);
 
   const handleTabChange = (newTab) => {
+    if ((newTab === 'ai-documents' || newTab === 'ai-requirements' || newTab === 'ai-test-writer') && !isAiTestWriterEnabled()) {
+      return;
+    }
     setCurrentTab(newTab);
     if (newTab === 'screen-mirror') {
       setMirrorModalOpen(false);
@@ -874,15 +885,15 @@ export default function App() {
               )
             )}
 
-            {currentTab === 'ai-documents' && (
+            {isAiTestWriterEnabled() && currentTab === 'ai-documents' && (
               <AiDocumentsPage currentUser={currentUser} />
             )}
 
-            {currentTab === 'ai-requirements' && (
+            {isAiTestWriterEnabled() && currentTab === 'ai-requirements' && (
               <AiRequirementsPage currentUser={currentUser} />
             )}
 
-            {currentTab === 'ai-test-writer' && (
+            {isAiTestWriterEnabled() && currentTab === 'ai-test-writer' && (
               <AiTestWriterPage currentUser={currentUser} />
             )}
 
