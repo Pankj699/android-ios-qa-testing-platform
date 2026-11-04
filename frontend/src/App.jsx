@@ -45,7 +45,7 @@ import { webUsbAdbService } from './services/webUsbAdbService';
 import { screenMirrorStreamManager } from './services/screenMirrorStreamManager';
 import { padExecutionManager } from './services/padExecutionManager';
 import { ThemeProvider } from './context/ThemeContext';
-import { Lock, LogIn, ShieldAlert } from 'lucide-react';
+import { Lock, ShieldAlert } from 'lucide-react';
 
 const getSidebarStorageKey = (userId) => {
   return userId ? `qa_platform:${userId}:sidebar_collapsed` : 'qa_platform:sidebar_collapsed';
@@ -692,33 +692,6 @@ export default function App() {
             ? 'p-4 sm:p-6 lg:p-8 w-full flex-1 flex flex-col min-h-0'
             : 'p-6 lg:p-8 max-w-7xl w-full mx-auto'
         }`}>
-          {/* Unauthenticated Security Banner (exempt on Remote Config Manager) */}
-          {!isAuthenticated && currentTab !== 'remote-config' && (
-            <div className="mb-6 p-4 rounded-2xl glass flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 animate-fadeIn">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-violet-100/80 border border-violet-200/60 text-[#7c6cf6] dark:bg-violet-500/15 dark:border-violet-500/30 flex items-center justify-center dark:text-violet-400 shrink-0">
-                  <Lock className="w-5 h-5" />
-                </div>
-                <div>
-                  <h4 className="text-xs font-bold text-[#1f2544] dark:text-white">Authentication Required</h4>
-                  <p className="text-[11px] text-[#6b7194] dark:text-[#94A3B8]">
-                    Sign in to access your connected devices, uploaded builds, and run Play Asset Delivery tests.
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={() => {
-                  setAuthModalMode('login');
-                  setAuthModalOpen(true);
-                }}
-                className="px-4 py-2 rounded-xl btn-magic text-xs font-bold whitespace-nowrap cursor-pointer shadow-magic"
-              >
-                <LogIn className="w-3.5 h-3.5 text-white" />
-                <span>Sign In / Register</span>
-              </button>
-            </div>
-          )}
-
           <ErrorBoundary key={currentTab} onReset={fetchData}>
             {currentTab === 'dashboard' && (
               <Dashboard
