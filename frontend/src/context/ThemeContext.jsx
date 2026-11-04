@@ -14,7 +14,7 @@ export function ThemeProvider({ children }) {
     } catch (e) {
       console.warn('Failed to read theme preference from localStorage', e);
     }
-    return 'light'; // Default to light mode (AI Flyer Demo design system) as per requirements
+    return 'dark'; // Default to dark mode for new users
   });
 
   useEffect(() => {
