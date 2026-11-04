@@ -569,8 +569,8 @@ export default function MixpanelValidatorPage({
   useDialogShortcuts({
     dialogId: 'mixpanel-bug-writer-modal',
     isOpen: bugModalOpen,
-    onPrimaryAction: bugModalView === 'select' ? handleProceedToEditor : handleCopyBugText,
-    onSubmit: bugModalView === 'select' ? handleProceedToEditor : handleCopyBugText,
+    onPrimaryAction: bugModalView === 'select' ? handleGenerateBug : handleCopyBugText,
+    onSubmit: bugModalView === 'select' ? handleGenerateBug : handleCopyBugText,
     onClose: handleCloseBugModal,
   });
 
