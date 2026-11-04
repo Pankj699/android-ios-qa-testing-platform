@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import Tooltip from './ui/Tooltip';
 import { isAiTestWriterEnabled } from '../utils/featureFlags';
+import { SYS_VERSION, APP_VERSION, GIT_COMMIT_HASH } from '../config/version';
 
 const NAV_GROUPS = [
   {
@@ -107,7 +108,12 @@ export default function Sidebar({
                 </div>
                 <div className="min-w-0">
                   <div className="text-xs font-extrabold text-[#1f2544] dark:text-white tracking-wider font-sans uppercase">QA PLATFORM</div>
-                  <div className="text-[10px] text-[#6b7194] dark:text-[#525A6C] font-mono tracking-wider">SYS.VER.1.1</div>
+                  <div
+                    className="text-[10px] text-[#6b7194] dark:text-[#525A6C] font-mono tracking-wider"
+                    title={GIT_COMMIT_HASH ? `Version ${APP_VERSION} (Commit: ${GIT_COMMIT_HASH})` : `Version ${APP_VERSION}`}
+                  >
+                    {SYS_VERSION}
+                  </div>
                 </div>
               </div>
               <Tooltip content="Collapse sidebar" side="right">
