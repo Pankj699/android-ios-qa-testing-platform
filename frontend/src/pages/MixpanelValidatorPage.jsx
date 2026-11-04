@@ -302,6 +302,12 @@ export default function MixpanelValidatorPage({
     }
   };
 
+  const handleCancelClearEvents = () => {
+    if (!isClearingEvents) {
+      setClearConfirmOpen(false);
+    }
+  };
+
   // 7. Inject Test Event
   const handleInjectEvent = async () => {
     if (!activeSession) {
@@ -1536,7 +1542,7 @@ export default function MixpanelValidatorPage({
             <div className="flex items-center justify-end gap-3 pt-2 border-t border-[var(--line)]">
               <button
                 type="button"
-                onClick={() => setClearConfirmOpen(false)}
+                onClick={handleCancelClearEvents}
                 disabled={isClearingEvents}
                 className="px-3.5 py-1.5 rounded-pill bg-white/80 dark:bg-slate-900/80 hover:bg-white dark:hover:bg-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-300 border border-[var(--line)] transition-all shadow-sm cursor-pointer"
               >
