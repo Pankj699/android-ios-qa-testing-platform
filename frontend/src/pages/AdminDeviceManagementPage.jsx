@@ -25,6 +25,7 @@ import { api } from '../services/api';
 import { socketService } from '../services/socket';
 import DeviceThumbnail from '../components/DeviceThumbnail';
 import { toast } from '../utils/toast';
+import { useDialogShortcuts } from '../hooks/useDialogShortcuts';
 
 export default function AdminDeviceManagementPage({ currentUser }) {
   const [loading, setLoading] = useState(true);
@@ -274,7 +275,7 @@ export default function AdminDeviceManagementPage({ currentUser }) {
   };
 
   const handleUploadSubmit = async (e) => {
-    e.preventDefault();
+    e?.preventDefault?.();
     if (!selectedModel || !selectedFile) {
       showNotification('Please select an image file to upload.', 'error');
       return;
@@ -366,7 +367,7 @@ export default function AdminDeviceManagementPage({ currentUser }) {
   };
 
   const handleAddModelSubmit = async (e) => {
-    e.preventDefault();
+    e?.preventDefault?.();
     if (!newMfg.trim() || !newModel.trim()) {
       showNotification('Manufacturer and Model Identifier are required.', 'error');
       return;
@@ -439,6 +440,36 @@ export default function AdminDeviceManagementPage({ currentUser }) {
       showNotification(err.message || 'Failed to execute restart.', 'error');
     }
   };
+
+  useDialogShortcuts({
+    dialogId: 'admin-upload-device-image-modal',
+    isOpen: uploadModalOpen,
+    onPrimaryAction: handleUploadSubmit,
+    onSubmit: handleUploadSubmit,
+    onClose: handleCloseUpload,
+    disabled: !selectedModel || !selectedFile || uploading,
+    loading: uploading,
+  });
+
+  useDialogShortcuts({
+    dialogId: 'admin-add-device-model-modal',
+    isOpen: addModalOpen,
+    onPrimaryAction: handleAddModelSubmit,
+    onSubmit: handleAddModelSubmit,
+    onClose: () => setAddModalOpen(false),
+    disabled: !newMfg.trim() || !newModel.trim() || addingModel,
+    loading: addingModel,
+  });
+
+  useDialogShortcuts({
+    dialogId: 'admin-restart-modal',
+    isOpen: restartModalOpen,
+    onPrimaryAction: executeRestart,
+    onSubmit: executeRestart,
+    onClose: () => setRestartModalOpen(false),
+    disabled: restarting,
+    loading: restarting,
+  });
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-12">

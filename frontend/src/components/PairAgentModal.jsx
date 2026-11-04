@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, Copy, Check, RefreshCw, Smartphone, Laptop, AlertCircle, ShieldCheck } from 'lucide-react';
 import { api } from '../services/api';
+import { useDialogShortcuts } from '../hooks/useDialogShortcuts';
 
 export default function PairAgentModal({ isOpen, onClose, onAgentPaired }) {
   const [loading, setLoading] = useState(false);
@@ -46,6 +47,13 @@ export default function PairAgentModal({ isOpen, onClose, onAgentPaired }) {
     setCopied(true);
     setTimeout(() => setCopied(false), 2500);
   };
+
+  useDialogShortcuts({
+    dialogId: 'pair-agent-modal',
+    isOpen,
+    onPrimaryAction: null,
+    onClose,
+  });
 
   if (!isOpen) return null;
 

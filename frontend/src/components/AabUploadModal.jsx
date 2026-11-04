@@ -3,6 +3,7 @@ import { UploadCloud, FileArchive, CheckCircle2, AlertCircle, Loader2, X, Packag
 import { api } from '../services/api';
 import BuildThumbnail from './BuildThumbnail';
 import { toast } from '../utils/toast';
+import { useDialogShortcuts } from '../hooks/useDialogShortcuts';
 
 export default function AabUploadModal({ isOpen, onClose, onBuildUploaded }) {
   const [dragActive, setDragActive] = useState(false);
@@ -58,8 +59,6 @@ export default function AabUploadModal({ isOpen, onClose, onBuildUploaded }) {
     if (onClose) onClose();
   };
 
-  if (!isOpen) return null;
-
   const handleDrag = (e) => {
     e.preventDefault();
     e.stopPropagation();
@@ -96,7 +95,7 @@ export default function AabUploadModal({ isOpen, onClose, onBuildUploaded }) {
   };
 
   const handleUploadAndAnalyze = async () => {
-    if (!file) return;
+    if (!file || uploading || uploadedBuild) return;
 
     setUploading(true);
     setError(null);
@@ -120,6 +119,18 @@ export default function AabUploadModal({ isOpen, onClose, onBuildUploaded }) {
     if (!bytes) return '0 MB';
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   };
+
+  useDialogShortcuts({
+    dialogId: 'aab-upload-modal',
+    isOpen,
+    onPrimaryAction: handleUploadAndAnalyze,
+    onSubmit: handleUploadAndAnalyze,
+    onClose: handleClose,
+    disabled: !file || uploading || Boolean(uploadedBuild),
+    loading: uploading,
+  });
+
+  if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">

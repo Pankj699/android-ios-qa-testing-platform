@@ -9,6 +9,8 @@
  * This module checks standard physical codes (e.g. 'KeyQ') as well as character fallbacks.
  */
 
+import { dialogShortcutManager } from './dialogShortcuts.js';
+
 /**
  * Detect whether client platform is macOS using modern Client Hints with safe fallbacks.
  */
@@ -135,6 +137,11 @@ export function isActionShortcut(event, expectedCode, expectedKey, macLigature =
  * currently owns the keyboard interaction.
  */
 export function isModalDialogOpen(customDocument, options = {}) {
+  // Check if any dialog is registered in the centralized shortcut registry
+  if (!options.ignoreRemoteConfig && dialogShortcutManager?.isAnyDialogOpen?.()) {
+    return true;
+  }
+
   const doc = customDocument || (typeof document !== 'undefined' ? document : null);
   if (!doc) return false;
 

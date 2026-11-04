@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Key, Lock, Mail, AlertCircle, X, CheckCircle2, Shield, User, ArrowRight, ArrowLeft, Eye, EyeOff } from 'lucide-react';
 import { api } from '../services/api';
+import { useDialogShortcuts } from '../hooks/useDialogShortcuts';
 
 const REMEMBERED_EMAIL_KEY = 'qa_remembered_email';
 
@@ -53,20 +54,18 @@ export default function AuthModal({ isOpen, onClose, onLoginSuccess, initialMode
     }
   }, [isOpen, initialMode, initialToken]);
 
-  if (!isOpen) return null;
-
   const resetErrors = () => {
     setError('');
     setSuccessMessage('');
   };
 
   const handleLogin = async (e) => {
-    e.preventDefault();
+    e?.preventDefault?.();
     resetErrors();
 
-    const form = e.currentTarget;
-    const currentEmail = (email || form.elements?.email?.value || '').trim();
-    const currentPassword = password || form.elements?.password?.value || '';
+    const form = e?.currentTarget;
+    const currentEmail = (email || form?.elements?.email?.value || '').trim();
+    const currentPassword = password || form?.elements?.password?.value || '';
 
     if (!currentEmail) {
       setError('Email address is required.');
@@ -105,14 +104,14 @@ export default function AuthModal({ isOpen, onClose, onLoginSuccess, initialMode
   };
 
   const handleRegister = async (e) => {
-    e.preventDefault();
+    e?.preventDefault?.();
     resetErrors();
 
-    const form = e.currentTarget;
-    const trimmedName = (name || form.elements?.name?.value || '').trim();
-    const normalizedEmail = (email || form.elements?.email?.value || '').trim();
-    const currentPassword = password || form.elements?.password?.value || '';
-    const currentConfirmPassword = confirmPassword || form.elements?.confirmPassword?.value || '';
+    const form = e?.currentTarget;
+    const trimmedName = (name || form?.elements?.name?.value || '').trim();
+    const normalizedEmail = (email || form?.elements?.email?.value || '').trim();
+    const currentPassword = password || form?.elements?.password?.value || '';
+    const currentConfirmPassword = confirmPassword || form?.elements?.confirmPassword?.value || '';
 
     if (!trimmedName || trimmedName.length < 2) {
       setError('Please enter your full name (minimum 2 characters).');
@@ -164,7 +163,7 @@ export default function AuthModal({ isOpen, onClose, onLoginSuccess, initialMode
   };
 
   const handleForgotPassword = async (e) => {
-    e.preventDefault();
+    e?.preventDefault?.();
     resetErrors();
 
     const normalizedEmail = email.trim();
@@ -188,7 +187,7 @@ export default function AuthModal({ isOpen, onClose, onLoginSuccess, initialMode
   };
 
   const handleResetPassword = async (e) => {
-    e.preventDefault();
+    e?.preventDefault?.();
     resetErrors();
 
     const trimmedToken = resetToken.trim();
@@ -229,6 +228,25 @@ export default function AuthModal({ isOpen, onClose, onLoginSuccess, initialMode
       setLoading(false);
     }
   };
+
+  const handleActiveSubmit = (e) => {
+    if (mode === 'login') return handleLogin(e);
+    if (mode === 'register') return handleRegister(e);
+    if (mode === 'forgot') return handleForgotPassword(e);
+    if (mode === 'reset') return handleResetPassword(e);
+  };
+
+  useDialogShortcuts({
+    dialogId: 'auth-modal',
+    isOpen,
+    onPrimaryAction: handleActiveSubmit,
+    onSubmit: handleActiveSubmit,
+    onClose,
+    disabled: loading,
+    loading,
+  });
+
+  if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">

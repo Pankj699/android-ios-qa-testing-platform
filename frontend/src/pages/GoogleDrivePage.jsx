@@ -28,8 +28,10 @@ import {
   Smartphone
 } from 'lucide-react';
 import { api } from '../services/api';
+import Tooltip from '../components/ui/Tooltip';
 import DriveFolderSelectorModal from '../components/DriveFolderSelectorModal';
 import { toast } from '../utils/toast';
+import { useDialogShortcuts } from '../hooks/useDialogShortcuts';
 
 function formatBytes(bytes) {
   if (!bytes || isNaN(bytes) || bytes === 0) return '0 B';
@@ -374,7 +376,7 @@ export default function GoogleDrivePage({ currentUser }) {
 
   // Create Folder
   const handleCreateFolder = async (e) => {
-    e.preventDefault();
+    e?.preventDefault?.();
     if (!newFolderName.trim()) return;
     setNewFolderLoading(true);
     try {
@@ -397,7 +399,7 @@ export default function GoogleDrivePage({ currentUser }) {
 
   // Rename File / Folder
   const handleRenameSubmit = async (e) => {
-    e.preventDefault();
+    e?.preventDefault?.();
     if (!targetItemToRename || !renamedName.trim()) return;
     setRenameLoading(true);
     try {
@@ -536,6 +538,56 @@ export default function GoogleDrivePage({ currentUser }) {
       setDeleteRecordingLoading(false);
     }
   };
+
+  useDialogShortcuts({
+    dialogId: 'drive-new-folder-modal',
+    isOpen: newFolderModalOpen,
+    onPrimaryAction: handleCreateFolder,
+    onSubmit: handleCreateFolder,
+    onClose: () => setNewFolderModalOpen(false),
+    disabled: !newFolderName.trim() || newFolderLoading,
+    loading: newFolderLoading,
+  });
+
+  useDialogShortcuts({
+    dialogId: 'drive-rename-modal',
+    isOpen: Boolean(renameModalOpen && targetItemToRename),
+    onPrimaryAction: handleRenameSubmit,
+    onSubmit: handleRenameSubmit,
+    onClose: () => setRenameModalOpen(false),
+    disabled: !renamedName.trim() || renameLoading,
+    loading: renameLoading,
+  });
+
+  useDialogShortcuts({
+    dialogId: 'drive-delete-modal',
+    isOpen: Boolean(deleteConfirmOpen && targetItemToDelete),
+    onPrimaryAction: handleDeleteConfirm,
+    onSubmit: handleDeleteConfirm,
+    onClose: () => setDeleteConfirmOpen(false),
+    disabled: deleteLoading,
+    loading: deleteLoading,
+  });
+
+  useDialogShortcuts({
+    dialogId: 'drive-disconnect-modal',
+    isOpen: disconnectConfirmOpen,
+    onPrimaryAction: handleDisconnect,
+    onSubmit: handleDisconnect,
+    onClose: () => setDisconnectConfirmOpen(false),
+    disabled: disconnecting,
+    loading: disconnecting,
+  });
+
+  useDialogShortcuts({
+    dialogId: 'drive-delete-recording-modal',
+    isOpen: Boolean(deleteRecordingTarget),
+    onPrimaryAction: handleDeleteRecordingConfirm,
+    onSubmit: handleDeleteRecordingConfirm,
+    onClose: () => setDeleteRecordingTarget(null),
+    disabled: deleteRecordingLoading,
+    loading: deleteRecordingLoading,
+  });
 
   return (
     <div className="space-y-6 fade-in">
@@ -693,21 +745,25 @@ export default function GoogleDrivePage({ currentUser }) {
             </div>
 
             <div className="flex items-center gap-2 pt-2 border-t border-[var(--line)]">
-              <button
-                onClick={() => handleConnect('select_account')}
-                className="flex-1 px-3 py-1.5 rounded-btn btn-soft text-[11px] text-[#1F2544] dark:text-slate-300 font-bold transition-colors cursor-pointer"
-                title="Switch Google Account"
-              >
-                Switch Account
-              </button>
-              <button
-                onClick={() => setDisconnectConfirmOpen(true)}
-                className="px-3 py-1.5 rounded-btn btn-soft text-[11px] text-rose-600 dark:text-rose-400 font-bold hover:bg-rose-500/10 transition-colors flex items-center gap-1 cursor-pointer"
-                title="Disconnect Google Drive"
-              >
-                <LogOut className="w-3 h-3" />
-                <span>Disconnect</span>
-              </button>
+              <Tooltip content="Switch Google Account" side="bottom">
+                <button
+                  onClick={() => handleConnect('select_account')}
+                  className="flex-1 px-3 py-1.5 rounded-btn btn-soft text-[11px] text-[#1F2544] dark:text-slate-300 font-bold transition-colors cursor-pointer"
+                  aria-label="Switch Google Account"
+                >
+                  Switch Account
+                </button>
+              </Tooltip>
+              <Tooltip content="Disconnect Google Drive" side="bottom">
+                <button
+                  onClick={() => setDisconnectConfirmOpen(true)}
+                  className="px-3 py-1.5 rounded-btn btn-soft text-[11px] text-rose-600 dark:text-rose-400 font-bold hover:bg-rose-500/10 transition-colors flex items-center gap-1 cursor-pointer"
+                  aria-label="Disconnect Google Drive"
+                >
+                  <LogOut className="w-3 h-3" />
+                  <span>Disconnect</span>
+                </button>
+              </Tooltip>
             </div>
           </div>
 
@@ -784,17 +840,19 @@ export default function GoogleDrivePage({ currentUser }) {
                 Change Default Folder
               </button>
               {status.defaultFolderId && (
-                <button
-                  onClick={async () => {
-                    await api.setDriveDefaultFolder(null, null);
-                    showFeedback('Default folder reset to My Drive (Root)');
-                    fetchStatus();
-                  }}
-                  className="px-2.5 py-1.5 rounded-btn btn-soft text-[11px] text-[#6B7194] hover:text-[#1F2544] transition-colors cursor-pointer"
-                  title="Reset to Root"
-                >
-                  Reset
-                </button>
+                <Tooltip content="Reset to Root" side="bottom">
+                  <button
+                    onClick={async () => {
+                      await api.setDriveDefaultFolder(null, null);
+                      showFeedback('Default folder reset to My Drive (Root)');
+                      fetchStatus();
+                    }}
+                    className="px-2.5 py-1.5 rounded-btn btn-soft text-[11px] text-[#6B7194] hover:text-[#1F2544] transition-colors cursor-pointer"
+                    aria-label="Reset to Root"
+                  >
+                    Reset
+                  </button>
+                </Tooltip>
               )}
             </div>
           </div>
@@ -809,13 +867,15 @@ export default function GoogleDrivePage({ currentUser }) {
             {/* Breadcrumb Navigation */}
             <div className="flex items-center gap-1.5 min-w-0 flex-1 overflow-x-auto text-xs no-scrollbar">
               {breadcrumbs.length > 1 && (
-                <button
-                  onClick={handleNavigateUp}
-                  className="p-1.5 rounded-btn btn-soft text-[#6B7194] hover:text-[#1F2544] dark:text-slate-300 dark:hover:text-white shrink-0 mr-1 transition-colors cursor-pointer"
-                  title="Go to parent folder"
-                >
-                  <ArrowLeft className="w-3.5 h-3.5" />
-                </button>
+                <Tooltip content="Go to parent folder" side="bottom">
+                  <button
+                    onClick={handleNavigateUp}
+                    className="p-1.5 rounded-btn btn-soft text-[#6B7194] hover:text-[#1F2544] dark:text-slate-300 dark:hover:text-white shrink-0 mr-1 transition-colors cursor-pointer"
+                    aria-label="Go to parent folder"
+                  >
+                    <ArrowLeft className="w-3.5 h-3.5" />
+                  </button>
+                </Tooltip>
               )}
 
               {breadcrumbs.map((crumb, idx) => {
@@ -861,14 +921,16 @@ export default function GoogleDrivePage({ currentUser }) {
 
               {/* Set Current Folder as Default Button */}
               {currentFolder.id !== 'root' && (
-                <button
-                  onClick={handleSetCurrentAsDefault}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-btn btn-soft text-xs font-bold text-[#7c6cf6] dark:text-[#F59E0B] transition-colors cursor-pointer"
-                  title="Set this folder as the default recording destination"
-                >
-                  <Check className="w-3.5 h-3.5" />
-                  <span>Set as Default</span>
-                </button>
+                <Tooltip content="Set this folder as the default recording destination" side="bottom">
+                  <button
+                    onClick={handleSetCurrentAsDefault}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-btn btn-soft text-xs font-bold text-[#7c6cf6] dark:text-[#F59E0B] transition-colors cursor-pointer"
+                    aria-label="Set as Default"
+                  >
+                    <Check className="w-3.5 h-3.5" />
+                    <span>Set as Default</span>
+                  </button>
+                </Tooltip>
               )}
 
               {/* New Folder Button */}
@@ -884,13 +946,15 @@ export default function GoogleDrivePage({ currentUser }) {
               </button>
 
               {/* Refresh Button */}
-              <button
-                onClick={() => fetchFiles(currentFolder.id, null, activeSearch)}
-                className="p-1.5 rounded-btn btn-soft text-[#6B7194] hover:text-[#1F2544] transition-colors shadow-xs cursor-pointer"
-                title="Refresh current folder"
-              >
-                <RefreshCw className={`w-3.5 h-3.5 ${filesLoading ? 'animate-spin text-[#7c6cf6]' : ''}`} />
-              </button>
+              <Tooltip content="Refresh current folder" side="bottom">
+                <button
+                  onClick={() => fetchFiles(currentFolder.id, null, activeSearch)}
+                  className="p-1.5 rounded-btn btn-soft text-[#6B7194] hover:text-[#1F2544] transition-colors shadow-xs cursor-pointer"
+                  aria-label="Refresh current folder"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${filesLoading ? 'animate-spin text-[#7c6cf6]' : ''}`} />
+                </button>
+              </Tooltip>
             </div>
           </div>
 
@@ -1001,58 +1065,68 @@ export default function GoogleDrivePage({ currentUser }) {
                         <td className="py-3 px-5 text-right" onClick={(e) => e.stopPropagation()}>
                           <div className="flex items-center justify-end gap-1">
                             {item.webViewLink && (
-                              <a
-                                href={item.webViewLink}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="p-1.5 rounded-lg btn-soft text-[#6B7194] hover:text-[#1F2544] dark:hover:text-white transition-colors"
-                                title="Open in Google Drive"
-                              >
-                                <ExternalLink className="w-3.5 h-3.5" />
-                              </a>
+                              <Tooltip content="Open in Google Drive" side="top">
+                                <a
+                                  href={item.webViewLink}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="p-1.5 rounded-lg btn-soft text-[#6B7194] hover:text-[#1F2544] dark:hover:text-white transition-colors"
+                                  aria-label="Open in Google Drive"
+                                >
+                                  <ExternalLink className="w-3.5 h-3.5" />
+                                </a>
+                              </Tooltip>
                             )}
 
-                            <button
-                              onClick={() => handleOpenShare(item)}
-                              className="p-1.5 rounded-lg btn-soft text-[#6B7194] hover:text-[#7c6cf6] transition-colors"
-                              title="Create Shareable Link"
-                            >
-                              <Share2 className="w-3.5 h-3.5" />
-                            </button>
+                            <Tooltip content="Create Shareable Link" side="top">
+                              <button
+                                onClick={() => handleOpenShare(item)}
+                                className="p-1.5 rounded-lg btn-soft text-[#6B7194] hover:text-[#7c6cf6] transition-colors cursor-pointer"
+                                aria-label="Create Shareable Link"
+                              >
+                                <Share2 className="w-3.5 h-3.5" />
+                              </button>
+                            </Tooltip>
 
-                            <button
-                              onClick={() => {
-                                setTargetItemToRename(item);
-                                setRenamedName(item.name);
-                                setRenameModalOpen(true);
-                              }}
-                              className="p-1.5 rounded-lg btn-soft text-[#6B7194] hover:text-[#1F2544] dark:hover:text-white transition-colors"
-                              title="Rename"
-                            >
-                              <Edit2 className="w-3.5 h-3.5" />
-                            </button>
+                            <Tooltip content="Rename" side="top">
+                              <button
+                                onClick={() => {
+                                  setTargetItemToRename(item);
+                                  setRenamedName(item.name);
+                                  setRenameModalOpen(true);
+                                }}
+                                className="p-1.5 rounded-lg btn-soft text-[#6B7194] hover:text-[#1F2544] dark:hover:text-white transition-colors cursor-pointer"
+                                aria-label="Rename"
+                              >
+                                <Edit2 className="w-3.5 h-3.5" />
+                              </button>
+                            </Tooltip>
 
-                            <button
-                              onClick={() => {
-                                setTargetItemToMove(item);
-                                setMoveModalOpen(true);
-                              }}
-                              className="p-1.5 rounded-lg btn-soft text-[#6B7194] hover:text-[#1F2544] dark:hover:text-white transition-colors"
-                              title="Move"
-                            >
-                              <FolderInput className="w-3.5 h-3.5" />
-                            </button>
+                            <Tooltip content="Move" side="top">
+                              <button
+                                onClick={() => {
+                                  setTargetItemToMove(item);
+                                  setMoveModalOpen(true);
+                                }}
+                                className="p-1.5 rounded-lg btn-soft text-[#6B7194] hover:text-[#1F2544] dark:hover:text-white transition-colors cursor-pointer"
+                                aria-label="Move"
+                              >
+                                <FolderInput className="w-3.5 h-3.5" />
+                              </button>
+                            </Tooltip>
 
-                            <button
-                              onClick={() => {
-                                setTargetItemToDelete(item);
-                                setDeleteConfirmOpen(true);
-                              }}
-                              className="p-1.5 rounded-lg btn-soft text-rose-500 hover:bg-rose-500/10 transition-colors"
-                              title="Delete"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
+                            <Tooltip content="Delete" side="top">
+                              <button
+                                onClick={() => {
+                                  setTargetItemToDelete(item);
+                                  setDeleteConfirmOpen(true);
+                                }}
+                                className="p-1.5 rounded-lg btn-soft text-rose-500 hover:bg-rose-500/10 transition-colors cursor-pointer"
+                                aria-label="Delete"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </Tooltip>
                           </div>
                         </td>
                       </tr>

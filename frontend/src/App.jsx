@@ -9,6 +9,7 @@ import PairAgentModal from './components/PairAgentModal';
 import WebUsbDiagnosticsModal from './components/WebUsbDiagnosticsModal';
 import ErrorBoundary from './components/ErrorBoundary';
 import ScreenMirrorView from './components/ScreenMirrorView';
+import DeleteAppUserModal from './components/DeleteAppUserModal';
 
 import Dashboard from './pages/Dashboard';
 import DevicesPage from './pages/DevicesPage';
@@ -16,6 +17,7 @@ import ScreenMirrorPage from './pages/ScreenMirrorPage';
 import UiInspectorPage from './pages/UiInspectorPage';
 import BuildsPage from './pages/BuildsPage';
 import RunTestPage from './pages/RunTestPage';
+import RoboTestPage from './pages/RoboTestPage';
 import TestHistoryPage from './pages/TestHistoryPage';
 import AdbOperationsPage from './pages/AdbOperationsPage';
 import SopPage from './pages/SopPage';
@@ -25,15 +27,22 @@ import AdminDeviceManagementPage from './pages/AdminDeviceManagementPage';
 import GoogleDrivePage from './pages/GoogleDrivePage';
 import MixpanelValidatorPage from './pages/MixpanelValidatorPage';
 import RemoteConfigPage from './pages/RemoteConfigPage';
+import AiDocumentsPage from './pages/AiDocumentsPage';
+import AiRequirementsPage from './pages/AiRequirementsPage';
+import AiTestWriterPage from './pages/AiTestWriterPage';
 import BugDeskApp from './bugdesk/BugDeskApp';
 import { getModuleSettings } from './bugdesk/lib/scoped-storage';
 import AppToaster from './components/AppToaster';
 import { toast } from './utils/toast';
+import { useDocumentTitle } from './hooks/useDocumentTitle';
+import { useDialogShortcuts } from './hooks/useDialogShortcuts';
+import { getTabFromPathname, isKnownRoutePath } from './utils/navigationTitles';
 
 import { api } from './services/api';
 import { socketService } from './services/socket';
 import { webUsbAdbService } from './services/webUsbAdbService';
 import { screenMirrorStreamManager } from './services/screenMirrorStreamManager';
+import { padExecutionManager } from './services/padExecutionManager';
 import { ThemeProvider } from './context/ThemeContext';
 import { Lock, LogIn, ShieldAlert } from 'lucide-react';
 
@@ -76,11 +85,9 @@ const isRemoteConfigPath = (path) => {
 const getInitialTab = () => {
   if (typeof window !== 'undefined') {
     const path = window.location.pathname;
-    if (isRemoteConfigPath(path)) {
-      return 'remote-config';
-    }
-    if (path.toLowerCase().startsWith('/bug-desk')) {
-      return 'bug-desk';
+    const tab = getTabFromPathname(path);
+    if (tab) {
+      return tab;
     }
   }
   return 'dashboard';
@@ -88,6 +95,7 @@ const getInitialTab = () => {
 
 export default function App() {
   const [currentTab, setCurrentTab] = useState(getInitialTab);
+  useDocumentTitle(currentTab);
   const [currentUser, setCurrentUser] = useState(() => api.getCurrentUser());
   const [isAuthenticated, setIsAuthenticated] = useState(() => !!api.getCurrentUser());
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
@@ -130,6 +138,7 @@ export default function App() {
   const [browserUsbDevice, setBrowserUsbDevice] = useState(null);
   const [selectedDevice, setSelectedDevice] = useState(null);
   const browserUsbDeviceRef = React.useRef(null);
+  const isLoggingOutRef = React.useRef(false);
 
   const [builds, setBuilds] = useState([]);
   const [selectedBuild, setSelectedBuild] = useState(null);
@@ -148,6 +157,14 @@ export default function App() {
   const [authResetToken, setAuthResetToken] = useState('');
   const [usbDiagModalOpen, setUsbDiagModalOpen] = useState(false);
   const [usbDiagnostics, setUsbDiagnostics] = useState(null);
+  const [deleteUserModalOpen, setDeleteUserModalOpen] = useState(false);
+
+  useDialogShortcuts({
+    dialogId: 'app-screen-mirror-modal',
+    isOpen: Boolean(mirrorModalOpen && mirrorSessionActive && selectedDevice && currentTab !== 'screen-mirror'),
+    onPrimaryAction: null,
+    onClose: () => setMirrorModalOpen(false),
+  });
 
   useEffect(() => {
     window.__QA_TOAST__ = toast;
@@ -353,23 +370,24 @@ export default function App() {
     return () => window.removeEventListener('bugdesk:settings-updated', handleSettingsUpdated);
   }, []);
 
-  // Sync window URL path with Bug Desk and Remote Config tabs
+  // Sync window URL path with Bug Desk, Remote Config, and all application tabs
   useEffect(() => {
     const parseUrlTab = () => {
       const path = window.location.pathname;
-      if (isRemoteConfigPath(path)) {
-        setCurrentTab('remote-config');
-      } else if (path.toLowerCase().startsWith('/bug-desk')) {
-        setCurrentTab('bug-desk');
-        const p = path.toLowerCase();
-        if (p.includes('/new-bug') || p.endsWith('/new')) {
-          setBugDeskTab('new-bug');
-        } else if (p.includes('/history')) {
-          setBugDeskTab('history');
-        } else if (p.includes('/settings')) {
-          setBugDeskTab('settings');
-        } else {
-          setBugDeskTab('dashboard');
+      const tabFromPath = getTabFromPathname(path);
+      if (tabFromPath) {
+        setCurrentTab(tabFromPath);
+        if (tabFromPath === 'bug-desk') {
+          const p = path.toLowerCase();
+          if (p.includes('/new-bug') || p.endsWith('/new')) {
+            setBugDeskTab('new-bug');
+          } else if (p.includes('/history')) {
+            setBugDeskTab('history');
+          } else if (p.includes('/settings')) {
+            setBugDeskTab('settings');
+          } else {
+            setBugDeskTab('dashboard');
+          }
         }
       }
     };
@@ -391,9 +409,13 @@ export default function App() {
       if (!isRemoteConfigPath(currentPath)) {
         window.history.pushState({}, '', '/RemoteConfig');
       }
+    } else if (newTab === 'ai-requirements') {
+      window.history.pushState({}, '', '/ai-requirements');
+    } else if (newTab === 'ai-documents') {
+      window.history.pushState({}, '', '/ai-documents');
     } else {
       const currentPath = window.location.pathname;
-      if (currentPath.toLowerCase().startsWith('/bug-desk') || isRemoteConfigPath(currentPath)) {
+      if (currentPath.toLowerCase().startsWith('/bug-desk') || isRemoteConfigPath(currentPath) || (!isKnownRoutePath(currentPath) && currentPath !== '/')) {
         window.history.pushState({}, '', '/');
       }
     }
@@ -434,20 +456,49 @@ export default function App() {
   };
 
   const handleLogout = async () => {
-    webUsbAdbService.disconnect();
-    browserUsbDeviceRef.current = null;
-    setBrowserUsbDevice(null);
-    padExecutionManager.resetForUser(null);
-    await api.logout();
-    setCurrentUser(null);
-    setIsAuthenticated(false);
-    setDevices([]);
-    setSelectedDevice(null);
-    setBuilds([]);
-    setSelectedBuild(null);
-    setSummaryStats(null);
-    setAuthModalMode('login');
-    setAuthModalOpen(true);
+    if (isLoggingOutRef.current) return;
+    isLoggingOutRef.current = true;
+
+    try {
+      try {
+        webUsbAdbService.disconnect();
+      } catch (err) {
+        console.warn('[App] Failed to disconnect WebUSB during logout:', err);
+      }
+      browserUsbDeviceRef.current = null;
+      setBrowserUsbDevice(null);
+
+      try {
+        padExecutionManager.resetForUser(null);
+      } catch (err) {
+        console.warn('[App] Failed to reset padExecutionManager during logout:', err);
+      }
+
+      try {
+        await api.logout();
+      } catch (err) {
+        console.warn('[App] Backend logout endpoint failed or timed out:', err);
+      }
+
+      // Always clear client-side authentication and session-specific resources
+      setCurrentUser(null);
+      setIsAuthenticated(false);
+      setDevices([]);
+      setSelectedDevice(null);
+      setBuilds([]);
+      setSelectedBuild(null);
+      setSummaryStats(null);
+
+      // Return to unauthenticated dashboard if currently on an admin-only route
+      if (currentTab === 'admin-users' || currentTab === 'admin-devices') {
+        handleTabChange('dashboard');
+      }
+
+      setAuthModalMode('login');
+      setAuthModalOpen(true);
+    } finally {
+      isLoggingOutRef.current = false;
+    }
   };
 
   const handleDeviceConnected = (newDevice) => {
@@ -616,10 +667,20 @@ export default function App() {
             setMirrorModalOpen(true);
           }}
           remoteConfigPlatform={remoteConfigPlatform}
+          selectedBuild={selectedBuild}
+          onOpenDeleteUserModal={() => guardAction(() => setDeleteUserModalOpen(true))}
         />
 
         {/* Scrollable Page Views */}
-        <main className={`flex-1 overflow-y-auto ${currentTab === 'remote-config' || currentTab === 'bug-desk' ? 'p-0 w-full flex flex-col min-h-0' : currentTab === 'mixpanel-validator' ? 'p-4 lg:p-5 w-full flex flex-col min-h-0' : 'p-6 lg:p-8 max-w-7xl w-full mx-auto'}`}>
+        <main className={`flex-1 overflow-y-auto ${
+          currentTab === 'remote-config' || currentTab === 'bug-desk'
+            ? 'p-0 w-full flex flex-col min-h-0'
+            : currentTab === 'mixpanel-validator'
+            ? 'p-4 lg:p-5 w-full flex flex-col min-h-0'
+            : currentTab === 'ai-documents' || currentTab === 'ai-requirements' || currentTab === 'ai-test-writer'
+            ? 'p-4 sm:p-6 lg:p-8 w-full flex-1 flex flex-col min-h-0'
+            : 'p-6 lg:p-8 max-w-7xl w-full mx-auto'
+        }`}>
           {/* Unauthenticated Security Banner (exempt on Remote Config Manager) */}
           {!isAuthenticated && currentTab !== 'remote-config' && (
             <div className="mb-6 p-4 rounded-2xl glass flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 animate-fadeIn">
@@ -647,7 +708,7 @@ export default function App() {
             </div>
           )}
 
-          <ErrorBoundary onReset={fetchData}>
+          <ErrorBoundary key={currentTab} onReset={fetchData}>
             {currentTab === 'dashboard' && (
               <Dashboard
                 devices={combinedDevices}
@@ -734,8 +795,13 @@ export default function App() {
                 isActive={currentTab === 'run-test'}
                 currentTab={currentTab}
                 currentUser={currentUser}
+                onOpenDeleteUserModal={() => guardAction(() => setDeleteUserModalOpen(true))}
               />
             </div>
+
+            {currentTab === 'robo-test' && (
+              <RoboTestPage currentUser={currentUser} />
+            )}
 
             {currentTab === 'mixpanel-validator' && (
               <MixpanelValidatorPage
@@ -806,6 +872,18 @@ export default function App() {
                   <p className="text-xs text-slate-400 mt-1">Administrator privileges are required to access Device Management.</p>
                 </div>
               )
+            )}
+
+            {currentTab === 'ai-documents' && (
+              <AiDocumentsPage currentUser={currentUser} />
+            )}
+
+            {currentTab === 'ai-requirements' && (
+              <AiRequirementsPage currentUser={currentUser} />
+            )}
+
+            {currentTab === 'ai-test-writer' && (
+              <AiTestWriterPage currentUser={currentUser} />
             )}
 
             {isAuthenticated ? (
@@ -914,6 +992,16 @@ export default function App() {
           </div>
         </div>
       )}
+
+      {/* Delete App User / Remove Credits Dialog */}
+      <DeleteAppUserModal
+        isOpen={deleteUserModalOpen}
+        onClose={() => setDeleteUserModalOpen(false)}
+        selectedDevice={selectedDevice}
+        onSuccess={() => {
+          fetchData();
+        }}
+      />
 
       {/* Standardized Global AppToaster */}
       <AppToaster />

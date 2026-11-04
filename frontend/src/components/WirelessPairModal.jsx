@@ -21,6 +21,7 @@ import {
 import QRCode from 'qrcode';
 import { api } from '../services/api';
 import { toast } from '../utils/toast';
+import { useDialogShortcuts } from '../hooks/useDialogShortcuts';
 
 export default function WirelessPairModal({ isOpen, onClose, onDeviceConnected }) {
   const [activeTab, setActiveTab] = useState('qr'); // 'qr' | 'code' | 'discovered'
@@ -192,11 +193,9 @@ export default function WirelessPairModal({ isOpen, onClose, onDeviceConnected }
     }
   }, [isOpen, activeTab]);
 
-  if (!isOpen) return null;
-
   // Handle manual pairing
   const handleManualPair = async (e) => {
-    e.preventDefault();
+    e?.preventDefault?.();
     if (!ip || !pairPort || !pairCode) {
       setManualError('Please fill in Device IP, Pairing Port, and 6-Digit Pairing Code.');
       return;
@@ -221,7 +220,7 @@ export default function WirelessPairModal({ isOpen, onClose, onDeviceConnected }
 
   // Handle manual connect
   const handleManualConnect = async (e) => {
-    e.preventDefault();
+    e?.preventDefault?.();
     if (!ip || !connectPort) {
       setManualError('Please fill in Connection Port.');
       return;
@@ -265,6 +264,32 @@ export default function WirelessPairModal({ isOpen, onClose, onDeviceConnected }
       setConnectingSerial(null);
     }
   };
+
+  const handleWirelessPrimary = () => {
+    if (activeTab === 'code') {
+      if (manualStep === 'pair') {
+        handleManualPair();
+      } else {
+        handleManualConnect();
+      }
+    } else if (activeTab === 'qr') {
+      if (qrStatus === 'ERROR' || qrStatus === 'EXPIRED') {
+        startQrSession();
+      }
+    }
+  };
+
+  useDialogShortcuts({
+    dialogId: 'wireless-pair-modal',
+    isOpen,
+    onPrimaryAction: handleWirelessPrimary,
+    onSubmit: handleWirelessPrimary,
+    onClose,
+    disabled: manualLoading || qrStatus === 'LOADING',
+    loading: manualLoading,
+  });
+
+  if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/60 backdrop-blur-sm animate-fade-in overflow-y-auto">

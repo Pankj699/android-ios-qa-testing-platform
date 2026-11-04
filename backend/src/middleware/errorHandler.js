@@ -21,6 +21,9 @@ function errorHandler(err, req, res, next) {
   res.status(statusCode).json({
     success: false,
     error: friendlyMessage,
+    code: err.code,
+    outcomeUnknown: !!err.outcomeUnknown,
+    upstreamData: err.upstreamData,
     technicalDetails: config.NODE_ENV === 'development' ? technicalDetails : undefined,
     timestamp: new Date().toISOString()
   });

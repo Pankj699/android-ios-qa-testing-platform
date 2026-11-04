@@ -287,21 +287,21 @@ test('7. Full HTTP Inspector JSON View Structure & Masking', async (t) => {
 test('8. Console Maximize / Expand Overlay & Keyboard Shortcuts', async (t) => {
   await t.test('LiveLogViewer component includes expand/minimize button with aria-labels and tooltips', () => {
     assert.match(content, /aria-label=\{isMaximized \? "Close Expanded Live Execution Console" : "Expand Live Execution Console"\}/);
-    assert.match(content, /title=\{isMaximized \? "Close Expanded Console" : "Expand Console"\}/);
+    assert.match(content, /(?:title|content)=\{isMaximized \? "Close Expanded Console" : "Expand Console"\}/);
     assert.match(content, /<Maximize2/);
     assert.match(content, /<Minimize2/);
   });
 
   await t.test('LiveLogViewer component includes dedicated close button in expanded mode', () => {
     assert.match(content, /aria-label="Close Expanded Live Execution Console"/);
-    assert.match(content, /title="Close Expanded Console"/);
+    assert.match(content, /(?:title|content)="Close Expanded Console"/);
     assert.match(content, /<X className="w-3.5 h-3.5"/);
   });
 
   await t.test('ESC keydown listener closes expanded overlay without resetting state', () => {
-    assert.match(content, /if\s*\(e\.key === 'Escape' \|\| e\.keyCode === 27\)\s*\{\s*e\.preventDefault\(\);\s*setIsMaximized\(false\);/);
-    assert.match(content, /window\.addEventListener\('keydown',\s*handleKeyDown\);/);
-    assert.match(content, /window\.removeEventListener\('keydown',\s*handleKeyDown\);/);
+    assert.match(content, /useDialogShortcuts\(\{/);
+    assert.match(content, /dialogId:\s*['"]live-log-viewer-maximized['"]/);
+    assert.match(content, /onClose:\s*\(\)\s*=>\s*setIsMaximized\(false\)/);
   });
 
   await t.test('Body scroll lock is applied when expanded and cleaned up on close', () => {

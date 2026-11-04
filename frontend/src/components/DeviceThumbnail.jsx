@@ -2,37 +2,87 @@ import React, { useState, useEffect } from 'react';
 import { socketService } from '../services/socket';
 
 /**
- * High-precision SVG Fallback Illustrations
+ * High-precision SVG Fallback Illustrations (Theme-Aware & High-Contrast)
  */
-function AndroidPhoneIllustration({ className = '' }) {
+function AndroidPhoneIllustration({ className = '', isVirtual = false }) {
   return (
     <svg viewBox="0 0 36 72" fill="none" xmlns="http://www.w3.org/2000/svg" className={className}>
       {/* Outer frame */}
-      <rect x="2" y="2" width="32" height="68" rx="6" fill="#0D111A" stroke="#334155" strokeWidth="1.5" />
+      <rect
+        x="2"
+        y="2"
+        width="32"
+        height="68"
+        rx="6"
+        className="fill-slate-200 dark:fill-[#1E2638] stroke-slate-400 dark:stroke-[#3E4C66]"
+        strokeWidth="1.5"
+      />
       {/* Screen */}
-      <rect x="4" y="6" width="28" height="60" rx="3" fill="#131924" />
+      <rect
+        x="4.5"
+        y="6.5"
+        width="27"
+        height="59"
+        rx="3.5"
+        className={isVirtual
+          ? "fill-cyan-950/40 dark:fill-[#0B1526] stroke-cyan-500/40 dark:stroke-cyan-500/30"
+          : "fill-white dark:fill-[#0D121F] stroke-slate-200 dark:stroke-[#253046]"}
+        strokeWidth="1"
+      />
       {/* Front camera punch-hole */}
-      <circle cx="18" cy="10" r="1.2" fill="#475569" />
+      <circle cx="18" cy="10" r="1.3" className="fill-slate-400 dark:fill-slate-500" />
       {/* Bottom home indicator line */}
-      <rect x="13" y="62" width="10" height="1" rx="0.5" fill="#475569" />
+      <rect
+        x="13"
+        y="61.5"
+        width="10"
+        height="1.2"
+        rx="0.6"
+        className={isVirtual ? "fill-cyan-500/70 dark:fill-cyan-400/60" : "fill-slate-300 dark:fill-slate-600"}
+      />
       {/* Subtle screen reflection */}
-      <path d="M4 6 L20 6 L4 30 Z" fill="white" fillOpacity="0.03" />
+      <path d="M4.5 6.5 L24 6.5 L4.5 36 Z" fill="white" className="opacity-40 dark:opacity-10 pointer-events-none" />
     </svg>
   );
 }
 
-function AndroidTabletIllustration({ className = '' }) {
+function AndroidTabletIllustration({ className = '', isVirtual = false }) {
   return (
     <svg viewBox="0 0 54 72" fill="none" xmlns="http://www.w3.org/2000/svg" className={className}>
       {/* Tablet outer frame */}
-      <rect x="2" y="2" width="50" height="68" rx="5" fill="#0D111A" stroke="#334155" strokeWidth="1.5" />
+      <rect
+        x="2"
+        y="2"
+        width="50"
+        height="68"
+        rx="6"
+        className="fill-slate-200 dark:fill-[#1E2638] stroke-slate-400 dark:stroke-[#3E4C66]"
+        strokeWidth="1.5"
+      />
       {/* Tablet screen */}
-      <rect x="5" y="6" width="44" height="60" rx="3" fill="#131924" />
+      <rect
+        x="5.5"
+        y="6.5"
+        width="43"
+        height="59"
+        rx="4"
+        className={isVirtual
+          ? "fill-cyan-950/40 dark:fill-[#0B1526] stroke-cyan-500/40 dark:stroke-cyan-500/30"
+          : "fill-white dark:fill-[#0D121F] stroke-slate-200 dark:stroke-[#253046]"}
+        strokeWidth="1"
+      />
       {/* Tablet front camera */}
-      <circle cx="27" cy="4.2" r="1" fill="#475569" />
+      <circle cx="27" cy="4.5" r="1.1" className="fill-slate-400 dark:fill-slate-500" />
       {/* Bottom indicator */}
-      <rect x="21" y="62" width="12" height="1" rx="0.5" fill="#475569" />
-      <path d="M5 6 L30 6 L5 40 Z" fill="white" fillOpacity="0.03" />
+      <rect
+        x="21"
+        y="61.5"
+        width="12"
+        height="1.2"
+        rx="0.6"
+        className={isVirtual ? "fill-cyan-500/70 dark:fill-cyan-400/60" : "fill-slate-300 dark:fill-slate-600"}
+      />
+      <path d="M5.5 6.5 L34 6.5 L5.5 44 Z" fill="white" className="opacity-40 dark:opacity-10 pointer-events-none" />
     </svg>
   );
 }
@@ -40,15 +90,11 @@ function AndroidTabletIllustration({ className = '' }) {
 function IPhoneIllustration({ className = '' }) {
   return (
     <svg viewBox="0 0 36 72" fill="none" xmlns="http://www.w3.org/2000/svg" className={className}>
-      {/* iPhone rounded outer frame */}
-      <rect x="2" y="2" width="32" height="68" rx="7" fill="#0D111A" stroke="#475569" strokeWidth="1.5" />
-      {/* Screen */}
-      <rect x="4" y="5" width="28" height="62" rx="4" fill="#141B2D" />
-      {/* Dynamic Island pill notch */}
-      <rect x="13" y="7.5" width="10" height="2.5" rx="1.25" fill="#05070D" />
-      {/* iOS Home bar */}
-      <rect x="12" y="63" width="12" height="1.2" rx="0.6" fill="#64748B" />
-      <path d="M4 5 L22 5 L4 32 Z" fill="white" fillOpacity="0.04" />
+      <rect x="2" y="2" width="32" height="68" rx="7" className="fill-slate-200 dark:fill-[#1E2638] stroke-slate-400 dark:stroke-[#475569]" strokeWidth="1.5" />
+      <rect x="4.5" y="5.5" width="27" height="61" rx="4" className="fill-white dark:fill-[#0E1524] stroke-slate-200 dark:stroke-[#253046]" strokeWidth="1" />
+      <rect x="13" y="7.5" width="10" height="2.5" rx="1.25" className="fill-slate-400 dark:fill-[#05070D]" />
+      <rect x="12" y="62.5" width="12" height="1.2" rx="0.6" className="fill-slate-300 dark:fill-[#64748B]" />
+      <path d="M4.5 5.5 L23 5.5 L4.5 34 Z" fill="white" className="opacity-40 dark:opacity-10 pointer-events-none" />
     </svg>
   );
 }
@@ -56,11 +102,11 @@ function IPhoneIllustration({ className = '' }) {
 function IPadIllustration({ className = '' }) {
   return (
     <svg viewBox="0 0 54 72" fill="none" xmlns="http://www.w3.org/2000/svg" className={className}>
-      <rect x="2" y="2" width="50" height="68" rx="6" fill="#0D111A" stroke="#475569" strokeWidth="1.5" />
-      <rect x="5" y="5" width="44" height="62" rx="3" fill="#141B2D" />
-      <circle cx="27" cy="3.8" r="0.9" fill="#64748B" />
-      <rect x="20" y="63" width="14" height="1.2" rx="0.6" fill="#64748B" />
-      <path d="M5 5 L32 5 L5 42 Z" fill="white" fillOpacity="0.04" />
+      <rect x="2" y="2" width="50" height="68" rx="6" className="fill-slate-200 dark:fill-[#1E2638] stroke-slate-400 dark:stroke-[#475569]" strokeWidth="1.5" />
+      <rect x="5.5" y="5.5" width="43" height="61" rx="3.5" className="fill-white dark:fill-[#0E1524] stroke-slate-200 dark:stroke-[#253046]" strokeWidth="1" />
+      <circle cx="27" cy="4" r="1" className="fill-slate-400 dark:fill-[#64748B]" />
+      <rect x="20" y="62.5" width="14" height="1.2" rx="0.6" className="fill-slate-300 dark:fill-[#64748B]" />
+      <path d="M5.5 5.5 L34 5.5 L5.5 44 Z" fill="white" className="opacity-40 dark:opacity-10 pointer-events-none" />
     </svg>
   );
 }
@@ -108,9 +154,10 @@ export default function DeviceThumbnail({
   let isKnownTablet = false;
   let isKnownPhone = false;
 
-  if (device?.formFactor === 'tablet') {
+  const rawFormFactor = String(device?.formFactor || '').toLowerCase();
+  if (rawFormFactor === 'tablet') {
     isKnownTablet = true;
-  } else if (device?.formFactor === 'phone') {
+  } else if (rawFormFactor === 'phone') {
     isKnownPhone = true;
   } else {
     // Known tablet model patterns
@@ -163,19 +210,24 @@ export default function DeviceThumbnail({
     };
   }, [device, sMfg, sModel]);
 
-  // Reset state if model changes
+  const directThumbnailUrl = device?.thumbnailUrl || null;
+
+  // Reset state if model or thumbnail URL changes
   useEffect(() => {
     setImgLoaded(false);
     setImgError(false);
     setIsWideImage(false);
-  }, [sMfg, sModel]);
+  }, [sMfg, sModel, directThumbnailUrl]);
 
   if (!device) return null;
 
-  const hasIdentifier = Boolean(sMfg && sModel);
-  const imageUrl = hasIdentifier
+  const isVirtual = device?.form === 'VIRTUAL' || Boolean(device?.isVirtual);
+  const isCatalogDevice = Boolean(device?.isCatalogDevice || isVirtual);
+
+  const hasIdentifier = Boolean(sMfg && sModel && !isCatalogDevice);
+  const imageUrl = directThumbnailUrl || (hasIdentifier
     ? `/api/devices/image/${sMfg}/${sModel}${version ? `?v=${version}` : ''}`
-    : null;
+    : null);
 
   const sizeMap = useWideFrame ? SIZE_MAP_TABLET : SIZE_MAP_PHONE;
   const sizeClass = sizeMap[size] || sizeMap.sm;
@@ -193,9 +245,13 @@ export default function DeviceThumbnail({
     setImgLoaded(true);
   };
 
+  const defaultBoxStyle = className.includes('border-0') || className.includes('bg-transparent')
+    ? ''
+    : 'border border-slate-200/80 dark:border-[#253046] bg-slate-100/60 dark:bg-[#101522] shadow-xs';
+
   return (
     <div
-      className={`relative inline-flex items-center justify-center shrink-0 overflow-hidden border border-[#1E2638] bg-[#0A0D14] shadow-xs ${sizeClass} ${className}`}
+      className={`relative inline-flex items-center justify-center shrink-0 overflow-hidden ${defaultBoxStyle} ${sizeClass} ${className}`}
       title={device.displayName || device.name || 'Device Thumbnail'}
     >
       {/* 1. Verified Real Model Image (if available) */}
@@ -220,9 +276,9 @@ export default function DeviceThumbnail({
               <IPhoneIllustration className="w-full h-full" />
             )
           ) : isKnownTablet ? (
-            <AndroidTabletIllustration className="w-full h-full" />
+            <AndroidTabletIllustration className="w-full h-full" isVirtual={isVirtual} />
           ) : (
-            <AndroidPhoneIllustration className="w-full h-full" />
+            <AndroidPhoneIllustration className="w-full h-full" isVirtual={isVirtual} />
           )}
         </div>
       )}

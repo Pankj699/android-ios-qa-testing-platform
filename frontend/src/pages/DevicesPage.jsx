@@ -1,6 +1,7 @@
 import React from 'react';
 import { Smartphone, Wifi, RefreshCw, AlertCircle, PlusCircle, Usb, Laptop } from 'lucide-react';
 import DeviceCard from '../components/DeviceCard';
+import Tooltip from '../components/ui/Tooltip';
 
 export default function DevicesPage({
   devices,
@@ -38,45 +39,53 @@ export default function DevicesPage({
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5 shrink-0">
-          <button
-            onClick={onRefreshDevices}
-            disabled={loading}
-            className="h-9 w-9 p-0 inline-flex items-center justify-center rounded-xl btn-soft shrink-0 cursor-pointer shadow-xs"
-            title="Refresh Devices List"
-          >
-            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-          </button>
+          <Tooltip content="Refresh Devices List" side="bottom">
+            <button
+              onClick={onRefreshDevices}
+              disabled={loading}
+              className="h-9 w-9 p-0 inline-flex items-center justify-center rounded-xl btn-soft shrink-0 cursor-pointer shadow-xs"
+              aria-label="Refresh Devices List"
+            >
+              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+            </button>
+          </Tooltip>
 
           {onOpenAgentPairModal && (
-            <button
-              onClick={onOpenAgentPairModal}
-              className="h-9 px-3.5 inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-xs font-bold text-white shadow-md shadow-blue-900/30 transition-all border border-blue-400/30 shrink-0 cursor-pointer whitespace-nowrap"
-              title="Pair QA Device Agent to connect physical iPhones/iPads over USB"
-            >
-              <Laptop className="w-4 h-4 text-blue-200" />
-              <span>Pair Agent (iOS USB)</span>
-            </button>
+            <Tooltip content="Pair QA Device Agent to connect physical iPhones/iPads over USB" side="bottom">
+              <button
+                onClick={onOpenAgentPairModal}
+                className="h-9 px-3.5 inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-xs font-bold text-white shadow-md shadow-blue-900/30 transition-all border border-blue-400/30 shrink-0 cursor-pointer whitespace-nowrap"
+                aria-label="Pair QA Device Agent"
+              >
+                <Laptop className="w-4 h-4 text-blue-200" />
+                <span>Pair Agent (iOS USB)</span>
+              </button>
+            </Tooltip>
           )}
 
           {onConnectBrowserUsb && (
-            <button
-              onClick={onConnectBrowserUsb}
-              className="h-9 px-3.5 inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-xs font-bold text-white shadow-md shadow-purple-900/30 transition-all border border-purple-400/30 shrink-0 cursor-pointer whitespace-nowrap"
-              title="Connect physical Android device directly to this browser via USB cable"
-            >
-              <Usb className="w-4 h-4 text-purple-200" />
-              <span>Connect Device (USB)</span>
-            </button>
+            <Tooltip content="Connect physical Android device directly to this browser via USB cable" side="bottom">
+              <button
+                onClick={onConnectBrowserUsb}
+                className="h-9 px-3.5 inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-xs font-bold text-white shadow-md shadow-purple-900/30 transition-all border border-purple-400/30 shrink-0 cursor-pointer whitespace-nowrap"
+                aria-label="Connect Device (USB)"
+              >
+                <Usb className="w-4 h-4 text-purple-200" />
+                <span>Connect Device (USB)</span>
+              </button>
+            </Tooltip>
           )}
 
-          <button
-            onClick={onOpenPairModal}
-            className="h-9 px-3.5 inline-flex items-center gap-2 rounded-xl btn-magic text-white text-xs font-bold shadow-magic transition-all shrink-0 cursor-pointer whitespace-nowrap"
-            title="Pair and connect physical Android device wirelessly over Wi-Fi"
-          >
-            <Wifi className="w-4 h-4 text-white" />
-            <span>Pair New Device (Wi-Fi)</span>
-          </button>
+          <Tooltip content="Pair and connect physical Android device wirelessly over Wi-Fi" side="bottom">
+            <button
+              onClick={onOpenPairModal}
+              className="h-9 px-3.5 inline-flex items-center gap-2 rounded-xl btn-magic text-white text-xs font-bold shadow-magic transition-all shrink-0 cursor-pointer whitespace-nowrap"
+              aria-label="Pair New Device (Wi-Fi)"
+            >
+              <Wifi className="w-4 h-4 text-white" />
+              <span>Pair New Device (Wi-Fi)</span>
+            </button>
+          </Tooltip>
         </div>
       </div>
 

@@ -13,10 +13,14 @@ import {
   Copy,
   HardDrive,
   X,
-  ChevronDown
+  ChevronDown,
+  UserX
 } from 'lucide-react';
 import { screenMirrorStreamManager } from '../services/screenMirrorStreamManager';
 import { toast } from 'sonner';
+import { isFlyerMakerBuild } from '../utils/buildUtils';
+import Tooltip from './ui/Tooltip';
+import { useDialogShortcuts } from '../hooks/useDialogShortcuts';
 
 const formatDuration = (totalSeconds) => {
   const mins = Math.floor(totalSeconds / 60);
@@ -27,8 +31,11 @@ const formatDuration = (totalSeconds) => {
 export default function BugDeskRecordingControls({
   moduleSettings,
   onOpenMirror,
-  selectedDevice
+  selectedDevice,
+  selectedBuild,
+  onOpenDeleteUserModal
 }) {
+  const isFlyerMaker = isFlyerMakerBuild(selectedBuild);
   const [mirrorStatus, setMirrorStatus] = useState(screenMirrorStreamManager.getMirrorStatus());
   const [activeDevice, setActiveDevice] = useState(screenMirrorStreamManager.getActiveDevice());
   const [isMirrorReady, setIsMirrorReady] = useState(screenMirrorStreamManager.isMirrorReady(selectedDevice));
@@ -240,6 +247,16 @@ export default function BugDeskRecordingControls({
     }
   };
 
+  useDialogShortcuts({
+    dialogId: 'bugdesk-upload-recording-modal',
+    isOpen: showUploadConfirm,
+    onPrimaryAction: handleConfirmUpload,
+    onSubmit: handleConfirmUpload,
+    onClose: handleDismissModal,
+    disabled: isUploading,
+    loading: isUploading,
+  });
+
   return (
     <div className="flex items-center gap-2">
       {/* ── State: Recording is ACTIVE -> Persistent Glowing Indicator & Direct Stop Action ── */}
@@ -249,15 +266,16 @@ export default function BugDeskRecordingControls({
             <span className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-ping" />
             <span className="font-mono text-xs">{formatDuration(durationSec)}</span>
           </div>
-          <button
-            type="button"
-            onClick={handleStopRecording}
-            className="h-9 px-3 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs flex items-center gap-1.5 shadow-md transition-all cursor-pointer animate-pulse"
-            title="Stop recording and review upload"
-          >
-            <Square className="w-3.5 h-3.5 fill-white" />
-            <span>Stop Recording</span>
-          </button>
+          <Tooltip content="Stop recording and review upload" side="bottom">
+            <button
+              type="button"
+              onClick={handleStopRecording}
+              className="h-9 px-3 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs flex items-center gap-1.5 shadow-md transition-all cursor-pointer animate-pulse"
+            >
+              <Square className="w-3.5 h-3.5 fill-white" />
+              <span>Stop Recording</span>
+            </button>
+          </Tooltip>
         </div>
       )}
 
@@ -278,14 +296,15 @@ export default function BugDeskRecordingControls({
         <div className="flex items-center gap-2 px-3 h-9 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 text-xs font-semibold animate-fadeIn shadow-xs">
           <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
           <span>Attached!</span>
-          <button
-            type="button"
-            onClick={handleCopyLink}
-            className="p-1 rounded hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-300 transition-colors cursor-pointer"
-            title="Copy published Google Drive link"
-          >
-            {copiedLink ? <CheckCircle2 className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
-          </button>
+          <Tooltip content="Copy published Google Drive link" side="bottom">
+            <button
+              type="button"
+              onClick={handleCopyLink}
+              className="p-1 rounded hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-300 transition-colors cursor-pointer"
+            >
+              {copiedLink ? <CheckCircle2 className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+            </button>
+          </Tooltip>
         </div>
       )}
 
@@ -298,70 +317,75 @@ export default function BugDeskRecordingControls({
           </span>
 
           {hasUploadedFile ? (
-            <button
-              type="button"
-              onClick={handleRetryPublish}
-              className="px-2 py-0.5 rounded bg-rose-500/20 hover:bg-rose-500/30 text-[11px] font-bold text-white transition-colors cursor-pointer"
-              title="Retry creating shareable link for uploaded file"
-            >
-              Retry
-            </button>
+            <Tooltip content="Retry creating shareable link for uploaded file" side="bottom">
+              <button
+                type="button"
+                onClick={handleRetryPublish}
+                className="px-2 py-0.5 rounded bg-rose-500/20 hover:bg-rose-500/30 text-[11px] font-bold text-white transition-colors cursor-pointer"
+              >
+                Retry
+              </button>
+            </Tooltip>
           ) : hasPreservedBlob ? (
-            <button
-              type="button"
-              onClick={handleRetryUpload}
-              className="px-2 py-0.5 rounded bg-rose-500/20 hover:bg-rose-500/30 text-[11px] font-bold text-white transition-colors cursor-pointer"
-              title="Retry uploading preserved recording"
-            >
-              Retry
-            </button>
+            <Tooltip content="Retry uploading preserved recording" side="bottom">
+              <button
+                type="button"
+                onClick={handleRetryUpload}
+                className="px-2 py-0.5 rounded bg-rose-500/20 hover:bg-rose-500/30 text-[11px] font-bold text-white transition-colors cursor-pointer"
+              >
+                Retry
+              </button>
+            </Tooltip>
           ) : null}
 
           {hasPreservedBlob && (
-            <button
-              type="button"
-              onClick={() => screenMirrorStreamManager.downloadLocalVideo()}
-              className="p-1 rounded hover:bg-rose-500/25 text-rose-400 transition-colors cursor-pointer"
-              title="Download recording locally (.webm)"
-            >
-              <Download className="w-3 h-3" />
-            </button>
+            <Tooltip content="Download recording locally (.webm)" side="bottom">
+              <button
+                type="button"
+                onClick={() => screenMirrorStreamManager.downloadLocalVideo()}
+                className="p-1 rounded hover:bg-rose-500/25 text-rose-400 transition-colors cursor-pointer"
+              >
+                <Download className="w-3 h-3" />
+              </button>
+            </Tooltip>
           )}
 
-          <button
-            type="button"
-            onClick={() => screenMirrorStreamManager.reset()}
-            className="text-xs text-rose-400 hover:text-rose-200 ml-1 cursor-pointer"
-            title="Dismiss error"
-          >
-            ✕
-          </button>
+          <Tooltip content="Dismiss error" side="bottom">
+            <button
+              type="button"
+              onClick={() => screenMirrorStreamManager.reset()}
+              className="text-xs text-rose-400 hover:text-rose-200 ml-1 cursor-pointer"
+            >
+              ✕
+            </button>
+          </Tooltip>
         </div>
       )}
 
       {/* ── Device Actions Dropdown (Mirror & Record Screen) ── */}
       {recordState !== 'recording' && (
         <div className="relative" ref={actionsMenuRef}>
-          <button
-            type="button"
-            onClick={() => setDeviceActionsOpen((prev) => !prev)}
-            className="btn-soft h-9 px-2.5 lg:px-3 rounded-xl flex items-center gap-1.5 lg:gap-2 text-xs font-semibold cursor-pointer shadow-xs"
-            title="Device Actions: Screen Mirror & Recording"
-            aria-label="Device Actions"
-          >
-            <div className="relative flex items-center justify-center">
-              <Tv className="w-3.5 h-3.5 text-[#7c6cf6] dark:text-violet-400" />
-              {isMirrorReady && (
-                <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-              )}
-            </div>
-            <span className="hidden xl:inline">Device Actions</span>
-            <ChevronDown
-              className={`w-3.5 h-3.5 text-[#6b7194] dark:text-[#64748B] transition-transform duration-200 ${
-                deviceActionsOpen ? 'rotate-180' : ''
-              }`}
-            />
-          </button>
+          <Tooltip content="Device Actions: Screen Mirror & Recording" side="bottom">
+            <button
+              type="button"
+              onClick={() => setDeviceActionsOpen((prev) => !prev)}
+              className="btn-soft h-9 px-2.5 lg:px-3 rounded-xl flex items-center gap-1.5 lg:gap-2 text-xs font-semibold cursor-pointer shadow-xs"
+              aria-label="Device Actions"
+            >
+              <div className="relative flex items-center justify-center">
+                <Tv className="w-3.5 h-3.5 text-[#7c6cf6] dark:text-violet-400" />
+                {isMirrorReady && (
+                  <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                )}
+              </div>
+              <span className="hidden xl:inline">Device Actions</span>
+              <ChevronDown
+                className={`w-3.5 h-3.5 text-[#6b7194] dark:text-[#64748B] transition-transform duration-200 ${
+                  deviceActionsOpen ? 'rotate-180' : ''
+                }`}
+              />
+            </button>
+          </Tooltip>
 
           {/* Dropdown Menu */}
           {deviceActionsOpen && (
@@ -415,7 +439,33 @@ export default function BugDeskRecordingControls({
                 )}
               </button>
 
-              {/* Option 3: Pending Upload (if present) */}
+              {/* Option 3: Delete App User (Visible only for Flyer Maker build com.bg.flyermaker) */}
+              {isFlyerMaker && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDeviceActionsOpen(false);
+                    if (onOpenDeleteUserModal) onOpenDeleteUserModal();
+                  }}
+                  disabled={!selectedDevice}
+                  className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold transition-colors text-left ${
+                    !selectedDevice
+                      ? 'text-[#94a3b8] dark:text-[#525A6C] opacity-60 cursor-not-allowed'
+                      : 'text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 cursor-pointer'
+                  }`}
+                  title={!selectedDevice ? 'Select an Android device first' : 'Delete App User / Remove credits for active Flyer Maker session'}
+                >
+                  <div className="flex items-center gap-2.5">
+                    <UserX className="w-4 h-4 text-rose-500 shrink-0" />
+                    <span>Delete App User</span>
+                  </div>
+                  {!selectedDevice && (
+                    <span className="text-[10px] text-[#94a3b8] dark:text-[#525A6C]">(No device)</span>
+                  )}
+                </button>
+              )}
+
+              {/* Option 4: Pending Upload (if present) */}
               {Boolean(pendingRecording) && (
                 <button
                   type="button"
@@ -454,15 +504,17 @@ export default function BugDeskRecordingControls({
                   <p className="text-[11px] text-[#94A3B8]">Screen recording confirmation</p>
                 </div>
               </div>
-              <button
-                type="button"
-                onClick={handleDismissModal}
-                disabled={isUploading}
-                className="p-1.5 rounded-lg hover:bg-[#1E2638] text-[#94A3B8] hover:text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
-                title="Close"
-              >
-                <X className="w-4 h-4" />
-              </button>
+              <Tooltip content="Close" side="bottom">
+                <button
+                  type="button"
+                  onClick={handleDismissModal}
+                  disabled={isUploading}
+                  className="p-1.5 rounded-lg hover:bg-[#1E2638] text-[#94A3B8] hover:text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                  aria-label="Close"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </Tooltip>
             </div>
 
             {/* Body */}
@@ -528,25 +580,26 @@ export default function BugDeskRecordingControls({
 
             {/* Footer */}
             <div className="px-6 py-3.5 border-t border-[#1E2638] bg-[#0A0D14] flex items-center justify-between gap-2.5">
-              <button
-                type="button"
-                onClick={() => {
-                  const rec = pendingRecording || screenMirrorStreamManager.getPendingRecording();
-                  const filename = rec?.filename || screenMirrorStreamManager.preservedFilename;
-                  const success = screenMirrorStreamManager.downloadLocalVideo(filename);
-                  if (success) {
-                    toast.success('Downloaded screen recording locally.');
-                  } else {
-                    toast.error('No recording file available to download.');
-                  }
-                }}
-                disabled={isUploading}
-                className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-[#1E2638] bg-[#10141D] hover:bg-[#161B26] text-emerald-400 hover:text-emerald-300 hover:border-emerald-500/30 text-xs font-bold transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
-                title="Download screen recording directly to local computer"
-              >
-                <Download className="w-3.5 h-3.5" />
-                <span>Download Recording</span>
-              </button>
+              <Tooltip content="Download screen recording directly to local computer" side="bottom">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const rec = pendingRecording || screenMirrorStreamManager.getPendingRecording();
+                    const filename = rec?.filename || screenMirrorStreamManager.preservedFilename;
+                    const success = screenMirrorStreamManager.downloadLocalVideo(filename);
+                    if (success) {
+                      toast.success('Downloaded screen recording locally.');
+                    } else {
+                      toast.error('No recording file available to download.');
+                    }
+                  }}
+                  disabled={isUploading}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-[#1E2638] bg-[#10141D] hover:bg-[#161B26] text-emerald-400 hover:text-emerald-300 hover:border-emerald-500/30 text-xs font-bold transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>Download Recording</span>
+                </button>
+              </Tooltip>
 
               <div className="flex items-center gap-2.5">
                 <button

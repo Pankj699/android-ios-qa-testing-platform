@@ -16,6 +16,11 @@ router.post('/device/acquire', (req, res, next) => deviceController.acquireDevic
 router.post('/device/:id/command', (req, res, next) => deviceController.executeAgentCommand(req, res, next));
 router.get('/device/:id/installed-apps', (req, res, next) => deviceController.getInstalledApps(req, res, next));
 
+// Flyer Maker App User Routes
+const appUserController = require('../controllers/appUserController');
+router.get('/device/:id/app-user', (req, res, next) => appUserController.getAppUser(req, res, next));
+router.post('/device/:id/app-user/delete', (req, res, next) => appUserController.deleteAppUser(req, res, next));
+
 // Screen Mirroring & Screenshot Routes
 router.post('/device/:id/mirror/start', (req, res, next) => deviceController.startMirror(req, res, next));
 router.post('/device/:id/mirror/stop', (req, res, next) => deviceController.stopMirror(req, res, next));

@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import TestResultModal from '../components/TestResultModal';
 import { api } from '../services/api';
+import Tooltip from '../components/ui/Tooltip';
 import { socketService } from '../services/socket';
 import { formatDeviceDisplayName, formatDeviceOsVersion } from '../utils/deviceFormatter';
 import DeviceThumbnail from '../components/DeviceThumbnail';
@@ -120,14 +121,16 @@ export default function TestHistoryPage({ currentUser }) {
           </div>
         </div>
 
-        <button
-          onClick={fetchHistory}
-          disabled={loading}
-          className="p-2.5 rounded-btn btn-soft text-[#6B7194] hover:text-[#1F2544] dark:text-slate-300 dark:hover:text-white transition-colors cursor-pointer"
-          title="Refresh History"
-        >
-          <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-        </button>
+        <Tooltip content="Refresh History" side="left">
+          <button
+            onClick={fetchHistory}
+            disabled={loading}
+            className="p-2.5 rounded-btn btn-soft text-[#6B7194] hover:text-[#1F2544] dark:text-slate-300 dark:hover:text-white transition-colors cursor-pointer"
+            aria-label="Refresh History"
+          >
+            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+          </button>
+        </Tooltip>
       </div>
 
       {/* Filter Bar */}
@@ -233,27 +236,33 @@ export default function TestHistoryPage({ currentUser }) {
                     <td className="py-3 px-4 font-mono text-[#1F2544] dark:text-[#CBD5E1]">{t.duration || '-'}</td>
                     <td className="py-3 px-4 text-right">
                       <div className="flex items-center justify-end gap-1.5">
-                        <button
-                          onClick={() => handleOpenTest(t)}
-                          className="p-1.5 rounded-lg btn-soft text-[#1F2544] dark:text-[#CBD5E1] hover:text-[#7c6cf6] transition-colors cursor-pointer"
-                          title="View Test Details"
-                        >
-                          <Eye className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          onClick={() => handleDownloadLog(t.id)}
-                          className="p-1.5 rounded-lg btn-soft text-[#1F2544] dark:text-[#CBD5E1] hover:text-[#7c6cf6] transition-colors cursor-pointer"
-                          title="Download Test Logs"
-                        >
-                          <Download className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          onClick={() => handleDelete(t.id)}
-                          className="p-1.5 rounded-lg btn-soft text-rose-500 hover:bg-rose-500/10 transition-colors cursor-pointer"
-                          title="Delete History Entry"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
+                        <Tooltip content="View Test Details" side="top">
+                          <button
+                            onClick={() => handleOpenTest(t)}
+                            className="p-1.5 rounded-lg btn-soft text-[#1F2544] dark:text-[#CBD5E1] hover:text-[#7c6cf6] transition-colors cursor-pointer"
+                            aria-label="View Test Details"
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                          </button>
+                        </Tooltip>
+                        <Tooltip content="Download Test Logs" side="top">
+                          <button
+                            onClick={() => handleDownloadLog(t.id)}
+                            className="p-1.5 rounded-lg btn-soft text-[#1F2544] dark:text-[#CBD5E1] hover:text-[#7c6cf6] transition-colors cursor-pointer"
+                            aria-label="Download Test Logs"
+                          >
+                            <Download className="w-3.5 h-3.5" />
+                          </button>
+                        </Tooltip>
+                        <Tooltip content="Delete History Entry" side="top">
+                          <button
+                            onClick={() => handleDelete(t.id)}
+                            className="p-1.5 rounded-lg btn-soft text-rose-500 hover:bg-rose-500/10 transition-colors cursor-pointer"
+                            aria-label="Delete History Entry"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </Tooltip>
                       </div>
                     </td>
                   </tr>

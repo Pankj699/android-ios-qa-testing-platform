@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React from 'react';
 import {
   LayoutDashboard,
   Smartphone,
@@ -17,8 +17,13 @@ import {
   Bug,
   PanelLeftClose,
   PanelLeftOpen,
-  Sliders
+  Sliders,
+  Bot,
+  FileText,
+  ListChecks,
+  Sparkles
 } from 'lucide-react';
+import Tooltip from './ui/Tooltip';
 
 const NAV_GROUPS = [
   {
@@ -34,10 +39,20 @@ const NAV_GROUPS = [
     ]
   },
   {
+    id: 'ai-writer',
+    title: 'AI TEST WRITER',
+    items: [
+      { id: 'ai-documents', label: 'AI Documents', icon: FileText },
+      { id: 'ai-requirements', label: 'Requirements Analysis', icon: ListChecks },
+      { id: 'ai-test-writer', label: 'Test Case Generation', icon: Sparkles }
+    ]
+  },
+  {
     id: 'execution',
     title: 'EXECUTION',
     items: [
       { id: 'run-test', label: 'Run PAD Test', icon: PlayCircle, highlight: true },
+      { id: 'robo-test', label: 'Robo Test (Firebase)', icon: Bot },
       { id: 'mixpanel-validator', label: 'Mixpanel Validator', icon: FileSpreadsheet },
       { id: 'history', label: 'Test History', icon: History },
       { id: 'adb-ops', label: 'ADB Operations', icon: Terminal }
@@ -64,50 +79,6 @@ export default function Sidebar({
   onToggleCollapse
 }) {
   const isAdmin = currentUser?.role === 'ADMIN';
-  const [tooltip, setTooltip] = useState(null);
-
-  const showTooltip = useCallback((label, target) => {
-    if (!isCollapsed || !target) return;
-    const rect = target.getBoundingClientRect();
-    setTooltip({
-      label,
-      top: rect.top + rect.height / 2,
-      left: rect.right + 10
-    });
-  }, [isCollapsed]);
-
-  const hideTooltip = useCallback(() => {
-    setTooltip(null);
-  }, []);
-
-  // Dismiss tooltip on Escape, click, or when focus/hover moves away
-  useEffect(() => {
-    if (!tooltip) return;
-
-    const handleKeyDown = (e) => {
-      if (e.key === 'Escape') {
-        hideTooltip();
-      }
-    };
-
-    const handleClickOutside = () => {
-      hideTooltip();
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    window.addEventListener('click', handleClickOutside);
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-      window.removeEventListener('click', handleClickOutside);
-    };
-  }, [tooltip, hideTooltip]);
-
-  // Immediately clear tooltip if sidebar expands
-  useEffect(() => {
-    if (!isCollapsed) {
-      setTooltip(null);
-    }
-  }, [isCollapsed]);
 
   return (
     <aside
@@ -116,7 +87,7 @@ export default function Sidebar({
       }`}
       aria-label="Sidebar Navigation"
     >
-      <div className="flex-1 overflow-y-auto overflow-x-hidden min-h-0" onScroll={hideTooltip}>
+      <div className="flex-1 overflow-y-auto overflow-x-hidden min-h-0">
         {/* Top Header & Collapse Toggle */}
         <div
           className={`border-b border-[rgba(99,102,241,0.14)] dark:border-[#141824]/60 min-h-[55px] flex items-center transition-all ${
@@ -134,32 +105,30 @@ export default function Sidebar({
                   <div className="text-[10px] text-[#6b7194] dark:text-[#525A6C] font-mono tracking-wider">SYS.VER.1.1</div>
                 </div>
               </div>
+              <Tooltip content="Collapse sidebar" side="right">
+                <button
+                  type="button"
+                  onClick={onToggleCollapse}
+                  aria-label="Collapse sidebar"
+                  aria-expanded={!isCollapsed}
+                  className="p-1.5 rounded-xl text-[#6b7194] hover:text-[#1f2544] hover:bg-violet-50 dark:text-[#8F97A6] dark:hover:text-white dark:hover:bg-[#12151E] transition-colors cursor-pointer shrink-0"
+                >
+                  <PanelLeftClose className="w-4 h-4" />
+                </button>
+              </Tooltip>
+            </>
+          ) : (
+            <Tooltip content="Expand sidebar" side="right">
               <button
                 type="button"
                 onClick={onToggleCollapse}
-                aria-label="Collapse sidebar"
+                aria-label="Expand sidebar"
                 aria-expanded={!isCollapsed}
-                title="Collapse sidebar"
-                className="p-1.5 rounded-xl text-[#6b7194] hover:text-[#1f2544] hover:bg-violet-50 dark:text-[#8F97A6] dark:hover:text-white dark:hover:bg-[#12151E] transition-colors cursor-pointer shrink-0"
+                className="w-10 h-10 rounded-xl btn-soft flex items-center justify-center transition-all cursor-pointer shadow-xs"
               >
-                <PanelLeftClose className="w-4 h-4" />
+                <PanelLeftOpen className="w-4 h-4 text-[#7c6cf6] dark:text-[#F59E0B]" />
               </button>
-            </>
-          ) : (
-            <button
-              type="button"
-              onClick={onToggleCollapse}
-              aria-label="Expand sidebar"
-              aria-expanded={!isCollapsed}
-              title="Expand sidebar"
-              onMouseEnter={(e) => showTooltip('Expand sidebar', e.currentTarget)}
-              onMouseLeave={hideTooltip}
-              onFocus={(e) => showTooltip('Expand sidebar', e.currentTarget)}
-              onBlur={hideTooltip}
-              className="w-10 h-10 rounded-xl btn-soft flex items-center justify-center transition-all cursor-pointer shadow-xs"
-            >
-              <PanelLeftOpen className="w-4 h-4 text-[#7c6cf6] dark:text-[#F59E0B]" />
-            </button>
+            </Tooltip>
           )}
         </div>
 
@@ -182,34 +151,27 @@ export default function Sidebar({
 
                 if (isCollapsed) {
                   return (
-                    <button
-                      key={item.id}
-                      type="button"
-                      onClick={() => {
-                        hideTooltip();
-                        setTab(item.id);
-                      }}
-                      onMouseEnter={(e) => showTooltip(item.label, e.currentTarget)}
-                      onMouseLeave={hideTooltip}
-                      onFocus={(e) => showTooltip(item.label, e.currentTarget)}
-                      onBlur={hideTooltip}
-                      aria-label={item.label}
-                      title={item.label}
-                      className={`w-10 h-10 mx-auto rounded-xl flex items-center justify-center relative transition-all group cursor-pointer ${
-                        isActive
-                          ? 'bg-violet-100/90 border border-[#7c6cf6]/40 text-[#7c6cf6] shadow-xs dark:bg-[#16130C] dark:border-[#F59E0B]/50 dark:text-[#F59E0B]'
-                          : 'text-[#6b7194] hover:text-[#1f2544] hover:bg-violet-50/70 dark:text-[#8F97A6] dark:hover:text-[#FFFFFF] dark:hover:bg-[#12151E]'
-                      }`}
-                    >
-                      <Icon className={`w-4 h-4 shrink-0 transition-colors ${isActive ? 'text-[#7c6cf6] dark:text-[#F59E0B]' : 'text-[#6b7194] group-hover:text-[#1f2544] dark:text-[#64748B] dark:group-hover:text-[#94A3B8]'}`} />
+                    <Tooltip key={item.id} content={item.label} side="right">
+                      <button
+                        type="button"
+                        onClick={() => setTab(item.id)}
+                        aria-label={item.label}
+                        className={`w-10 h-10 mx-auto rounded-xl flex items-center justify-center relative transition-all group cursor-pointer ${
+                          isActive
+                            ? 'bg-violet-100/90 border border-[#7c6cf6]/40 text-[#7c6cf6] shadow-xs dark:bg-[#16130C] dark:border-[#F59E0B]/50 dark:text-[#F59E0B]'
+                            : 'text-[#6b7194] hover:text-[#1f2544] hover:bg-violet-50/70 dark:text-[#8F97A6] dark:hover:text-[#FFFFFF] dark:hover:bg-[#12151E]'
+                        }`}
+                      >
+                        <Icon className={`w-4 h-4 shrink-0 transition-colors ${isActive ? 'text-[#7c6cf6] dark:text-[#F59E0B]' : 'text-[#6b7194] group-hover:text-[#1f2544] dark:text-[#64748B] dark:group-hover:text-[#94A3B8]'}`} />
 
-                      {item.id === 'run-test' && runningTestCount > 0 && (
-                        <span className="absolute top-1.5 right-1.5 flex h-2 w-2">
-                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#7c6cf6] dark:bg-[#F59E0B] opacity-75"></span>
-                          <span className="relative inline-flex rounded-full h-2 w-2 bg-[#7c6cf6] dark:bg-[#F59E0B]"></span>
-                        </span>
-                      )}
-                    </button>
+                        {item.id === 'run-test' && runningTestCount > 0 && (
+                          <span className="absolute top-1.5 right-1.5 flex h-2 w-2">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#7c6cf6] dark:bg-[#F59E0B] opacity-75"></span>
+                            <span className="relative inline-flex rounded-full h-2 w-2 bg-[#7c6cf6] dark:bg-[#F59E0B]"></span>
+                          </span>
+                        )}
+                      </button>
+                    </Tooltip>
                   );
                 }
 
@@ -282,46 +244,34 @@ export default function Sidebar({
               ) : (
                 <>
                   <div className="border-t border-[rgba(99,102,241,0.14)] dark:border-[#161B26] mx-2 my-2" role="separator" />
-                  <button
-                    type="button"
-                    onClick={() => {
-                      hideTooltip();
-                      setTab('admin-users');
-                    }}
-                    onMouseEnter={(e) => showTooltip('User Management', e.currentTarget)}
-                    onMouseLeave={hideTooltip}
-                    onFocus={(e) => showTooltip('User Management', e.currentTarget)}
-                    onBlur={hideTooltip}
-                    aria-label="User Management"
-                    title="User Management"
-                    className={`w-10 h-10 mx-auto rounded-xl flex items-center justify-center relative transition-all group cursor-pointer ${
-                      currentTab === 'admin-users'
-                        ? 'bg-violet-100/90 border border-[#7c6cf6]/40 text-[#7c6cf6] shadow-xs dark:bg-[#16130C] dark:border-[#F59E0B]/50 dark:text-[#F59E0B]'
-                        : 'text-[#6b7194] hover:text-[#1f2544] hover:bg-violet-50/70 dark:text-[#8F97A6] dark:hover:text-[#FFFFFF] dark:hover:bg-[#12151E]'
-                    }`}
-                  >
-                    <ShieldCheck className={`w-4 h-4 shrink-0 transition-colors ${currentTab === 'admin-users' ? 'text-[#7c6cf6] dark:text-[#F59E0B]' : 'text-[#6b7194] group-hover:text-[#1f2544] dark:text-[#64748B] dark:group-hover:text-[#94A3B8]'}`} />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      hideTooltip();
-                      setTab('admin-devices');
-                    }}
-                    onMouseEnter={(e) => showTooltip('Device Management', e.currentTarget)}
-                    onMouseLeave={hideTooltip}
-                    onFocus={(e) => showTooltip('Device Management', e.currentTarget)}
-                    onBlur={hideTooltip}
-                    aria-label="Device Management"
-                    title="Device Management"
-                    className={`w-10 h-10 mx-auto rounded-xl flex items-center justify-center relative transition-all group cursor-pointer ${
-                      currentTab === 'admin-devices'
-                        ? 'bg-violet-100/90 border border-[#7c6cf6]/40 text-[#7c6cf6] shadow-xs dark:bg-[#16130C] dark:border-[#F59E0B]/50 dark:text-[#F59E0B]'
-                        : 'text-[#6b7194] hover:text-[#1f2544] hover:bg-violet-50/70 dark:text-[#8F97A6] dark:hover:text-[#FFFFFF] dark:hover:bg-[#12151E]'
-                    }`}
-                  >
-                    <Smartphone className={`w-4 h-4 shrink-0 transition-colors ${currentTab === 'admin-devices' ? 'text-[#7c6cf6] dark:text-[#F59E0B]' : 'text-[#6b7194] group-hover:text-[#1f2544] dark:text-[#64748B] dark:group-hover:text-[#94A3B8]'}`} />
-                  </button>
+                  <Tooltip content="User Management" side="right">
+                    <button
+                      type="button"
+                      onClick={() => setTab('admin-users')}
+                      aria-label="User Management"
+                      className={`w-10 h-10 mx-auto rounded-xl flex items-center justify-center relative transition-all group cursor-pointer ${
+                        currentTab === 'admin-users'
+                          ? 'bg-violet-100/90 border border-[#7c6cf6]/40 text-[#7c6cf6] shadow-xs dark:bg-[#16130C] dark:border-[#F59E0B]/50 dark:text-[#F59E0B]'
+                          : 'text-[#6b7194] hover:text-[#1f2544] hover:bg-violet-50/70 dark:text-[#8F97A6] dark:hover:text-[#FFFFFF] dark:hover:bg-[#12151E]'
+                      }`}
+                    >
+                      <ShieldCheck className={`w-4 h-4 shrink-0 transition-colors ${currentTab === 'admin-users' ? 'text-[#7c6cf6] dark:text-[#F59E0B]' : 'text-[#6b7194] group-hover:text-[#1f2544] dark:text-[#64748B] dark:group-hover:text-[#94A3B8]'}`} />
+                    </button>
+                  </Tooltip>
+                  <Tooltip content="Device Management" side="right">
+                    <button
+                      type="button"
+                      onClick={() => setTab('admin-devices')}
+                      aria-label="Device Management"
+                      className={`w-10 h-10 mx-auto rounded-xl flex items-center justify-center relative transition-all group cursor-pointer ${
+                        currentTab === 'admin-devices'
+                          ? 'bg-violet-100/90 border border-[#7c6cf6]/40 text-[#7c6cf6] shadow-xs dark:bg-[#16130C] dark:border-[#F59E0B]/50 dark:text-[#F59E0B]'
+                          : 'text-[#6b7194] hover:text-[#1f2544] hover:bg-violet-50/70 dark:text-[#8F97A6] dark:hover:text-[#FFFFFF] dark:hover:bg-[#12151E]'
+                      }`}
+                    >
+                      <Smartphone className={`w-4 h-4 shrink-0 transition-colors ${currentTab === 'admin-devices' ? 'text-[#7c6cf6] dark:text-[#F59E0B]' : 'text-[#6b7194] group-hover:text-[#1f2544] dark:text-[#64748B] dark:group-hover:text-[#94A3B8]'}`} />
+                    </button>
+                  </Tooltip>
                 </>
               )}
             </div>
@@ -346,19 +296,16 @@ export default function Sidebar({
               <span>Take App Tour</span>
             </button>
           ) : (
-            <button
-              type="button"
-              onClick={onOpenTourModal}
-              onMouseEnter={(e) => showTooltip('Take App Tour', e.currentTarget)}
-              onMouseLeave={hideTooltip}
-              onFocus={(e) => showTooltip('Take App Tour', e.currentTarget)}
-              onBlur={hideTooltip}
-              aria-label="Take App Tour"
-              title="Take App Tour"
-              className="w-10 h-10 rounded-xl btn-soft flex items-center justify-center transition-all cursor-pointer shadow-xs"
-            >
-              <Compass className="w-4 h-4 text-[#7c6cf6] dark:text-[#94A3B8]" />
-            </button>
+            <Tooltip content="Take App Tour" side="right">
+              <button
+                type="button"
+                onClick={onOpenTourModal}
+                aria-label="Take App Tour"
+                className="w-10 h-10 rounded-xl btn-soft flex items-center justify-center transition-all cursor-pointer shadow-xs"
+              >
+                <Compass className="w-4 h-4 text-[#7c6cf6] dark:text-[#94A3B8]" />
+              </button>
+            </Tooltip>
           )
         )}
 
@@ -375,39 +322,22 @@ export default function Sidebar({
               </div>
             </div>
           ) : (
-            <div
-              className="py-1 cursor-default"
-              onMouseEnter={(e) => showTooltip('Backend: Host Execution (Bundletool 1.18.3)', e.currentTarget)}
-              onMouseLeave={hideTooltip}
-              onFocus={(e) => showTooltip('Backend: Host Execution (Bundletool 1.18.3)', e.currentTarget)}
-              onBlur={hideTooltip}
-              tabIndex={0}
-              role="status"
-              aria-label="Backend: Host Execution (Bundletool 1.18.3)"
-            >
-              <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-60"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-              </span>
-            </div>
+            <Tooltip content="Backend: Host Execution (Bundletool 1.18.3)" side="right">
+              <div
+                className="py-1 cursor-default"
+                tabIndex={0}
+                role="status"
+                aria-label="Backend: Host Execution (Bundletool 1.18.3)"
+              >
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-60"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                </span>
+              </div>
+            </Tooltip>
           )
         )}
       </div>
-
-      {/* Floating Dark-Themed Tooltip for Collapsed Sidebar */}
-      {isCollapsed && tooltip && (
-        <div
-          role="tooltip"
-          className="fixed z-50 pointer-events-none -translate-y-1/2 px-2.5 py-1.5 rounded-lg bg-slate-900 text-white border border-slate-700 dark:bg-[#141824] dark:border-[#263248] text-xs font-semibold shadow-2xl whitespace-nowrap flex items-center animate-fadeIn"
-          style={{
-            top: `${tooltip.top}px`,
-            left: `${tooltip.left}px`
-          }}
-        >
-          <span className="absolute -left-1 w-2 h-2 bg-slate-900 border-l border-b border-slate-700 dark:bg-[#141824] dark:border-[#263248] rotate-45" />
-          <span className="relative z-10">{tooltip.label}</span>
-        </div>
-      )}
     </aside>
   );
 }

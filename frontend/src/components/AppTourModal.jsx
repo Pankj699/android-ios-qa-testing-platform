@@ -17,6 +17,7 @@ import {
   Wifi,
   ExternalLink
 } from 'lucide-react';
+import { useDialogShortcuts } from '../hooks/useDialogShortcuts';
 
 const TOUR_STEPS = [
   {
@@ -135,23 +136,36 @@ export default function AppTourModal({ isOpen, onClose, onNavigate }) {
     }
   }, [isOpen]);
 
-  // Keyboard navigation
+  const handleNextStep = () => {
+    if (currentStep < TOUR_STEPS.length - 1) {
+      setCurrentStep((prev) => prev + 1);
+    } else {
+      if (onClose) onClose();
+    }
+  };
+
+  useDialogShortcuts({
+    dialogId: 'app-tour-modal',
+    isOpen,
+    onPrimaryAction: handleNextStep,
+    onClose,
+  });
+
+  // Arrow navigation
   useEffect(() => {
     if (!isOpen) return;
 
     const handleKeyDown = (e) => {
-      if (e.key === 'ArrowRight' || e.key === 'Enter') {
+      if (e.key === 'ArrowRight') {
         if (currentStep < TOUR_STEPS.length - 1) {
           setCurrentStep((prev) => prev + 1);
         } else {
-          onClose();
+          if (onClose) onClose();
         }
       } else if (e.key === 'ArrowLeft') {
         if (currentStep > 0) {
           setCurrentStep((prev) => prev - 1);
         }
-      } else if (e.key === 'Escape') {
-        onClose();
       }
     };
 

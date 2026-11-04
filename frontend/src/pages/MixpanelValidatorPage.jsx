@@ -25,9 +25,11 @@ import {
   ArrowLeft
 } from 'lucide-react';
 import { api } from '../services/api';
+import Tooltip from '../components/ui/Tooltip';
 import { formatDeviceModelName } from '../utils/deviceFormatter';
 import CustomSelect from '../components/ui/select';
 import { toast } from '../utils/toast';
+import { useDialogShortcuts } from '../hooks/useDialogShortcuts';
 import {
   formatValueForBug,
   getAttributeDisplayValues,
@@ -556,6 +558,40 @@ export default function MixpanelValidatorPage({
     }
   };
 
+  useDialogShortcuts({
+    dialogId: 'mixpanel-inject-event-modal',
+    isOpen: injectModalOpen,
+    onPrimaryAction: handleInjectEvent,
+    onSubmit: handleInjectEvent,
+    onClose: () => setInjectModalOpen(false),
+  });
+
+  useDialogShortcuts({
+    dialogId: 'mixpanel-bug-writer-modal',
+    isOpen: bugModalOpen,
+    onPrimaryAction: bugModalView === 'select' ? handleProceedToEditor : handleCopyBugText,
+    onSubmit: bugModalView === 'select' ? handleProceedToEditor : handleCopyBugText,
+    onClose: handleCloseBugModal,
+  });
+
+  useDialogShortcuts({
+    dialogId: 'mixpanel-confirm-regenerate-modal',
+    isOpen: confirmRegenOpen,
+    onPrimaryAction: handleConfirmRegenerate,
+    onSubmit: handleConfirmRegenerate,
+    onClose: handleCancelRegenerate,
+  });
+
+  useDialogShortcuts({
+    dialogId: 'mixpanel-clear-confirm-modal',
+    isOpen: clearConfirmOpen,
+    onPrimaryAction: handleConfirmClearEvents,
+    onSubmit: handleConfirmClearEvents,
+    onClose: handleCancelClearEvents,
+    disabled: isClearingEvents,
+    loading: isClearingEvents,
+  });
+
   return (
     <div className="flex-1 flex flex-col h-full text-slate-800 dark:text-slate-200 overflow-hidden">
       {/* 1. Top Header Card & Capture Toolbar */}
@@ -625,13 +661,15 @@ export default function MixpanelValidatorPage({
               )}
 
               {activeSpec && (
-                <button
-                  onClick={() => handleDeleteSpec(activeSpec.id)}
-                  title="Delete this specification"
-                  className="text-slate-400 hover:text-rose-500 transition-colors ml-1 p-0.5"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                </button>
+                <Tooltip content="Delete this specification" side="top">
+                  <button
+                    onClick={() => handleDeleteSpec(activeSpec.id)}
+                    aria-label="Delete this specification"
+                    className="text-slate-400 hover:text-rose-500 transition-colors ml-1 p-0.5 cursor-pointer"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </Tooltip>
               )}
             </div>
 
@@ -708,16 +746,18 @@ export default function MixpanelValidatorPage({
           {/* List Title & Clear Events Action */}
           <div className="p-4 pb-2.5 flex items-center justify-between">
             <h2 className="text-[15px] font-bold text-slate-900 dark:text-white tracking-wide">Events ({events.length})</h2>
-            <button
-              type="button"
-              onClick={() => setClearConfirmOpen(true)}
-              disabled={events.length === 0 || !activeSession || isClearingEvents}
-              title="Clear all recorded events in this session"
-              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-pill text-xs font-semibold text-slate-600 dark:text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-500/10 border border-[var(--line)] hover:border-rose-500/30 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              <Trash2 className="w-3.5 h-3.5" />
-              <span>Clear Events</span>
-            </button>
+            <Tooltip content="Clear all recorded events in this session" side="bottom">
+              <button
+                type="button"
+                onClick={() => setClearConfirmOpen(true)}
+                disabled={events.length === 0 || !activeSession || isClearingEvents}
+                aria-label="Clear all recorded events in this session"
+                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-pill text-xs font-semibold text-slate-600 dark:text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-500/10 border border-[var(--line)] hover:border-rose-500/30 transition-all disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Clear Events</span>
+              </button>
+            </Tooltip>
           </div>
 
           {/* Search Input */}
@@ -845,23 +885,27 @@ export default function MixpanelValidatorPage({
 
                 {/* Actions: Generate Bug & Revalidate */}
                 <div className="shrink-0 flex items-center gap-2">
-                  <button
-                    onClick={handleOpenBugModal}
-                    title="Generate Redmine-ready bug statements from event attributes"
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-pill text-[12.5px] font-semibold bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-300 border border-rose-500/30 transition-all shadow-sm"
-                  >
-                    <Bug className="w-3.5 h-3.5 text-rose-500" />
-                    <span>Generate Bug</span>
-                  </button>
+                  <Tooltip content="Generate Redmine-ready bug statements from event attributes" side="top">
+                    <button
+                      onClick={handleOpenBugModal}
+                      aria-label="Generate Bug"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-pill text-[12.5px] font-semibold bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-300 border border-rose-500/30 transition-all shadow-sm cursor-pointer"
+                    >
+                      <Bug className="w-3.5 h-3.5 text-rose-500" />
+                      <span>Generate Bug</span>
+                    </button>
+                  </Tooltip>
 
-                  <button
-                    onClick={() => handleRevalidateEvent(selectedEvent.id)}
-                    title="Re-run validation engine against active specification"
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-pill text-[12.5px] font-semibold bg-white/80 dark:bg-slate-900/80 hover:bg-white dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 border border-[var(--line)] transition-all shadow-sm"
-                  >
-                    <RefreshCw className="w-3.5 h-3.5 text-violet-500" />
-                    <span>Revalidate</span>
-                  </button>
+                  <Tooltip content="Re-run validation engine against active specification" side="top">
+                    <button
+                      onClick={() => handleRevalidateEvent(selectedEvent.id)}
+                      aria-label="Revalidate"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-pill text-[12.5px] font-semibold bg-white/80 dark:bg-slate-900/80 hover:bg-white dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 border border-[var(--line)] transition-all shadow-sm cursor-pointer"
+                    >
+                      <RefreshCw className="w-3.5 h-3.5 text-violet-500" />
+                      <span>Revalidate</span>
+                    </button>
+                  </Tooltip>
                 </div>
               </div>
 

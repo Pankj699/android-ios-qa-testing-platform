@@ -1,6 +1,7 @@
 import React from 'react';
 import { Layers, Sparkles, CheckCircle2, Trash2 } from 'lucide-react';
 import BuildThumbnail from './BuildThumbnail';
+import Tooltip from './ui/Tooltip';
 
 export default function BuildInfoCard({ build, isSelected, onSelect, onDelete }) {
   if (!build) return null;
@@ -50,13 +51,15 @@ export default function BuildInfoCard({ build, isSelected, onSelect, onDelete })
             </span>
           )}
           {onDelete && (
-            <button
-              onClick={() => onDelete(build.id)}
-              className="p-1.5 rounded-xl text-[#6b7194] hover:text-rose-500 hover:bg-rose-50 dark:text-[#64748B] dark:hover:text-rose-400 dark:hover:bg-rose-500/10 transition-colors cursor-pointer"
-              title="Delete Build"
-            >
-              <Trash2 className="w-3.5 h-3.5" />
-            </button>
+            <Tooltip content="Delete Build" side="top">
+              <button
+                onClick={() => onDelete(build.id)}
+                className="p-1.5 rounded-xl text-[#6b7194] hover:text-rose-500 hover:bg-rose-50 dark:text-[#64748B] dark:hover:text-rose-400 dark:hover:bg-rose-500/10 transition-colors cursor-pointer"
+                aria-label="Delete Build"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            </Tooltip>
           )}
         </div>
       </div>

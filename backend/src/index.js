@@ -30,7 +30,9 @@ const recordingRoutes = require('./routes/recordingRoutes');
 const mixpanelRoutes = require('./routes/mixpanelRoutes');
 const bugDeskRoutes = require('./routes/bugDeskRoutes');
 const remoteConfigRoutes = require('./routes/remoteConfigRoutes');
+const roboTestRoutes = require('./routes/roboTestRoutes');
 const bundletoolService = require('./services/bundletoolService');
+const aiRoutes = require('./modules/aiTestWriter/routes');
 
 const healthRoutes = require('./routes/healthRoutes');
 
@@ -70,6 +72,9 @@ app.use('/api/remote-config', remoteConfigRoutes);
 app.use('/api/remote-configs', remoteConfigRoutes);
 app.use('/api/remoteconfig', remoteConfigRoutes);
 app.use('/api/RemoteConfig', remoteConfigRoutes);
+app.use('/api/robo', roboTestRoutes);
+app.use('/robo', roboTestRoutes);
+app.use('/api/ai', aiRoutes);
 
 // Serve Frontend build in production if present
 const frontendDist = path.join(__dirname, '../../frontend/dist');
@@ -125,6 +130,20 @@ async function startServer() {
     await mixpanelCollectorService.resumeActiveSessions();
   } catch (dbErr) {
     logger.error(`[DB] Failed to run database migrations, admin seed, or resume sessions: ${dbErr.message}`);
+  }
+
+  // Initialize AI Test Writer & Recover Stale Extractions / Indexings
+  try {
+    const { runAiMigrations } = require('./modules/aiTestWriter/db/migrationRunner');
+    await runAiMigrations();
+    const extractionService = require('./modules/aiTestWriter/services/extractionService');
+    await extractionService.recoverStaleExtractions();
+    extractionService.startPeriodicStaleRecovery();
+    const indexingService = require('./modules/aiTestWriter/services/indexingService');
+    await indexingService.recoverStaleIndexings();
+    indexingService.startPeriodicStaleRecovery();
+  } catch (aiErr) {
+    logger.error(`[AI Platform] Startup initialization / stale recovery error: ${aiErr.message}`);
   }
 
   if (config.USE_HTTPS) {
@@ -256,6 +275,11 @@ async function recycleServer() {
   try {
     const deviceImageService = require('./services/deviceImageService');
     deviceImageService.reload();
+  } catch (_) {}
+
+  try {
+    const extractionService = require('./modules/aiTestWriter/services/extractionService');
+    extractionService.stopPeriodicStaleRecovery();
   } catch (_) {}
 
   isRecycling = false;

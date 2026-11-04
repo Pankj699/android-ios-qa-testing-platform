@@ -24,6 +24,8 @@ import {
   Flame,
   AlertTriangle
 } from 'lucide-react';
+import Tooltip from './ui/Tooltip';
+import { useDialogShortcuts } from '../hooks/useDialogShortcuts';
 
 /**
  * Standard HTTP Status Descriptions Map
@@ -1671,20 +1673,12 @@ export default function LiveLogViewer({ logs = [], onClear, testId }) {
   const [isMaximized, setIsMaximized] = useState(false);
   const logContainerRef = useRef(null);
 
-  // Keyboard shortcut: ESC to close expanded console overlay
-  useEffect(() => {
-    if (!isMaximized) return;
-    const handleKeyDown = (e) => {
-      if (e.key === 'Escape' || e.keyCode === 27) {
-        e.preventDefault();
-        setIsMaximized(false);
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [isMaximized]);
+  useDialogShortcuts({
+    dialogId: 'live-log-viewer-maximized',
+    isOpen: isMaximized,
+    onPrimaryAction: null,
+    onClose: () => setIsMaximized(false),
+  });
 
   // Lock body scrolling when console is expanded to prevent background page movement
   useEffect(() => {
@@ -1982,77 +1976,87 @@ export default function LiveLogViewer({ logs = [], onClear, testId }) {
         <div className="flex items-center gap-2">
 
           {/* Auto Scroll */}
-          <button
-            onClick={() => setAutoScroll(!autoScroll)}
-            className={`px-2 py-1 rounded text-xs transition-colors flex items-center gap-1 cursor-pointer ${
-              autoScroll ? 'bg-[#16130C] text-[#F59E0B] border border-[#F59E0B]/40' : 'bg-[#080B10] border border-[#1C2230] text-slate-400 hover:text-white'
-            }`}
-            title="Toggle Auto Scroll"
-          >
-            <ArrowDown className="w-3 h-3" />
-            <span className="text-[11px]">Auto</span>
-          </button>
+          <Tooltip content="Toggle Auto Scroll" side="top">
+            <button
+              onClick={() => setAutoScroll(!autoScroll)}
+              className={`px-2 py-1 rounded text-xs transition-colors flex items-center gap-1 cursor-pointer ${
+                autoScroll ? 'bg-[#16130C] text-[#F59E0B] border border-[#F59E0B]/40' : 'bg-[#080B10] border border-[#1C2230] text-slate-400 hover:text-white'
+              }`}
+              aria-label="Toggle Auto Scroll"
+            >
+              <ArrowDown className="w-3 h-3" />
+              <span className="text-[11px]">Auto</span>
+            </button>
+          </Tooltip>
 
           {/* Copy All */}
-          <button
-            onClick={handleCopyAll}
-            className="p-1.5 rounded bg-[#080B10] border border-[#1C2230] hover:bg-[#161B26] text-slate-300 hover:text-white transition-colors cursor-pointer"
-            title="Copy Sanitized Logs"
-          >
-            {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-          </button>
+          <Tooltip content="Copy Sanitized Logs" side="top">
+            <button
+              onClick={handleCopyAll}
+              className="p-1.5 rounded bg-[#080B10] border border-[#1C2230] hover:bg-[#161B26] text-slate-300 hover:text-white transition-colors cursor-pointer"
+              aria-label="Copy Sanitized Logs"
+            >
+              {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+            </button>
+          </Tooltip>
 
           {/* Download */}
-          <button
-            onClick={handleDownload}
-            className="p-1.5 rounded bg-[#080B10] border border-[#1C2230] hover:bg-[#161B26] text-slate-300 hover:text-white transition-colors cursor-pointer"
-            title="Download Execution Log"
-          >
-            <Download className="w-3.5 h-3.5" />
-          </button>
+          <Tooltip content="Download Execution Log" side="top">
+            <button
+              onClick={handleDownload}
+              className="p-1.5 rounded bg-[#080B10] border border-[#1C2230] hover:bg-[#161B26] text-slate-300 hover:text-white transition-colors cursor-pointer"
+              aria-label="Download Execution Log"
+            >
+              <Download className="w-3.5 h-3.5" />
+            </button>
+          </Tooltip>
 
           {/* Clear */}
           {onClear && (
-            <button
-              onClick={onClear}
-              className="p-1.5 rounded bg-[#080B10] border border-[#1C2230] hover:bg-rose-500/20 hover:text-rose-400 text-slate-300 transition-colors cursor-pointer"
-              title="Clear Console"
-            >
-              <Trash2 className="w-3.5 h-3.5" />
-            </button>
+            <Tooltip content="Clear Console" side="top">
+              <button
+                onClick={onClear}
+                className="p-1.5 rounded bg-[#080B10] border border-[#1C2230] hover:bg-rose-500/20 hover:text-rose-400 text-slate-300 transition-colors cursor-pointer"
+                aria-label="Clear Console"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            </Tooltip>
           )}
 
           {/* Divider */}
           <div className="h-4 w-px bg-[#1C2230] mx-0.5" />
 
           {/* Expand / Maximize Toggle Button */}
-          <button
-            onClick={() => setIsMaximized(!isMaximized)}
-            className={`p-1.5 rounded border transition-colors flex items-center justify-center cursor-pointer ${
-              isMaximized
-                ? 'bg-[#16130C] text-[#F59E0B] border-[#F59E0B]/40'
-                : 'bg-[#080B10] border-[#1C2230] text-slate-300 hover:text-white hover:bg-[#161B26]'
-            }`}
-            title={isMaximized ? "Close Expanded Console" : "Expand Console"}
-            aria-label={isMaximized ? "Close Expanded Live Execution Console" : "Expand Live Execution Console"}
-          >
-            {isMaximized ? (
-              <Minimize2 className="w-3.5 h-3.5" />
-            ) : (
-              <Maximize2 className="w-3.5 h-3.5" />
-            )}
-          </button>
+          <Tooltip content={isMaximized ? "Close Expanded Console" : "Expand Console"} side="top">
+            <button
+              onClick={() => setIsMaximized(!isMaximized)}
+              className={`p-1.5 rounded border transition-colors flex items-center justify-center cursor-pointer ${
+                isMaximized
+                  ? 'bg-[#16130C] text-[#F59E0B] border-[#F59E0B]/40'
+                  : 'bg-[#080B10] border-[#1C2230] text-slate-300 hover:text-white hover:bg-[#161B26]'
+              }`}
+              aria-label={isMaximized ? "Close Expanded Live Execution Console" : "Expand Live Execution Console"}
+            >
+              {isMaximized ? (
+                <Minimize2 className="w-3.5 h-3.5" />
+              ) : (
+                <Maximize2 className="w-3.5 h-3.5" />
+              )}
+            </button>
+          </Tooltip>
 
           {/* Dedicated Close Button in Expanded Mode */}
           {isMaximized && (
-            <button
-              onClick={() => setIsMaximized(false)}
-              className="p-1.5 rounded bg-[#080B10] border border-[#1C2230] hover:bg-rose-500/20 hover:text-rose-400 text-slate-300 transition-colors flex items-center justify-center cursor-pointer"
-              title="Close Expanded Console"
-              aria-label="Close Expanded Live Execution Console"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
+            <Tooltip content="Close Expanded Console" side="top">
+              <button
+                onClick={() => setIsMaximized(false)}
+                className="p-1.5 rounded bg-[#080B10] border border-[#1C2230] hover:bg-rose-500/20 hover:text-rose-400 text-slate-300 transition-colors flex items-center justify-center cursor-pointer"
+                aria-label="Close Expanded Live Execution Console"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </Tooltip>
           )}
         </div>
       </div>

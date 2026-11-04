@@ -5,6 +5,8 @@ import { formatDeviceDisplayName, formatDeviceOsVersion } from '../utils/deviceF
 import DeviceThumbnail from './DeviceThumbnail';
 import BugDeskRecordingControls from './BugDeskRecordingControls';
 import { useTheme } from '../context/ThemeContext';
+import Tooltip from './ui/Tooltip';
+import { useDialogShortcuts } from '../hooks/useDialogShortcuts';
 
 const BUG_DESK_NAV = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -31,7 +33,9 @@ export default function Header({
   bugDeskModuleSettings,
   onOpenSwitchModule,
   onOpenMirror,
-  remoteConfigPlatform = 'android'
+  remoteConfigPlatform = 'android',
+  selectedBuild,
+  onOpenDeleteUserModal
 }) {
   const { theme, toggleTheme } = useTheme();
   const [userMenuOpen, setUserMenuOpen] = useState(false);
@@ -39,6 +43,12 @@ export default function Header({
   const [deviceMenuOpen, setDeviceMenuOpen] = useState(false);
   const menuRef = useRef(null);
   const deviceMenuRef = useRef(null);
+
+  useDialogShortcuts({
+    dialogId: 'header-user-profile-modal',
+    isOpen: profileModalOpen && Boolean(currentUser),
+    onClose: () => setProfileModalOpen(false),
+  });
 
   // Filter connected and available devices
   const connectedDevices = React.useMemo(() => {
@@ -112,9 +122,11 @@ export default function Header({
         {/* Left: Brand / Title & BugDesk Navigation */}
         {currentTab === 'bug-desk' ? (
           <div className="flex items-center gap-2 sm:gap-3 min-w-0 mr-2">
-            <div className="brand-mark shrink-0" title="BugDesk">
-              <Bug className="w-5 h-5 text-white" />
-            </div>
+            <Tooltip content="BugDesk" side="bottom">
+              <div className="brand-mark shrink-0">
+                <Bug className="w-5 h-5 text-white" />
+              </div>
+            </Tooltip>
             {/* BugDesk Navigation Tabs in Main Header Row */}
             <nav className="flex items-center gap-1 sm:gap-1.5 overflow-x-auto py-1 scrollbar-none">
               {BUG_DESK_NAV.map((tab) => {
@@ -139,18 +151,19 @@ export default function Header({
             </nav>
           </div>
         ) : (
-          <div
-            className="flex items-center gap-2.5 min-w-0 shrink-0 cursor-pointer"
-            onClick={() => onNavigate && onNavigate('dashboard')}
-            title="QA Platform"
-          >
-            <div className="brand-mark shrink-0">
-              <Activity className="w-5 h-5 text-white" />
+          <Tooltip content="QA Platform Dashboard" side="bottom">
+            <div
+              className="flex items-center gap-2.5 min-w-0 shrink-0 cursor-pointer"
+              onClick={() => onNavigate && onNavigate('dashboard')}
+            >
+              <div className="brand-mark shrink-0">
+                <Activity className="w-5 h-5 text-white" />
+              </div>
+              <span className="font-extrabold text-[#1f2544] dark:text-white text-sm tracking-tight hidden sm:inline">
+                QA Platform
+              </span>
             </div>
-            <span className="font-extrabold text-[#1f2544] dark:text-white text-sm tracking-tight hidden sm:inline">
-              QA Platform
-            </span>
-          </div>
+          </Tooltip>
         )}
 
         {/* Right: Global Controls & Actions */}
@@ -305,17 +318,18 @@ export default function Header({
             </div>
           ) : isAuthenticated && connectedDevices.length > 0 ? (
             <div className="relative shrink-0" ref={deviceMenuRef}>
-              <button
-                type="button"
-                onClick={() => setDeviceMenuOpen((prev) => !prev)}
-                className="btn-soft text-xs h-9 px-2.5 lg:px-3 rounded-xl cursor-pointer shadow-xs shrink-0 flex items-center gap-1.5"
-                title="Select a connected device"
-                aria-label="Select Device"
-              >
-                <Smartphone className="w-3.5 h-3.5 text-[#7c6cf6] dark:text-violet-400" />
-                <span>Select Device</span>
-                <ChevronDown className="w-3.5 h-3.5 text-[#6b7194] dark:text-[#8F97A6]" />
-              </button>
+              <Tooltip content="Select a connected device" side="bottom">
+                <button
+                  type="button"
+                  onClick={() => setDeviceMenuOpen((prev) => !prev)}
+                  className="btn-soft text-xs h-9 px-2.5 lg:px-3 rounded-xl cursor-pointer shadow-xs shrink-0 flex items-center gap-1.5"
+                  aria-label="Select Device"
+                >
+                  <Smartphone className="w-3.5 h-3.5 text-[#7c6cf6] dark:text-violet-400" />
+                  <span>Select Device</span>
+                  <ChevronDown className="w-3.5 h-3.5 text-[#6b7194] dark:text-[#8F97A6]" />
+                </button>
+              </Tooltip>
 
               {deviceMenuOpen && (
                 <div
@@ -396,83 +410,98 @@ export default function Header({
               )}
             </div>
           ) : isAuthenticated ? (
-            <button
-              type="button"
-              onClick={onOpenPairModal}
-              className="btn-soft text-xs h-9 px-2.5 lg:px-3 rounded-xl cursor-pointer shadow-xs shrink-0 flex items-center gap-1.5"
-              title="Connect an Android device"
-              aria-label="Connect Device"
-            >
-              <Wifi className="w-3.5 h-3.5 text-[#6b7194] dark:text-[#64748B]" />
-              <span className="hidden xl:inline">Connect Device</span>
-            </button>
+            <Tooltip content="Connect an Android device" side="bottom">
+              <button
+                type="button"
+                onClick={onOpenPairModal}
+                className="btn-soft text-xs h-9 px-2.5 lg:px-3 rounded-xl cursor-pointer shadow-xs shrink-0 flex items-center gap-1.5"
+                aria-label="Connect Device"
+              >
+                <Wifi className="w-3.5 h-3.5 text-[#6b7194] dark:text-[#64748B]" />
+                <span className="hidden xl:inline">Connect Device</span>
+              </button>
+            </Tooltip>
           ) : null}
 
-          {/* Device Actions (Mirror & Recording) */}
+          {/* Device Actions (Mirror & Recording & Delete App User) */}
           {isAuthenticated && (
             <BugDeskRecordingControls
               moduleSettings={bugDeskModuleSettings}
               onOpenMirror={onOpenMirror}
               selectedDevice={selectedDevice}
+              selectedBuild={selectedBuild}
+              onOpenDeleteUserModal={onOpenDeleteUserModal}
             />
           )}
 
           {/* In Bug Desk mode: Active Module / Project Switcher (Icon Only) */}
           {currentTab === 'bug-desk' && isAuthenticated && (
-            <button
-              type="button"
-              onClick={onOpenSwitchModule}
-              className="btn-soft w-10 h-10 rounded-xl shadow-xs group cursor-pointer shrink-0 flex items-center justify-center p-0"
-              title={
+            <Tooltip
+              content={
                 bugDeskModuleSettings && (bugDeskModuleSettings.project || bugDeskModuleSettings.module)
-                  ? `Active Project: ${bugDeskModuleSettings.project || ''} / ${bugDeskModuleSettings.module || ''}${bugDeskModuleSettings.round && bugDeskModuleSettings.round.trim() ? ` (${bugDeskModuleSettings.round.trim()})` : ''}\nClick to switch project`
+                  ? `Active Project: ${bugDeskModuleSettings.project || ''} / ${bugDeskModuleSettings.module || ''}${bugDeskModuleSettings.round && bugDeskModuleSettings.round.trim() ? ` (${bugDeskModuleSettings.round.trim()})` : ''} (Click to switch)`
                   : 'Switch project'
               }
-              aria-label="Switch project"
+              side="bottom"
             >
-              <Repeat
-                className="w-[21px] h-[21px] stroke-[2.2] text-[#7c6cf6] dark:text-violet-400 group-hover:rotate-180 transition-transform duration-300"
-                strokeWidth={2.2}
-              />
-            </button>
+              <button
+                type="button"
+                onClick={onOpenSwitchModule}
+                className="btn-soft w-10 h-10 rounded-xl shadow-xs group cursor-pointer shrink-0 flex items-center justify-center p-0"
+                aria-label="Switch project"
+              >
+                <Repeat
+                  className="w-[21px] h-[21px] stroke-[2.2] text-[#7c6cf6] dark:text-violet-400 group-hover:rotate-180 transition-transform duration-300"
+                  strokeWidth={2.2}
+                />
+              </button>
+            </Tooltip>
           )}
 
           {/* Accessible Theme Icon Toggle (approx 40px square, 22-24px icon) */}
-          <button
-            type="button"
-            onClick={toggleTheme}
-            className="w-10 h-10 rounded-xl btn-soft flex items-center justify-center cursor-pointer shadow-xs shrink-0 transition-all p-0"
-            title={theme === 'dark' ? 'Switch to Light theme' : 'Switch to Dark theme'}
-            aria-label={theme === 'dark' ? 'Switch to Light theme' : 'Switch to Dark theme'}
+          <Tooltip
+            content={theme === 'dark' ? 'Switch to Light theme' : 'Switch to Dark theme'}
+            side="bottom"
           >
-            {theme === 'dark' ? (
-              <Sun
-                className="w-[23px] h-[23px] stroke-[2.2] text-amber-400"
-                strokeWidth={2.2}
-              />
-            ) : (
-              <Moon
-                className="w-[23px] h-[23px] stroke-[2.2] text-[#7c6cf6]"
-                strokeWidth={2.2}
-              />
-            )}
-          </button>
+            <button
+              type="button"
+              onClick={toggleTheme}
+              className="w-10 h-10 rounded-xl btn-soft flex items-center justify-center cursor-pointer shadow-xs shrink-0 transition-all p-0"
+              aria-label={theme === 'dark' ? 'Switch to Light theme' : 'Switch to Dark theme'}
+            >
+              {theme === 'dark' ? (
+                <Sun
+                  className="w-[23px] h-[23px] stroke-[2.2] text-amber-400"
+                  strokeWidth={2.2}
+                />
+              ) : (
+                <Moon
+                  className="w-[23px] h-[23px] stroke-[2.2] text-[#7c6cf6]"
+                  strokeWidth={2.2}
+                />
+              )}
+            </button>
+          </Tooltip>
 
           {/* User Status Dropdown (Icon Only) or Sign In */}
           {isAuthenticated && currentUser ? (
             <div className="relative pl-1 border-l border-[rgba(99,102,241,0.14)] dark:border-[#1A202E]" ref={menuRef}>
-              <button
-                type="button"
-                onClick={() => setUserMenuOpen((prev) => !prev)}
-                className="btn-soft w-10 h-10 rounded-xl cursor-pointer shadow-xs flex items-center justify-center p-0 shrink-0"
-                title={`User profile: ${currentUser.name || currentUser.email}`}
-                aria-label="User profile"
+              <Tooltip
+                content={`User profile: ${currentUser.name || currentUser.email}`}
+                side="bottom"
               >
-                <User
-                  className="w-[21px] h-[21px] stroke-[2.2] text-[#7c6cf6] dark:text-violet-400"
-                  strokeWidth={2.2}
-                />
-              </button>
+                <button
+                  type="button"
+                  onClick={() => setUserMenuOpen((prev) => !prev)}
+                  className="btn-soft w-10 h-10 rounded-xl cursor-pointer shadow-xs flex items-center justify-center p-0 shrink-0"
+                  aria-label="User profile"
+                >
+                  <User
+                    className="w-[21px] h-[21px] stroke-[2.2] text-[#7c6cf6] dark:text-violet-400"
+                    strokeWidth={2.2}
+                  />
+                </button>
+              </Tooltip>
 
               {/* User Dropdown Popover */}
               {userMenuOpen && (
@@ -564,15 +593,16 @@ export default function Header({
             </div>
           ) : (
             <div className="flex items-center gap-2 pl-1 border-l border-[rgba(99,102,241,0.14)] dark:border-[#1A202E]">
-              <button
-                type="button"
-                onClick={onOpenTourModal}
-                className="w-9 h-9 rounded-xl btn-soft flex items-center justify-center cursor-pointer shadow-xs shrink-0 p-0"
-                title="Start Interactive Platform Tour"
-                aria-label="Start Interactive Platform Tour"
-              >
-                <Compass className="w-4 h-4 text-[#7c6cf6] dark:text-violet-400" />
-              </button>
+              <Tooltip content="Start Interactive Platform Tour" side="bottom">
+                <button
+                  type="button"
+                  onClick={onOpenTourModal}
+                  className="w-9 h-9 rounded-xl btn-soft flex items-center justify-center cursor-pointer shadow-xs shrink-0 p-0"
+                  aria-label="Start Interactive Platform Tour"
+                >
+                  <Compass className="w-4 h-4 text-[#7c6cf6] dark:text-violet-400" />
+                </button>
+              </Tooltip>
               <button
                 type="button"
                 onClick={onOpenAuthModal}

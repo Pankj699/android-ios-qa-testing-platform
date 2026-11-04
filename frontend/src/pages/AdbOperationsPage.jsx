@@ -18,6 +18,7 @@ import SafeAdbConsole from '../components/SafeAdbConsole';
 import { api } from '../services/api';
 import { webUsbAdbService } from '../services/webUsbAdbService';
 import { getDeviceTransport } from '../services/transports/deviceTransportFactory';
+import Tooltip from '../components/ui/Tooltip';
 import { formatDeviceDisplayName, formatDeviceOsVersion, formatDeviceSelectorLabel } from '../utils/deviceFormatter';
 import DeviceThumbnail from '../components/DeviceThumbnail';
 import CustomSelect from '../components/ui/select';
@@ -159,49 +160,57 @@ export default function AdbOperationsPage({
 
         {/* Action Buttons Grid: Relaunch | Clear App Data | Clear Cache | Uninstall App */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2">
-          <button
-            onClick={() => handleAction('launch')}
-            disabled={loadingAction || !effectiveSelectedDevice}
-            className="p-3.5 rounded-xl bg-white/70 hover:bg-white border border-[var(--line)] hover:border-[#7c6cf6]/40 text-xs text-[#1F2544] dark:bg-[#16130C] dark:hover:bg-[#1F190E] dark:border-[#F59E0B]/60 dark:text-[#F59E0B] transition-all flex flex-col items-center gap-1.5 disabled:opacity-50 shadow-xs cursor-pointer group"
-            title="Relaunch application from fresh state"
-          >
-            <Play className="w-5 h-5 text-[#7c6cf6] fill-[#7c6cf6]/20 dark:text-[#F59E0B] dark:fill-[#F59E0B]/20 group-hover:scale-110 transition-transform" />
-            <span className="font-bold text-[#7c6cf6] dark:text-[#F59E0B]">Relaunch</span>
-            <span className="text-[10px] text-[#6B7194] dark:text-[#94A3B8] font-mono">monkey launcher</span>
-          </button>
+          <Tooltip content="Relaunch application from fresh state" side="top">
+            <button
+              onClick={() => handleAction('launch')}
+              disabled={loadingAction || !effectiveSelectedDevice}
+              className="p-3.5 rounded-xl bg-white/70 hover:bg-white border border-[var(--line)] hover:border-[#7c6cf6]/40 text-xs text-[#1F2544] dark:bg-[#16130C] dark:hover:bg-[#1F190E] dark:border-[#F59E0B]/60 dark:text-[#F59E0B] transition-all flex flex-col items-center gap-1.5 disabled:opacity-50 shadow-xs cursor-pointer group"
+              aria-label="Relaunch application from fresh state"
+            >
+              <Play className="w-5 h-5 text-[#7c6cf6] fill-[#7c6cf6]/20 dark:text-[#F59E0B] dark:fill-[#F59E0B]/20 group-hover:scale-110 transition-transform" />
+              <span className="font-bold text-[#7c6cf6] dark:text-[#F59E0B]">Relaunch</span>
+              <span className="text-[10px] text-[#6B7194] dark:text-[#94A3B8] font-mono">monkey launcher</span>
+            </button>
+          </Tooltip>
 
-          <button
-            onClick={() => handleAction('clear-data')}
-            disabled={loadingAction || !effectiveSelectedDevice}
-            className="p-3.5 rounded-xl bg-white/70 hover:bg-white border border-[var(--line)] hover:border-[#fb923c]/40 text-xs text-[#1F2544] dark:bg-[#080B10] dark:hover:bg-[#10131B] dark:hover:border-amber-500/40 dark:border-[#1C2230] dark:text-slate-200 dark:hover:text-white transition-all flex flex-col items-center gap-1.5 disabled:opacity-50 shadow-xs cursor-pointer group"
-            title="Wipe application user and runtime data"
-          >
-            <Eraser className="w-5 h-5 text-amber-500 dark:text-[#F59E0B] group-hover:scale-110 transition-transform" />
-            <span className="font-bold text-[#1F2544] dark:text-white">Clear App Data</span>
-            <span className="text-[10px] text-[#6B7194] font-mono">pm clear</span>
-          </button>
+          <Tooltip content="Wipe application user and runtime data" side="top">
+            <button
+              onClick={() => handleAction('clear-data')}
+              disabled={loadingAction || !effectiveSelectedDevice}
+              className="p-3.5 rounded-xl bg-white/70 hover:bg-white border border-[var(--line)] hover:border-[#fb923c]/40 text-xs text-[#1F2544] dark:bg-[#080B10] dark:hover:bg-[#10131B] dark:hover:border-amber-500/40 dark:border-[#1C2230] dark:text-slate-200 dark:hover:text-white transition-all flex flex-col items-center gap-1.5 disabled:opacity-50 shadow-xs cursor-pointer group"
+              aria-label="Wipe application user and runtime data"
+            >
+              <Eraser className="w-5 h-5 text-amber-500 dark:text-[#F59E0B] group-hover:scale-110 transition-transform" />
+              <span className="font-bold text-[#1F2544] dark:text-white">Clear App Data</span>
+              <span className="text-[10px] text-[#6B7194] font-mono">pm clear</span>
+            </button>
+          </Tooltip>
 
-          <button
-            onClick={() => handleAction('clear-cache')}
-            disabled={loadingAction || !effectiveSelectedDevice}
-            className="p-3.5 rounded-xl bg-white/70 hover:bg-white border border-[var(--line)] hover:border-cyan-400/40 text-xs text-[#1F2544] dark:bg-[#080B10] dark:hover:bg-[#10131B] dark:hover:border-cyan-500/40 dark:border-[#1C2230] dark:text-slate-200 dark:hover:text-white transition-all flex flex-col items-center gap-1.5 disabled:opacity-50 shadow-xs cursor-pointer group"
-            title="Clear application cache without clearing persistent data"
-          >
-            <Sparkles className="w-5 h-5 text-cyan-600 dark:text-cyan-400 group-hover:scale-110 transition-transform" />
-            <span className="font-bold text-[#1F2544] dark:text-white">Clear Cache</span>
-            <span className="text-[10px] text-[#6B7194] font-mono">trim caches</span>
-          </button>
+          <Tooltip content="Clear application cache without clearing persistent data" side="top">
+            <button
+              onClick={() => handleAction('clear-cache')}
+              disabled={loadingAction || !effectiveSelectedDevice}
+              className="p-3.5 rounded-xl bg-white/70 hover:bg-white border border-[var(--line)] hover:border-cyan-400/40 text-xs text-[#1F2544] dark:bg-[#080B10] dark:hover:bg-[#10131B] dark:hover:border-cyan-500/40 dark:border-[#1C2230] dark:text-slate-200 dark:hover:text-white transition-all flex flex-col items-center gap-1.5 disabled:opacity-50 shadow-xs cursor-pointer group"
+              aria-label="Clear application cache without clearing persistent data"
+            >
+              <Sparkles className="w-5 h-5 text-cyan-600 dark:text-cyan-400 group-hover:scale-110 transition-transform" />
+              <span className="font-bold text-[#1F2544] dark:text-white">Clear Cache</span>
+              <span className="text-[10px] text-[#6B7194] font-mono">trim caches</span>
+            </button>
+          </Tooltip>
 
-          <button
-            onClick={() => handleAction('uninstall')}
-            disabled={loadingAction || !effectiveSelectedDevice}
-            className="p-3.5 rounded-xl bg-white/70 hover:bg-white border border-[var(--line)] hover:border-rose-400/40 text-xs text-[#1F2544] dark:bg-[#080B10] dark:hover:bg-[#10131B] dark:hover:border-rose-500/40 dark:border-[#1C2230] dark:text-slate-200 dark:hover:text-white transition-all flex flex-col items-center gap-1.5 disabled:opacity-50 shadow-xs cursor-pointer group"
-            title="Uninstall application from device"
-          >
-            <Trash2 className="w-5 h-5 text-rose-500 dark:text-rose-400 group-hover:scale-110 transition-transform" />
-            <span className="font-bold text-[#1F2544] dark:text-white">Uninstall App</span>
-            <span className="text-[10px] text-[#6B7194] font-mono">adb uninstall</span>
-          </button>
+          <Tooltip content="Uninstall application from device" side="top">
+            <button
+              onClick={() => handleAction('uninstall')}
+              disabled={loadingAction || !effectiveSelectedDevice}
+              className="p-3.5 rounded-xl bg-white/70 hover:bg-white border border-[var(--line)] hover:border-rose-400/40 text-xs text-[#1F2544] dark:bg-[#080B10] dark:hover:bg-[#10131B] dark:hover:border-rose-500/40 dark:border-[#1C2230] dark:text-slate-200 dark:hover:text-white transition-all flex flex-col items-center gap-1.5 disabled:opacity-50 shadow-xs cursor-pointer group"
+              aria-label="Uninstall application from device"
+            >
+              <Trash2 className="w-5 h-5 text-rose-500 dark:text-rose-400 group-hover:scale-110 transition-transform" />
+              <span className="font-bold text-[#1F2544] dark:text-white">Uninstall App</span>
+              <span className="text-[10px] text-[#6B7194] font-mono">adb uninstall</span>
+            </button>
+          </Tooltip>
         </div>
       </div>
 

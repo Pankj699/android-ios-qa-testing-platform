@@ -25,6 +25,7 @@ import {
 import { webUsbAdbService } from '../services/webUsbAdbService';
 import { formatDeviceSelectorLabel } from '../utils/deviceFormatter';
 import DeviceThumbnail from './DeviceThumbnail';
+import { useDialogShortcuts } from '../hooks/useDialogShortcuts';
 
 export default function WebUsbDiagnosticsModal({
   isOpen,
@@ -61,6 +62,13 @@ export default function WebUsbDiagnosticsModal({
     });
     return () => unsub();
   }, [isOpen]);
+
+  useDialogShortcuts({
+    dialogId: 'webusb-diagnostics-modal',
+    isOpen,
+    onPrimaryAction: null,
+    onClose,
+  });
 
   if (!isOpen) return null;
 

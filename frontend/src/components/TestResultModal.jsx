@@ -4,17 +4,33 @@ import { api } from '../services/api';
 import { formatDeviceDisplayName, formatDeviceOsVersion } from '../utils/deviceFormatter';
 import DeviceThumbnail from './DeviceThumbnail';
 import BuildThumbnail from './BuildThumbnail';
+import { useDialogShortcuts } from '../hooks/useDialogShortcuts';
 
 export default function TestResultModal({ test, isOpen, onClose, onRunAgain }) {
   const [showTechnical, setShowTechnical] = useState(false);
 
+  const handleDownloadLog = () => {
+    if (!test) return;
+    window.open(`/api/test/${test.id}/download-logs`, '_blank');
+  };
+
+  const handlePrimary = () => {
+    if (onRunAgain) {
+      if (onClose) onClose();
+      onRunAgain();
+    }
+  };
+
+  useDialogShortcuts({
+    dialogId: 'test-result-modal',
+    isOpen: Boolean(isOpen && test),
+    onPrimaryAction: onRunAgain ? handlePrimary : null,
+    onClose,
+  });
+
   if (!isOpen || !test) return null;
 
   const isPass = test.result === 'PASS';
-
-  const handleDownloadLog = () => {
-    window.open(`/api/test/${test.id}/download-logs`, '_blank');
-  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md animate-in fade-in duration-150">

@@ -36,7 +36,9 @@ const PUBLIC_PATHS = [
   '/remote-configs',
   '/api/remote-configs',
   '/remoteconfig',
-  '/api/remoteconfig'
+  '/api/remoteconfig',
+  '/robo/environment',
+  '/api/robo/environment'
 ];
 
 /**

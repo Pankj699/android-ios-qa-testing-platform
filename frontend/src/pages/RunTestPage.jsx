@@ -25,7 +25,9 @@ import {
   Upload,
   ChevronDown,
   Check,
-  Wifi
+  Wifi,
+  UserX,
+  X
 } from 'lucide-react';
 import { formatDeviceDisplayName, formatDeviceOsVersion, formatDeviceSelectorLabel } from '../utils/deviceFormatter';
 import {
@@ -42,6 +44,8 @@ import LiveLogViewer from '../components/LiveLogViewer';
 import TestResultToast from '../components/TestResultToast';
 import ScreenMirrorView from '../components/ScreenMirrorView';
 import CustomSelect from '../components/ui/select';
+import Tooltip from '../components/ui/Tooltip';
+import { useDialogShortcuts } from '../hooks/useDialogShortcuts';
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -55,6 +59,8 @@ import { socketService } from '../services/socket';
 import { webUsbAdbService } from '../services/webUsbAdbService';
 import { getDeviceTransport } from '../services/transports/deviceTransportFactory';
 import { padExecutionManager } from '../services/padExecutionManager';
+import { isFlyerMakerBuild } from '../utils/buildUtils';
+import DeleteAppUserModal from '../components/DeleteAppUserModal';
 
 // RunTestPage buffer pruning helper: preserves API transactions while pruning general logcat (max 3,000 entries)
 export function pruneLogBuffer(prev, data) {
@@ -85,7 +91,8 @@ export default function RunTestPage({
   onOpenUploadModal,
   isActive = true,
   currentTab = 'run-test',
-  currentUser = null
+  currentUser = null,
+  onOpenDeleteUserModal
 }) {
   const [installMode, setInstallMode] = useState('fresh'); // 'fresh' | 'update'
   const [launchApp, setLaunchApp] = useState(true); // true = auto launch, false = install only
@@ -127,6 +134,29 @@ export default function RunTestPage({
 
   // Screen Mirror modal state for the selected device
   const [mirrorModalOpen, setMirrorModalOpen] = useState(false);
+
+  // Delete App User modal state
+  const [deleteUserModalOpen, setDeleteUserModalOpen] = useState(false);
+
+  // Global Dialog Keyboard Shortcuts: Existing App Detected confirmation modal
+  useDialogShortcuts({
+    isOpen: !!confirmModalData,
+    onPrimaryAction: () => handleStartTest(true),
+    onSubmit: () => handleStartTest(true),
+    onClose: () => {
+      setConfirmModalData(null);
+      setIsRunning(false);
+    },
+    disabled: isRunning || isStartingRef.current,
+    id: 'run-test-existing-app-confirm'
+  });
+
+  // Global Dialog Keyboard Shortcuts: Screen Mirror modal
+  useDialogShortcuts({
+    isOpen: mirrorModalOpen,
+    onClose: () => setMirrorModalOpen(false),
+    id: 'run-test-mirror-modal'
+  });
 
   // Test result toast and state (non-blocking alert)
   const [showResultToast, setShowResultToast] = useState(false);
@@ -710,17 +740,18 @@ export default function RunTestPage({
                 Target Android Device
               </label>
               <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <button
-                    type="button"
-                    className="flex items-center gap-1.5 px-3 py-1 rounded-btn btn-soft text-xs font-bold text-[#7c6cf6] dark:text-white transition-all cursor-pointer select-none"
-                    title="Device actions and connection options"
-                    aria-label="Device Actions"
-                  >
-                    <span>Device Actions</span>
-                    <ChevronDown className="w-3.5 h-3.5 opacity-70" />
-                  </button>
-                </DropdownMenuTrigger>
+                <Tooltip content="Device actions and connection options" side="bottom">
+                  <DropdownMenuTrigger asChild>
+                    <button
+                      type="button"
+                      className="flex items-center gap-1.5 px-3 py-1 rounded-btn btn-soft text-xs font-bold text-[#7c6cf6] dark:text-white transition-all cursor-pointer select-none"
+                      aria-label="Device Actions"
+                    >
+                      <span>Device Actions</span>
+                      <ChevronDown className="w-3.5 h-3.5 opacity-70" />
+                    </button>
+                  </DropdownMenuTrigger>
+                </Tooltip>
                 <DropdownMenuContent align="end" className="w-48">
                   <DropdownMenuItem
                     disabled={!effectiveSelectedDevice}
@@ -732,7 +763,6 @@ export default function RunTestPage({
                         setMirrorModalOpen(true);
                       }
                     }}
-                    title="Open live screen mirror for the selected device"
                   >
                     <Tv className="w-3.5 h-3.5 text-[#7c6cf6] dark:text-[#F59E0B] shrink-0" />
                     <span>Screen Mirror</span>
@@ -741,11 +771,32 @@ export default function RunTestPage({
                     )}
                   </DropdownMenuItem>
 
+                  {isFlyerMakerBuild(selectedBuild) && (
+                    <DropdownMenuItem
+                      disabled={!effectiveSelectedDevice}
+                      onSelect={() => {
+                        if (effectiveSelectedDevice) {
+                          if (onOpenDeleteUserModal) {
+                            onOpenDeleteUserModal();
+                          } else {
+                            setDeleteUserModalOpen(true);
+                          }
+                        }
+                      }}
+                      className="text-rose-600 dark:text-rose-400 focus:text-rose-600 dark:focus:text-rose-400 focus:bg-rose-50 dark:focus:bg-rose-950/40 cursor-pointer"
+                    >
+                      <UserX className="w-3.5 h-3.5 text-rose-500 shrink-0" />
+                      <span>Delete App User</span>
+                      {!effectiveSelectedDevice && (
+                        <span className="text-[10px] text-slate-400 dark:text-slate-500 ml-auto">(No device)</span>
+                      )}
+                    </DropdownMenuItem>
+                  )}
+
                   <DropdownMenuSeparator />
 
                   <DropdownMenuItem
                     onSelect={() => onConnectBrowserUsb && onConnectBrowserUsb()}
-                    title="Connect Android device via USB"
                   >
                     <Usb className="w-3.5 h-3.5 text-[#6B7194] dark:text-[#94A3B8] shrink-0" />
                     <span>Connect USB</span>
@@ -753,7 +804,6 @@ export default function RunTestPage({
 
                   <DropdownMenuItem
                     onSelect={() => onOpenPairModal && onOpenPairModal()}
-                    title="Pair Android device via Wi-Fi"
                   >
                     <Wifi className="w-3.5 h-3.5 text-[#7c6cf6] dark:text-[#F59E0B] shrink-0" />
                     <span>Pair (Wi-Fi)</span>
@@ -834,16 +884,18 @@ export default function RunTestPage({
                     />
                     <span>System Apps</span>
                   </label>
-                  <button
-                    type="button"
-                    onClick={fetchInstalledApps}
-                    disabled={isRunning || loadingInstalledApps || !effectiveSelectedDevice}
-                    className="flex items-center gap-1.5 px-2.5 py-1 rounded-btn btn-soft text-xs font-bold text-[#7c6cf6] dark:text-white transition-all cursor-pointer disabled:opacity-50"
-                    title="Refresh installed applications list"
-                  >
-                    <RefreshCw className={`w-3.5 h-3.5 ${loadingInstalledApps ? 'animate-spin' : ''}`} />
-                    <span>Refresh</span>
-                  </button>
+                  <Tooltip content="Refresh installed applications list" side="top">
+                    <button
+                      type="button"
+                      onClick={fetchInstalledApps}
+                      disabled={isRunning || loadingInstalledApps || !effectiveSelectedDevice}
+                      className="flex items-center gap-1.5 px-2.5 py-1 rounded-btn btn-soft text-xs font-bold text-[#7c6cf6] dark:text-white transition-all cursor-pointer disabled:opacity-50"
+                      aria-label="Refresh installed applications list"
+                    >
+                      <RefreshCw className={`w-3.5 h-3.5 ${loadingInstalledApps ? 'animate-spin' : ''}`} />
+                      <span>Refresh</span>
+                    </button>
+                  </Tooltip>
                 </div>
               </div>
               <CustomSelect
@@ -1248,6 +1300,18 @@ export default function RunTestPage({
             />
           </div>
         </div>
+      )}
+
+      {/* Delete App User / Credits Removal Confirmation Modal */}
+      {!onOpenDeleteUserModal && (
+        <DeleteAppUserModal
+          isOpen={deleteUserModalOpen}
+          onClose={() => setDeleteUserModalOpen(false)}
+          selectedDevice={effectiveSelectedDevice}
+          onSuccess={() => {
+            fetchInstalledApps();
+          }}
+        />
       )}
 
       {/* Non-blocking Floating Test Result Toast Alert */}

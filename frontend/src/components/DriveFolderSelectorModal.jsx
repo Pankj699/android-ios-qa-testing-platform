@@ -11,6 +11,7 @@ import {
   HardDrive
 } from 'lucide-react';
 import { api } from '../services/api';
+import { useDialogShortcuts } from '../hooks/useDialogShortcuts';
 
 export default function DriveFolderSelectorModal({
   isOpen,
@@ -125,7 +126,7 @@ export default function DriveFolderSelectorModal({
   };
 
   const handleCreateFolder = async (e) => {
-    e.preventDefault();
+    e?.preventDefault?.();
     const trimmed = newFolderName.trim();
     if (!trimmed) return;
 
@@ -157,6 +158,24 @@ export default function DriveFolderSelectorModal({
     }
     if (onClose) onClose();
   };
+
+  const handlePrimary = () => {
+    if (isCreatingFolder) {
+      handleCreateFolder();
+    } else {
+      handleConfirm();
+    }
+  };
+
+  useDialogShortcuts({
+    dialogId: 'drive-folder-selector-modal',
+    isOpen,
+    onPrimaryAction: handlePrimary,
+    onSubmit: handlePrimary,
+    onClose,
+    disabled: isCreatingFolder ? (!newFolderName.trim() || createLoading) : (!selectedFolder || loading),
+    loading: createLoading || loading,
+  });
 
   if (!isOpen) return null;
 

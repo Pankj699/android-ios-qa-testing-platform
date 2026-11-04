@@ -4,11 +4,12 @@ const { readFileSync } = require('node:fs');
 const { resolve } = require('node:path');
 
 describe('SOP Guide Content & Integrity Verification Suite', () => {
-  const sopDataPath = resolve(process.cwd(), 'frontend/src/pages/sopData.js');
-  const sopPagePath = resolve(process.cwd(), 'frontend/src/pages/SopPage.jsx');
-  const runTestPagePath = resolve(process.cwd(), 'frontend/src/pages/RunTestPage.jsx');
-  const remoteConfigPagePath = resolve(process.cwd(), 'frontend/src/pages/RemoteConfigPage.jsx');
-  const appPath = resolve(process.cwd(), 'frontend/src/App.jsx');
+  const frontendDir = resolve(__dirname, '../../frontend');
+  const sopDataPath = resolve(frontendDir, 'src/pages/sopData.js');
+  const sopPagePath = resolve(frontendDir, 'src/pages/SopPage.jsx');
+  const runTestPagePath = resolve(frontendDir, 'src/pages/RunTestPage.jsx');
+  const remoteConfigPagePath = resolve(frontendDir, 'src/pages/RemoteConfigPage.jsx');
+  const appPath = resolve(frontendDir, 'src/App.jsx');
 
   const sopDataContent = readFileSync(sopDataPath, 'utf8');
   const sopPageContent = readFileSync(sopPagePath, 'utf8');

@@ -47,6 +47,9 @@ async function request(endpoint, options = {}) {
     const error = new Error(data.error || data.message || `Request failed with status ${response.status}`);
     error.status = response.status;
     error.data = data;
+    error.code = data.code;
+    error.outcomeUnknown = !!data.outcomeUnknown;
+    error.upstreamData = data.upstreamData;
     throw error;
   }
 
@@ -189,6 +192,13 @@ export const api = {
   executeSafeAdb: (serial, command) => request('/adb/execute-safe', {
     method: 'POST',
     body: { serial, command }
+  }),
+
+  // Flyer Maker App User Operations
+  getAppUser: (serial) => request(`/device/${encodeURIComponent(serial)}/app-user`),
+  deleteAppUser: (serial, data) => request(`/device/${encodeURIComponent(serial)}/app-user/delete`, {
+    method: 'POST',
+    body: data
   }),
 
   // Screen Mirroring & Screenshots
@@ -466,8 +476,241 @@ export const api = {
     body: data
   }),
 
+  // Firebase Test Lab Robo Test
+  getRoboEnvironment: () => request('/robo/environment'),
+  getRoboCatalog: (options = false) => {
+    const params = {};
+    if (typeof options === 'boolean') {
+      if (options) params.refresh = 'true';
+    } else if (typeof options === 'object' && options !== null) {
+      if (options.forceRefresh || options.refresh) params.refresh = 'true';
+      if (options.search && typeof options.search === 'string') {
+        params.search = options.search.trim().slice(0, 100);
+      }
+    }
+    const qs = buildQueryString(params);
+    return request(`/robo/catalog${qs ? `?${qs}` : ''}`);
+  },
+  uploadRoboBuild: (file) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return request('/robo/upload', {
+      method: 'POST',
+      body: formData,
+      isFormData: true
+    });
+  },
+  runRoboTest: (data) => request('/robo/run', {
+    method: 'POST',
+    body: data
+  }),
+  getRoboJobs: (params = {}) => {
+    const qs = buildQueryString(params);
+    return request(`/robo/jobs${qs ? `?${qs}` : ''}`);
+  },
+  getRoboJob: (id) => request(`/robo/jobs/${encodeURIComponent(id)}`),
+  getRoboJobLogs: (id) => request(`/robo/jobs/${encodeURIComponent(id)}/logs`),
+  cancelRoboJob: (id) => request(`/robo/jobs/${encodeURIComponent(id)}/cancel`, {
+    method: 'POST'
+  }),
+  deleteRoboJob: (id) => request(`/robo/jobs/${encodeURIComponent(id)}`, {
+    method: 'DELETE'
+  }),
+
   // System
   getDiagnostics: () => request('/system/diagnostics'),
   getHealth: () => request('/system/health'),
-  getEnv: () => request('/system/env')
+  getEnv: () => request('/system/env'),
+
+  // AI Test Case Writer - Projects & Documents
+  getAiProjects: () => request('/ai/projects'),
+  createAiProject: (data) => request('/ai/projects', {
+    method: 'POST',
+    body: data
+  }),
+  getAiProject: (projectId) => request(`/ai/projects/${encodeURIComponent(projectId)}`),
+  getAiDocuments: (projectId) => request(`/ai/projects/${encodeURIComponent(projectId)}/documents`),
+  getAiDocument: (projectId, documentId) => request(`/ai/projects/${encodeURIComponent(projectId)}/documents/${encodeURIComponent(documentId)}`),
+  uploadAiDocument: (projectId, formData) => request(`/ai/projects/${encodeURIComponent(projectId)}/documents`, {
+    method: 'POST',
+    body: formData,
+    isFormData: true
+  }),
+  uploadAiDocumentVersion: (projectId, documentId, formData) => request(`/ai/projects/${encodeURIComponent(projectId)}/documents/${encodeURIComponent(documentId)}/versions`, {
+    method: 'POST',
+    body: formData,
+    isFormData: true
+  }),
+  activateAiDocumentVersion: (projectId, documentId, versionId) => request(`/ai/projects/${encodeURIComponent(projectId)}/documents/${encodeURIComponent(documentId)}/versions/${encodeURIComponent(versionId)}/activate`, {
+    method: 'POST'
+  }),
+  deleteAiDocument: (projectId, documentId) => request(`/ai/projects/${encodeURIComponent(projectId)}/documents/${encodeURIComponent(documentId)}`, {
+    method: 'DELETE'
+  }),
+  getAiDocumentDownloadUrl: (projectId, documentId) => `/api/ai/projects/${encodeURIComponent(projectId)}/documents/${encodeURIComponent(documentId)}/download`,
+  getAiDocumentPreviewUrl: (projectId, documentId) => `/api/ai/projects/${encodeURIComponent(projectId)}/documents/${encodeURIComponent(documentId)}/preview`,
+
+  // AI Document Extraction & Provenance Endpoints
+  extractAiDocumentVersion: (projectId, documentId, versionId) => request(
+    `/ai/projects/${encodeURIComponent(projectId)}/documents/${encodeURIComponent(documentId)}/versions/${encodeURIComponent(versionId)}/extract`,
+    { method: 'POST' }
+  ),
+  getAiDocumentExtraction: (projectId, documentId, versionId) => request(
+    `/ai/projects/${encodeURIComponent(projectId)}/documents/${encodeURIComponent(documentId)}/versions/${encodeURIComponent(versionId)}/extraction`
+  ),
+  getAiDocumentExtractedUnits: (projectId, documentId, versionId, params = {}) => {
+    const q = new URLSearchParams();
+    if (params.page) q.append('page', params.page);
+    if (params.pageSize) q.append('pageSize', params.pageSize);
+    if (params.sourceType) q.append('sourceType', params.sourceType);
+    if (params.search) q.append('search', params.search);
+    const qs = q.toString() ? `?${q.toString()}` : '';
+    return request(
+      `/ai/projects/${encodeURIComponent(projectId)}/documents/${encodeURIComponent(documentId)}/versions/${encodeURIComponent(versionId)}/extraction/units${qs}`
+    );
+  },
+  reprocessAiDocumentExtraction: (projectId, documentId, versionId) => request(
+    `/ai/projects/${encodeURIComponent(projectId)}/documents/${encodeURIComponent(documentId)}/versions/${encodeURIComponent(versionId)}/reprocess`,
+    { method: 'POST' }
+  ),
+
+  // AI Document Indexing & Embeddings Endpoints
+  triggerAiDocumentIndexing: (projectId, documentId, versionId) => request(
+    `/ai/projects/${encodeURIComponent(projectId)}/documents/${encodeURIComponent(documentId)}/versions/${encodeURIComponent(versionId)}/index`,
+    { method: 'POST' }
+  ),
+  getAiDocumentIndexingStatus: (projectId, documentId, versionId) => request(
+    `/ai/projects/${encodeURIComponent(projectId)}/documents/${encodeURIComponent(documentId)}/versions/${encodeURIComponent(versionId)}/indexing-status`
+  ),
+  getAiDocumentChunks: (projectId, documentId, versionId, params = {}) => {
+    const q = new URLSearchParams();
+    if (params.search) q.append('search', params.search);
+    if (params.limit) q.append('limit', params.limit);
+    if (params.offset) q.append('offset', params.offset);
+    const qs = q.toString() ? `?${q.toString()}` : '';
+    return request(
+      `/ai/projects/${encodeURIComponent(projectId)}/documents/${encodeURIComponent(documentId)}/versions/${encodeURIComponent(versionId)}/chunks${qs}`
+    );
+  },
+  getAiDocumentChunkDetails: (projectId, documentId, versionId, chunkId) => request(
+    `/ai/projects/${encodeURIComponent(projectId)}/documents/${encodeURIComponent(documentId)}/versions/${encodeURIComponent(versionId)}/chunks/${encodeURIComponent(chunkId)}`
+  ),
+  reindexAiDocument: (projectId, documentId, versionId) => request(
+    `/ai/projects/${encodeURIComponent(projectId)}/documents/${encodeURIComponent(documentId)}/versions/${encodeURIComponent(versionId)}/reindex`,
+    { method: 'POST' }
+  ),
+
+  // AI Knowledge Base Hybrid Retrieval Endpoints (Phase 2.6)
+  searchKnowledgeBase: (projectId, params) => request(
+    `/ai/projects/${encodeURIComponent(projectId)}/retrieval/search`,
+    {
+      method: 'POST',
+      body: params
+    }
+  ),
+
+  // AI Requirement Analysis & Knowledge-Grounded RAG Endpoints (Phase 2.7)
+  analyzeRequirements: (projectId, formData) => request(
+    `/ai/projects/${encodeURIComponent(projectId)}/requirements/analyze`,
+    {
+      method: 'POST',
+      body: formData,
+      isFormData: true
+    }
+  ),
+  analyzeRequirementsJson: (projectId, payload) => request(
+    `/ai/projects/${encodeURIComponent(projectId)}/requirements/analyze`,
+    {
+      method: 'POST',
+      body: payload
+    }
+  ),
+  getRequirementJobStatus: (projectId, jobId) => request(
+    `/ai/projects/${encodeURIComponent(projectId)}/requirements/jobs/${encodeURIComponent(jobId)}`
+  ),
+  listRequirementAnalyses: (projectId, params = {}) => {
+    const q = new URLSearchParams();
+    if (params.page) q.append('page', params.page);
+    if (params.limit) q.append('limit', params.limit);
+    if (params.search) q.append('search', params.search);
+    const qs = q.toString() ? `?${q.toString()}` : '';
+    return request(`/ai/projects/${encodeURIComponent(projectId)}/requirements/analyses${qs}`);
+  },
+  getRequirementAnalysis: (projectId, analysisId) => request(
+    `/ai/projects/${encodeURIComponent(projectId)}/requirements/analyses/${encodeURIComponent(analysisId)}`
+  ),
+  deleteRequirementAnalysis: (projectId, analysisId) => request(
+    `/ai/projects/${encodeURIComponent(projectId)}/requirements/analyses/${encodeURIComponent(analysisId)}`,
+    { method: 'DELETE' }
+  ),
+  listRequirements: (projectId, params = {}) => {
+    const q = new URLSearchParams();
+    if (params.analysisId) q.append('analysisId', params.analysisId);
+    if (params.status) q.append('status', params.status);
+    if (params.category) q.append('category', params.category);
+    if (params.search) q.append('search', params.search);
+    if (params.page) q.append('page', params.page);
+    if (params.limit) q.append('limit', params.limit);
+    const qs = q.toString() ? `?${q.toString()}` : '';
+    return request(`/ai/projects/${encodeURIComponent(projectId)}/requirements${qs}`);
+  },
+  approveRequirement: (projectId, requirementId, notes = '') => request(
+    `/ai/projects/${encodeURIComponent(projectId)}/requirements/${encodeURIComponent(requirementId)}/approve`,
+    {
+      method: 'POST',
+      body: { notes }
+    }
+  ),
+
+  // AI Test Case Generation & Review Endpoints (Phase 2.8)
+  generateTestCases: (projectId, payload) => request(
+    `/ai/projects/${encodeURIComponent(projectId)}/test-cases/generate`,
+    {
+      method: 'POST',
+      body: payload
+    }
+  ),
+  getTestCaseJobStatus: (projectId, jobId) => request(
+    `/ai/projects/${encodeURIComponent(projectId)}/test-cases/jobs/${encodeURIComponent(jobId)}`
+  ),
+  listTestSuites: (projectId, params = {}) => {
+    const q = new URLSearchParams();
+    if (params.status) q.append('status', params.status);
+    if (params.search) q.append('search', params.search);
+    if (params.page) q.append('page', params.page);
+    if (params.limit) q.append('limit', params.limit);
+    const qs = q.toString() ? `?${q.toString()}` : '';
+    return request(`/ai/projects/${encodeURIComponent(projectId)}/suites${qs}`);
+  },
+  getTestSuiteDetails: (projectId, suiteId) => request(
+    `/ai/projects/${encodeURIComponent(projectId)}/suites/${encodeURIComponent(suiteId)}`
+  ),
+  reviewTestSuite: (projectId, suiteId, payload) => request(
+    `/ai/projects/${encodeURIComponent(projectId)}/suites/${encodeURIComponent(suiteId)}/review`,
+    {
+      method: 'POST',
+      body: payload
+    }
+  ),
+  reviewTestCase: (projectId, suiteId, testCaseId, payload) => request(
+    `/ai/projects/${encodeURIComponent(projectId)}/suites/${encodeURIComponent(suiteId)}/cases/${encodeURIComponent(testCaseId)}/review`,
+    {
+      method: 'POST',
+      body: payload
+    }
+  ),
+  convertTestCaseProposal: (projectId, suiteId, proposalId, payload = {}) => request(
+    `/ai/projects/${encodeURIComponent(projectId)}/suites/${encodeURIComponent(suiteId)}/proposals/${encodeURIComponent(proposalId)}/convert`,
+    {
+      method: 'POST',
+      body: payload
+    }
+  ),
+  rejectTestCaseProposal: (projectId, suiteId, proposalId, payload = {}) => request(
+    `/ai/projects/${encodeURIComponent(projectId)}/suites/${encodeURIComponent(suiteId)}/proposals/${encodeURIComponent(proposalId)}/reject`,
+    {
+      method: 'POST',
+      body: payload
+    }
+  )
 };

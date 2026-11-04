@@ -20,6 +20,7 @@ import {
 import { api } from '../services/api';
 import CustomSelect from '../components/ui/select';
 import { toast } from '../utils/toast';
+import { useDialogShortcuts } from '../hooks/useDialogShortcuts';
 
 const ROLES = ['ADMIN', 'EDITOR', 'TESTER', 'DEVELOPER', 'VIEWER'];
 const STATUSES = ['ACTIVE', 'INACTIVE'];
@@ -91,7 +92,7 @@ export default function AdminUsersPage({ currentUser }) {
   };
 
   const handleSaveUser = async (e) => {
-    e.preventDefault();
+    e?.preventDefault?.();
     if (!editModalUser) return;
     setEditLoading(true);
     setEditError('');
@@ -116,7 +117,7 @@ export default function AdminUsersPage({ currentUser }) {
   };
 
   const handleExecuteReset = async (e) => {
-    e.preventDefault();
+    e?.preventDefault?.();
     if (!resetModalUser) return;
     setResetLoading(true);
     setResetError('');
@@ -133,6 +134,26 @@ export default function AdminUsersPage({ currentUser }) {
       setResetLoading(false);
     }
   };
+
+  useDialogShortcuts({
+    dialogId: 'admin-edit-user-modal',
+    isOpen: Boolean(editModalUser),
+    onPrimaryAction: handleSaveUser,
+    onSubmit: handleSaveUser,
+    onClose: () => setEditModalUser(null),
+    disabled: editLoading,
+    loading: editLoading,
+  });
+
+  useDialogShortcuts({
+    dialogId: 'admin-reset-password-modal',
+    isOpen: Boolean(resetModalUser),
+    onPrimaryAction: resetResult ? null : handleExecuteReset,
+    onSubmit: resetResult ? null : handleExecuteReset,
+    onClose: () => setResetModalUser(null),
+    disabled: resetLoading,
+    loading: resetLoading,
+  });
 
   const handleCopyPassword = () => {
     if (!resetResult) return;

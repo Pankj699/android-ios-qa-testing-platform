@@ -28,11 +28,13 @@ import {
   Sparkles
 } from 'lucide-react';
 import { api } from '../services/api';
+import Tooltip from '../components/ui/Tooltip';
 import CustomSelect from '../components/ui/select';
 import { toast } from '../utils/toast';
 import { JsonSyntaxViewer, tokenizeJsonLine } from '../components/LiveLogViewer';
 import { isGenerateShortcut, isMacPlatform } from '../utils/shortcutUtils';
 import { analyzeJsonSyntax, repairJson } from '../utils/jsonAutoRepair';
+import { useDialogShortcuts } from '../hooks/useDialogShortcuts';
 
 /**
  * Compact syntax-highlighted preview of configuration values matching HTTP Inspector
@@ -442,7 +444,13 @@ export default function RemoteConfigPage({ currentUser, platform: propPlatform, 
   const baselineConfigRef = useRef(null);
   const actionFetchIdRef = useRef(0);
   const editorRef = useRef(null);
+  const searchInputRef = useRef(null);
+  const mutationTrackerRef = useRef(mutationTracker);
   const [repairFeedback, setRepairFeedback] = useState(null); // { success: boolean, message: string, repairs?: string[], reasonCode?: string, line?: number, column?: number }
+
+  useEffect(() => {
+    mutationTrackerRef.current = mutationTracker;
+  }, [mutationTracker]);
 
   // Mutation tracking callbacks
   const recordMutation = useCallback((plt, app, newKey, oldKey = null) => {
@@ -515,27 +523,69 @@ export default function RemoteConfigPage({ currentUser, platform: propPlatform, 
     loadApplications(platform);
   }, [platform]);
 
-  // Load configs whenever selectedApp or platform changes (with stale-fetch protection)
-  const loadConfigs = useCallback(async () => {
+  // Load configs whenever selectedApp or platform changes (with stale-fetch protection and background reconciliation)
+  const loadConfigs = useCallback(async (options = {}) => {
     if (!selectedApp) {
       setConfigs([]);
       return;
     }
+    const isBackground = options?.background === true;
     const currentFetchId = ++fetchIdRef.current;
-    setLoadingConfigs(true);
+    if (!isBackground) {
+      setLoadingConfigs(true);
+    }
     try {
       const res = await api.getRemoteConfigs(platform, selectedApp);
       // Ignore response if a newer fetch request has already been initiated
       if (currentFetchId !== fetchIdRef.current) return;
 
-      setConfigs(res.configs || []);
+      const incoming = res.configs || [];
+
+      setConfigs(prev => {
+        if (!isBackground) return incoming;
+
+        // In background mode, reconcile incoming server records while preserving recent session mutations
+        const activeMutationItems = mutationTrackerRef.current?.items || {};
+        const incomingKeys = new Set(incoming.map(c => (c.key || '').toLowerCase()));
+        const now = Date.now();
+
+        const merged = incoming.map(inc => {
+          const localMatch = prev.find(p => (p.key || '').toLowerCase() === (inc.key || '').toLowerCase());
+          const compound = getCompoundKey(platform, selectedApp, inc.key);
+          const mutation = activeMutationItems[compound];
+          // If locally mutated in this session within the last 15 seconds, keep confirmed local state
+          if (localMatch && mutation && (now - mutation.timestamp < 15000)) {
+            return { ...inc, ...localMatch };
+          }
+          return inc;
+        });
+
+        // Preserve any newly created items that may not have propagated to the server list response yet
+        prev.forEach(p => {
+          const pKey = (p.key || '').toLowerCase();
+          if (!incomingKeys.has(pKey)) {
+            const compound = getCompoundKey(platform, selectedApp, p.key);
+            const mutation = activeMutationItems[compound];
+            if (mutation && (now - mutation.timestamp < 15000)) {
+              merged.push(p);
+            }
+          }
+        });
+
+        return merged;
+      });
+
       setTimestampLimitation(res.timestampLimitation || '');
     } catch (err) {
       if (currentFetchId !== fetchIdRef.current) return;
       console.error('Failed to load configs:', err);
-      toast.error(`Failed to load Remote Configs for ${selectedApp}: ${err.message}`);
+      if (isBackground) {
+        toast.warning(`Background list refresh failed: ${err.message}. Your saved change is preserved locally.`);
+      } else {
+        toast.error(`Failed to load Remote Configs for ${selectedApp}: ${err.message}`);
+      }
     } finally {
-      if (currentFetchId === fetchIdRef.current) {
+      if (currentFetchId === fetchIdRef.current && !isBackground) {
         setLoadingConfigs(false);
       }
     }
@@ -557,23 +607,13 @@ export default function RemoteConfigPage({ currentUser, platform: propPlatform, 
     }
   }, [createModalOpen, editModalConfig, viewValueConfig, deleteConfirmConfig]);
 
-  // Handle Escape key to close open modals
-  useEffect(() => {
-    const handleKeyDown = (e) => {
-      if (e.key === 'Escape') {
-        if (createModalOpen || editModalConfig) {
-          setCreateModalOpen(false);
-          setEditModalConfig(null);
-        } else if (viewValueConfig) {
-          setViewValueConfig(null);
-        } else if (deleteConfirmConfig) {
-          setDeleteConfirmConfig(null);
-        }
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [createModalOpen, editModalConfig, viewValueConfig, deleteConfirmConfig]);
+  // Global Dialog Keyboard Shortcuts: JSON Inspector modal (read-only: Escape dismisses, Enter does not close)
+  useDialogShortcuts({
+    isOpen: !!viewValueConfig,
+    onPrimaryAction: null,
+    onClose: () => setViewValueConfig(null),
+    id: 'remote-config-view-modal'
+  });
 
   // Filter and Sort Configurations
   const filteredConfigs = useMemo(() => {
@@ -884,7 +924,8 @@ export default function RemoteConfigPage({ currentUser, platform: propPlatform, 
       ));
 
       toast.success(`Remote Config '${config.key}' is now ${targetState ? 'ACTIVE' : 'INACTIVE'}`);
-      await loadConfigs();
+      setTogglingId(null);
+      loadConfigs({ background: true });
     } catch (err) {
       console.error('Failed to toggle active status:', err);
       toast.error(`Failed to toggle status: ${err.message}`);
@@ -993,9 +1034,17 @@ export default function RemoteConfigPage({ currentUser, platform: propPlatform, 
           return [confirmedConfig, ...prev];
         });
 
+        // 3. Immediately close modal, clear submitting & conflict states, and show success toast
         toast.success(`Config '${trimmedKey}' updated successfully.`);
         setEditModalConfig(null);
         setConflictState(null);
+        setFormError('');
+        submittingRef.current = false;
+        setSubmitting(false);
+
+        // 4. Background reconciliation (non-blocking)
+        loadConfigs({ background: true });
+        return;
       } else {
         // Create
         const res = await api.createRemoteConfig({
@@ -1027,10 +1076,17 @@ export default function RemoteConfigPage({ currentUser, platform: propPlatform, 
           return [confirmedConfig, ...filtered];
         });
 
+        // 3. Immediately close modal, clear submitting state, and show success toast
         toast.success(`Config '${trimmedKey}' created successfully.`);
         setCreateModalOpen(false);
+        setFormError('');
+        submittingRef.current = false;
+        setSubmitting(false);
+
+        // 4. Background reconciliation (non-blocking)
+        loadConfigs({ background: true });
+        return;
       }
-      await loadConfigs();
     } catch (err) {
       console.error('Failed to save config:', err);
       // Preserve form values so user doesn't lose inputs!
@@ -1041,24 +1097,19 @@ export default function RemoteConfigPage({ currentUser, platform: propPlatform, 
     }
   };
 
-  // Keyboard shortcut: Ctrl + Enter (Cmd + Enter on macOS) to save while Edit Remote Config is open
-  useEffect(() => {
-    if (!editModalConfig) return;
-
-    const handleKeyDown = (e) => {
-      if (isGenerateShortcut(e)) {
-        e.preventDefault();
-        e.stopPropagation();
-        if (submittingRef.current) return;
-        handleSaveForm();
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown, { capture: true });
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown, { capture: true });
-    };
-  }, [editModalConfig, handleSaveForm]);
+  // Global Dialog Keyboard Shortcuts: Create / Edit Remote Config Modal
+  useDialogShortcuts({
+    isOpen: createModalOpen || !!editModalConfig,
+    onPrimaryAction: handleSaveForm,
+    onSubmit: handleSaveForm,
+    onClose: () => {
+      setCreateModalOpen(false);
+      setEditModalConfig(null);
+    },
+    disabled: submitting,
+    loading: submitting,
+    id: 'remote-config-form-modal'
+  });
 
   // Handle Delete Confirmation
   const handleDeleteConfirm = async () => {
@@ -1078,7 +1129,8 @@ export default function RemoteConfigPage({ currentUser, platform: propPlatform, 
 
       toast.success(`Config '${deleteConfirmConfig.key}' deleted successfully.`);
       setDeleteConfirmConfig(null);
-      await loadConfigs();
+      setSubmitting(false);
+      loadConfigs({ background: true });
     } catch (err) {
       console.error('Failed to delete config:', err);
       toast.error(`Delete failed: ${err.message}`);
@@ -1086,6 +1138,17 @@ export default function RemoteConfigPage({ currentUser, platform: propPlatform, 
       setSubmitting(false);
     }
   };
+
+  // Global Dialog Keyboard Shortcuts: Delete Remote Config Confirmation Modal
+  useDialogShortcuts({
+    isOpen: !!deleteConfirmConfig,
+    onPrimaryAction: handleDeleteConfirm,
+    onSubmit: handleDeleteConfirm,
+    onClose: () => setDeleteConfirmConfig(null),
+    disabled: submitting,
+    loading: submitting,
+    id: 'remote-config-delete-modal'
+  });
 
   // JSON Formatting helpers
   const handlePrettifyJson = () => {
@@ -1283,15 +1346,17 @@ export default function RemoteConfigPage({ currentUser, platform: propPlatform, 
             </div>
 
             {/* Refresh Button */}
-            <button
-              type="button"
-              onClick={() => loadConfigs()}
-              disabled={loadingConfigs}
-              title="Refresh configurations"
-              className="h-10 w-10 p-0 rounded-xl btn-soft shrink-0 flex items-center justify-center cursor-pointer shadow-xs"
-            >
-              <RefreshCw className={`w-4 h-4 text-[#6B7194] dark:text-[#8F97A6] ${loadingConfigs ? 'animate-spin text-[#7c6cf6] dark:text-violet-400' : ''}`} />
-            </button>
+            <Tooltip content="Refresh configurations" side="bottom">
+              <button
+                type="button"
+                onClick={() => loadConfigs()}
+                disabled={loadingConfigs}
+                aria-label="Refresh configurations"
+                className="h-10 w-10 p-0 rounded-xl btn-soft shrink-0 flex items-center justify-center cursor-pointer shadow-xs"
+              >
+                <RefreshCw className={`w-4 h-4 text-[#6B7194] dark:text-[#8F97A6] ${loadingConfigs ? 'animate-spin text-[#7c6cf6] dark:text-violet-400' : ''}`} />
+              </button>
+            </Tooltip>
 
             {/* Create Config Button */}
             <button
@@ -1327,12 +1392,35 @@ export default function RemoteConfigPage({ currentUser, platform: propPlatform, 
           <div className="lg:col-span-4 sm:col-span-2 relative">
             <Search className="w-4 h-4 text-[#6B7194] dark:text-[#8F97A6] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
             <input
+              ref={searchInputRef}
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape' && searchQuery) {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setSearchQuery('');
+                }
+              }}
               placeholder="Search by key name, value, or app..."
-              className="w-full h-10 pl-9 pr-3.5 text-xs rounded-xl bg-white/70 border border-[var(--line)] text-[#1F2544] placeholder-[#6B7194] dark:bg-[#080B10] dark:border-[#1E2638] dark:text-white focus:outline-none focus:border-[#7c6cf6] focus:ring-1 focus:ring-[#7c6cf6]/50 shadow-xs"
+              className={`w-full h-10 pl-9 ${searchQuery ? 'pr-9' : 'pr-3.5'} text-xs rounded-xl bg-white/70 border border-[var(--line)] text-[#1F2544] placeholder-[#6B7194] dark:bg-[#080B10] dark:border-[#1E2638] dark:text-white focus:outline-none focus:border-[#7c6cf6] focus:ring-1 focus:ring-[#7c6cf6]/50 shadow-xs transition-all`}
             />
+            {Boolean(searchQuery) && (
+              <Tooltip content="Clear search" side="top">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearchQuery('');
+                    searchInputRef.current?.focus();
+                  }}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 rounded-lg text-[#6B7194] hover:text-[#1F2544] dark:text-[#8F97A6] dark:hover:text-white hover:bg-slate-200/60 dark:hover:bg-[#1E2638] transition-colors cursor-pointer"
+                  aria-label="Clear search"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </Tooltip>
+            )}
           </div>
 
           {/* Type Filter */}
@@ -1443,58 +1531,62 @@ export default function RemoteConfigPage({ currentUser, platform: propPlatform, 
                       className="hover:bg-[#7c6cf6]/5 dark:hover:bg-[#1C2230]/40 transition-colors"
                     >
                       {/* Sr. No */}
-                      <td className="py-3.5 px-4 text-center font-mono text-[#6B7194] dark:text-[#8F97A6] text-xs">
+                      <td className="py-4 px-4 text-center font-mono text-[#6B7194] dark:text-[#8F97A6] text-xs align-middle">
                         {cfg.srNo}
                       </td>
 
                       {/* Application */}
-                      <td className="py-3.5 px-4 font-medium">
+                      <td className="py-4 px-4 font-medium align-middle">
                         <span className="px-2.5 py-1 rounded-md bg-slate-100 dark:bg-[#141B28] text-[#6B7194] dark:text-[#94A3B8] font-mono text-xs border border-[var(--line)]">
                           {cfg.app}
                         </span>
                       </td>
 
                       {/* Key */}
-                      <td className="py-3.5 px-4">
+                      <td className="py-4 px-4 align-middle">
                         <div className="flex items-center gap-2 group">
-                          <span className="font-mono font-bold text-[#1F2544] dark:text-white text-xs select-all break-all">
+                          <span className="font-sans font-bold text-[#1F2544] dark:text-white text-xs select-all break-all">
                             {cfg.key}
                           </span>
-                          <button
-                            type="button"
-                            onClick={() => handleCopyKey(cfg.key, cfg.key)}
-                            title="Copy key name"
-                            className="opacity-0 group-hover:opacity-100 p-1 text-[#6B7194] hover:text-[#7c6cf6] dark:hover:text-violet-400 transition-opacity cursor-pointer shrink-0"
-                          >
-                            {isCopied ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
-                          </button>
+                          <Tooltip content="Copy key name" side="top">
+                            <button
+                              type="button"
+                              onClick={() => handleCopyKey(cfg.key, cfg.key)}
+                              aria-label="Copy key name"
+                              className="opacity-0 group-hover:opacity-100 p-1 text-[#6B7194] hover:text-[#7c6cf6] dark:hover:text-violet-400 transition-opacity cursor-pointer shrink-0"
+                            >
+                              {isCopied ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
+                            </button>
+                          </Tooltip>
                         </div>
                       </td>
 
                       {/* Value Preview */}
-                      <td className="py-3.5 px-4">
+                      <td className="py-4 px-4 align-middle">
                         <div className="flex items-center gap-2 max-w-xl">
                           <div className="flex-1 min-w-0">
                             <ConfigValuePreview type={cfg.type} value={cfg.value} />
                           </div>
-                          <button
-                            type="button"
-                            onClick={() => handleViewConfig(cfg)}
-                            disabled={fetchingActionId === `view-${cfg.id || cfg.key}`}
-                            title="View full value in JSON Inspector (fetches latest upstream value)"
-                            className="p-1.5 rounded-lg btn-soft text-[#6B7194] hover:text-[#1F2544] dark:text-slate-400 dark:hover:text-white transition-colors cursor-pointer shrink-0 disabled:opacity-50"
-                          >
-                            {fetchingActionId === `view-${cfg.id || cfg.key}` ? (
-                              <RefreshCw className="w-3.5 h-3.5 animate-spin text-[#7c6cf6]" />
-                            ) : (
-                              <Maximize2 className="w-3.5 h-3.5" />
-                            )}
-                          </button>
+                          <Tooltip content="View full value in JSON Inspector (fetches latest upstream value)" side="top">
+                            <button
+                              type="button"
+                              onClick={() => handleViewConfig(cfg)}
+                              disabled={fetchingActionId === `view-${cfg.id || cfg.key}`}
+                              aria-label="View full value in JSON Inspector"
+                              className="p-1.5 rounded-lg btn-soft text-[#6B7194] hover:text-[#1F2544] dark:text-slate-400 dark:hover:text-white transition-colors cursor-pointer shrink-0 disabled:opacity-50"
+                            >
+                              {fetchingActionId === `view-${cfg.id || cfg.key}` ? (
+                                <RefreshCw className="w-3.5 h-3.5 animate-spin text-[#7c6cf6]" />
+                              ) : (
+                                <Maximize2 className="w-3.5 h-3.5" />
+                              )}
+                            </button>
+                          </Tooltip>
                         </div>
                       </td>
 
                       {/* Type Badge */}
-                      <td className="py-3.5 px-4 text-center">
+                      <td className="py-4 px-4 text-center align-middle">
                         {cfg.type === 'boolean' && (
                           <span className="px-2.5 py-0.5 rounded-full text-[10.5px] font-bold uppercase tracking-wider bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
                             Boolean
@@ -1513,70 +1605,78 @@ export default function RemoteConfigPage({ currentUser, platform: propPlatform, 
                       </td>
 
                       {/* Active Toggle */}
-                      <td className="py-3.5 px-4 text-center">
-                        <button
-                          type="button"
-                          onClick={() => handleToggleActive(cfg)}
-                          disabled={isToggling}
-                          title={cfg.active ? 'Click to deactivate' : 'Click to activate'}
-                          className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10.5px] font-bold transition-all cursor-pointer ${
-                            cfg.active
-                              ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/20'
-                              : 'bg-slate-100 dark:bg-[#141B28] text-[#6B7194] dark:text-[#8F97A6] border border-[var(--line)] hover:bg-slate-200/50'
-                          }`}
-                        >
-                          {isToggling ? (
-                            <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                          ) : cfg.active ? (
-                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
-                          ) : (
-                            <XCircle className="w-3.5 h-3.5 text-slate-400" />
-                          )}
-                          <span>{cfg.active ? 'YES' : 'NO'}</span>
-                        </button>
+                      <td className="py-4 px-4 text-center align-middle">
+                        <Tooltip content={cfg.active ? 'Click to deactivate' : 'Click to activate'} side="top">
+                          <button
+                            type="button"
+                            onClick={() => handleToggleActive(cfg)}
+                            disabled={isToggling}
+                            aria-label={cfg.active ? 'Click to deactivate' : 'Click to activate'}
+                            className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10.5px] font-bold transition-all cursor-pointer ${
+                              cfg.active
+                                ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/20'
+                                : 'bg-slate-100 dark:bg-[#141B28] text-[#6B7194] dark:text-[#8F97A6] border border-[var(--line)] hover:bg-slate-200/50'
+                            }`}
+                          >
+                            {isToggling ? (
+                              <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                            ) : cfg.active ? (
+                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
+                            ) : (
+                              <XCircle className="w-3.5 h-3.5 text-slate-400" />
+                            )}
+                            <span>{cfg.active ? 'YES' : 'NO'}</span>
+                          </button>
+                        </Tooltip>
                       </td>
 
                       {/* Actions */}
-                      <td className="py-3.5 px-4 text-right">
+                      <td className="py-4 px-4 text-right align-middle">
                         <div className="flex items-center justify-end gap-1.5">
-                          <button
-                            type="button"
-                            onClick={() => handleEditConfig(cfg)}
-                            disabled={fetchingActionId === `edit-${cfg.id || cfg.key}`}
-                            title="Edit configuration (fetches latest upstream data)"
-                            className="p-1.5 rounded-lg btn-soft text-[#6B7194] hover:text-[#7c6cf6] transition-colors cursor-pointer disabled:opacity-50"
-                          >
-                            {fetchingActionId === `edit-${cfg.id || cfg.key}` ? (
-                              <RefreshCw className="w-3.5 h-3.5 animate-spin text-[#7c6cf6]" />
-                            ) : (
-                              <Edit2 className="w-3.5 h-3.5" />
-                            )}
-                          </button>
+                          <Tooltip content="Edit configuration (fetches latest upstream data)" side="top">
+                            <button
+                              type="button"
+                              onClick={() => handleEditConfig(cfg)}
+                              disabled={fetchingActionId === `edit-${cfg.id || cfg.key}`}
+                              aria-label="Edit configuration"
+                              className="p-1.5 rounded-lg btn-soft text-[#6B7194] hover:text-[#7c6cf6] transition-colors cursor-pointer disabled:opacity-50"
+                            >
+                              {fetchingActionId === `edit-${cfg.id || cfg.key}` ? (
+                                <RefreshCw className="w-3.5 h-3.5 animate-spin text-[#7c6cf6]" />
+                              ) : (
+                                <Edit2 className="w-3.5 h-3.5" />
+                              )}
+                            </button>
+                          </Tooltip>
 
-                          <button
-                            type="button"
-                            onClick={() => handleCopyConfig(cfg)}
-                            disabled={fetchingActionId === `copy-${cfg.id || cfg.key}`}
-                            title="Copy latest raw value to clipboard"
-                            className="p-1.5 rounded-lg btn-soft text-[#6B7194] hover:text-[#1F2544] dark:hover:text-white transition-colors cursor-pointer disabled:opacity-50"
-                          >
-                            {fetchingActionId === `copy-${cfg.id || cfg.key}` ? (
-                              <RefreshCw className="w-3.5 h-3.5 animate-spin text-[#7c6cf6]" />
-                            ) : copiedKey === `val-${cfg.id || cfg.key}` ? (
-                              <Check className="w-3.5 h-3.5 text-emerald-500" />
-                            ) : (
-                              <Copy className="w-3.5 h-3.5" />
-                            )}
-                          </button>
+                          <Tooltip content="Copy latest raw value to clipboard" side="top">
+                            <button
+                              type="button"
+                              onClick={() => handleCopyConfig(cfg)}
+                              disabled={fetchingActionId === `copy-${cfg.id || cfg.key}`}
+                              aria-label="Copy latest raw value to clipboard"
+                              className="p-1.5 rounded-lg btn-soft text-[#6B7194] hover:text-[#1F2544] dark:hover:text-white transition-colors cursor-pointer disabled:opacity-50"
+                            >
+                              {fetchingActionId === `copy-${cfg.id || cfg.key}` ? (
+                                <RefreshCw className="w-3.5 h-3.5 animate-spin text-[#7c6cf6]" />
+                              ) : copiedKey === `val-${cfg.id || cfg.key}` ? (
+                                <Check className="w-3.5 h-3.5 text-emerald-500" />
+                              ) : (
+                                <Copy className="w-3.5 h-3.5" />
+                              )}
+                            </button>
+                          </Tooltip>
 
-                          <button
-                            type="button"
-                            onClick={() => setDeleteConfirmConfig(cfg)}
-                            title="Delete configuration"
-                            className="p-1.5 rounded-lg btn-soft text-[#6B7194] hover:text-rose-600 hover:border-rose-300 dark:hover:text-rose-400 transition-colors cursor-pointer"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
+                          <Tooltip content="Delete configuration" side="top">
+                            <button
+                              type="button"
+                              onClick={() => setDeleteConfirmConfig(cfg)}
+                              aria-label="Delete configuration"
+                              className="p-1.5 rounded-lg btn-soft text-[#6B7194] hover:text-rose-600 hover:border-rose-300 dark:hover:text-rose-400 transition-colors cursor-pointer"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </Tooltip>
                         </div>
                       </td>
                     </tr>
@@ -1768,22 +1868,26 @@ export default function RemoteConfigPage({ currentUser, platform: propPlatform, 
                         <div className="h-4 w-px bg-[var(--line)]" />
 
                         {/* Formatting action buttons */}
-                        <button
-                          type="button"
-                          onClick={handlePrettifyJson}
-                          className="px-2.5 py-1 rounded-lg btn-soft text-[#6B7194] hover:text-[#1F2544] dark:text-[#CBD5E1] dark:hover:text-white text-[11px] font-semibold cursor-pointer transition-colors"
-                          title="Prettify JSON with 2 spaces indentation"
-                        >
-                          Format
-                        </button>
-                        <button
-                          type="button"
-                          onClick={handleMinifyJson}
-                          className="px-2.5 py-1 rounded-lg btn-soft text-[#6B7194] hover:text-[#1F2544] dark:text-[#CBD5E1] dark:hover:text-white text-[11px] font-semibold cursor-pointer transition-colors"
-                          title="Minify JSON into a single line"
-                        >
-                          Minify
-                        </button>
+                        <Tooltip content="Prettify JSON with 2 spaces indentation" side="top">
+                          <button
+                            type="button"
+                            onClick={handlePrettifyJson}
+                            className="px-2.5 py-1 rounded-lg btn-soft text-[#6B7194] hover:text-[#1F2544] dark:text-[#CBD5E1] dark:hover:text-white text-[11px] font-semibold cursor-pointer transition-colors"
+                            aria-label="Prettify JSON with 2 spaces indentation"
+                          >
+                            Format
+                          </button>
+                        </Tooltip>
+                        <Tooltip content="Minify JSON into a single line" side="top">
+                          <button
+                            type="button"
+                            onClick={handleMinifyJson}
+                            className="px-2.5 py-1 rounded-lg btn-soft text-[#6B7194] hover:text-[#1F2544] dark:text-[#CBD5E1] dark:hover:text-white text-[11px] font-semibold cursor-pointer transition-colors"
+                            aria-label="Minify JSON into a single line"
+                          >
+                            Minify
+                          </button>
+                        </Tooltip>
                       </div>
                     )}
                   </div>

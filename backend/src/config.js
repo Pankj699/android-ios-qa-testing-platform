@@ -86,7 +86,18 @@ const config = {
 
   // Remote Config Integration Base URLs
   REMOTE_CONFIG_ANDROID_URL: process.env.REMOTE_CONFIG_ANDROID_URL || 'http://192.168.0.247:2315',
-  REMOTE_CONFIG_IOS_URL: process.env.REMOTE_CONFIG_IOS_URL || 'http://192.168.0.247:2324'
+  REMOTE_CONFIG_IOS_URL: process.env.REMOTE_CONFIG_IOS_URL || 'http://192.168.0.247:2324',
+
+  // FlyerBuilder App User / Credits API Configuration
+  FLYERBUILDER_API_BASE_URL: process.env.FLYERBUILDER_API_BASE_URL || 'https://flyerbuilder.app/api/public/api',
+  FLYERBUILDER_TIMEOUT_MS: parseInt(process.env.FLYERBUILDER_TIMEOUT_MS || '45000', 10),
+  FLYERBUILDER_BEARER_TOKEN: process.env.FLYERBUILDER_BEARER_TOKEN || '',
+
+  // Firebase Test Lab (Robo Test) Configuration
+  GCLOUD_PATH: process.env.GCLOUD_PATH || (process.platform === 'win32' ? 'gcloud.cmd' : 'gcloud'),
+  FIREBASE_PROJECT_ID: (process.env.FIREBASE_TEST_LAB_PROJECT_ID || process.env.FIREBASE_PROJECT_ID || process.env.GOOGLE_CLOUD_PROJECT || '').trim(),
+  FIREBASE_ROBO_TIMEOUT: process.env.FIREBASE_ROBO_TIMEOUT || '15m',
+  FIREBASE_RESULTS_BUCKET: process.env.FIREBASE_RESULTS_BUCKET || ''
 };
 
 module.exports = config;
