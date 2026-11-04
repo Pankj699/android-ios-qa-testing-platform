@@ -3,8 +3,13 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 
+import { fileURLToPath } from 'node:url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 describe('Remote Config Table Row Height and Key Typography Suite', () => {
-  const filePath = path.resolve('src/pages/RemoteConfigPage.jsx');
+  const filePath = path.resolve(__dirname, '../src/pages/RemoteConfigPage.jsx');
   const fileContent = fs.readFileSync(filePath, 'utf8');
 
   it('1. Verifies Key column uses global theme font (font-sans) instead of monospace (font-mono)', () => {

@@ -9,7 +9,6 @@ import {
   Terminal,
   Activity,
   BookOpen,
-  Compass,
   ShieldCheck,
   HardDrive,
   Scan,
@@ -82,13 +81,22 @@ export default function Sidebar({
 }) {
   const isAdmin = currentUser?.role === 'ADMIN';
   const aiEnabled = isAiTestWriterEnabled();
-  const visibleNavGroups = NAV_GROUPS.filter(
-    (group) => group.id !== 'ai-writer' || aiEnabled
-  );
+  const visibleNavGroups = NAV_GROUPS
+    .filter((group) => group.id !== 'ai-writer' || aiEnabled)
+    .map((group) => ({
+      ...group,
+      items: group.items.filter((item) => {
+        if (item.id === 'diagnostics') {
+          return isAdmin;
+        }
+        return true;
+      })
+    }))
+    .filter((group) => group.items.length > 0);
 
   return (
     <aside
-      className={`bg-white/80 backdrop-blur-md border-r border-[rgba(99,102,241,0.14)] dark:bg-[#090C12]/90 dark:border-[#161B26] flex flex-col justify-between shrink-0 select-none transition-[width] duration-200 ease-in-out relative ${
+      className={`bg-white/80 backdrop-blur-md border-r border-[rgba(99,102,241,0.14)] dark:bg-[#090C12]/90 dark:border-[#161B26] flex flex-col shrink-0 select-none transition-[width] duration-200 ease-in-out relative ${
         isCollapsed ? 'w-[68px]' : 'w-64'
       }`}
       aria-label="Sidebar Navigation"
@@ -288,66 +296,6 @@ export default function Sidebar({
             </div>
           )}
         </nav>
-      </div>
-
-      {/* Footer info & App Tour Button */}
-      <div
-        className={`border-t border-[rgba(99,102,241,0.14)] dark:border-[#161B26] text-xs text-[#6b7194] dark:text-[#64748B] transition-all ${
-          isCollapsed ? 'p-2.5 flex flex-col items-center gap-2' : 'p-3.5 space-y-3'
-        }`}
-      >
-        {onOpenTourModal && (
-          !isCollapsed ? (
-            <button
-              type="button"
-              onClick={onOpenTourModal}
-              className="w-full btn-soft py-2 px-3 text-xs shadow-xs cursor-pointer font-semibold"
-            >
-              <Compass className="w-3.5 h-3.5 text-[#7c6cf6] dark:text-[#94A3B8]" />
-              <span>Take App Tour</span>
-            </button>
-          ) : (
-            <Tooltip content="Take App Tour" side="right">
-              <button
-                type="button"
-                onClick={onOpenTourModal}
-                aria-label="Take App Tour"
-                className="w-10 h-10 rounded-xl btn-soft flex items-center justify-center transition-all cursor-pointer shadow-xs"
-              >
-                <Compass className="w-4 h-4 text-[#7c6cf6] dark:text-[#94A3B8]" />
-              </button>
-            </Tooltip>
-          )
-        )}
-
-        {currentTab !== 'dashboard' && (
-          !isCollapsed ? (
-            <div className="pt-1">
-              <div className="flex items-center justify-between text-[11px]">
-                <span className="text-slate-500 dark:text-[#525A6C]">Backend Mode</span>
-                <span className="text-emerald-600 dark:text-[#10B981] font-semibold font-mono">Host Execution</span>
-              </div>
-              <div className="mt-0.5 text-[10px] text-slate-400 dark:text-[#525A6C] font-mono flex items-center justify-between">
-                <span>Bundletool 1.18.3</span>
-                <span>Local Mock</span>
-              </div>
-            </div>
-          ) : (
-            <Tooltip content="Backend: Host Execution (Bundletool 1.18.3)" side="right">
-              <div
-                className="py-1 cursor-default"
-                tabIndex={0}
-                role="status"
-                aria-label="Backend: Host Execution (Bundletool 1.18.3)"
-              >
-                <span className="relative flex h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-60"></span>
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-                </span>
-              </div>
-            </Tooltip>
-          )
-        )}
       </div>
     </aside>
   );

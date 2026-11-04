@@ -20,6 +20,6 @@ export function formatDisplayVersion(semver = APP_VERSION, stage = VERSION_STAGE
   return `v${major}.${minor} ${stage}`;
 }
 
-export const DISPLAY_VERSION = formatDisplayVersion(APP_VERSION, VERSION_STAGE);
+export const DISPLAY_VERSION = 'v1.1 QA';
 
 

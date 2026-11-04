@@ -127,7 +127,7 @@ const CHECKLIST_ITEMS = [
   }
 ];
 
-export default function SopPage({ onNavigate, onOpenPairModal, onOpenUploadModal }) {
+export default function SopPage({ currentUser, onNavigate, onOpenPairModal, onOpenUploadModal }) {
   const [activeGuideId, setActiveGuideId] = useState('quickstart');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -562,7 +562,7 @@ export default function SopPage({ onNavigate, onOpenPairModal, onOpenUploadModal
                   </button>
                 )}
 
-                {activeGuide.id === 'diagnostics' && onNavigate && (
+                {activeGuide.id === 'diagnostics' && onNavigate && currentUser?.role === 'ADMIN' && (
                   <button
                     onClick={() => onNavigate('diagnostics')}
                     className="btn-magic px-3 py-1.5 text-xs text-white rounded-pill flex items-center gap-1.5 shadow-sm"
@@ -572,7 +572,7 @@ export default function SopPage({ onNavigate, onOpenPairModal, onOpenUploadModal
                   </button>
                 )}
 
-                {activeGuide.id === 'admin-users-devices' && onNavigate && (
+                {activeGuide.id === 'admin-users-devices' && onNavigate && currentUser?.role === 'ADMIN' && (
                   <>
                     <button
                       onClick={() => onNavigate('admin-users')}

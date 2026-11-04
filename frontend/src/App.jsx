@@ -91,6 +91,15 @@ const getInitialTab = () => {
       if ((tab === 'ai-documents' || tab === 'ai-requirements' || tab === 'ai-test-writer') && !isAiTestWriterEnabled()) {
         return 'dashboard';
       }
+      if (tab === 'diagnostics' || tab === 'admin-users' || tab === 'admin-devices') {
+        const user = api.getCurrentUser();
+        if (user?.role !== 'ADMIN') {
+          try {
+            window.history.replaceState({}, '', '/');
+          } catch (e) {}
+          return 'dashboard';
+        }
+      }
       return tab;
     }
   }
@@ -188,19 +197,17 @@ export default function App() {
       setBuilds([]);
       setSelectedBuild(null);
       setSummaryStats(null);
-      try {
-        const diagRes = await api.getDiagnostics().catch(() => ({ diagnostics: null }));
-        setDiagnostics(diagRes.diagnostics);
-      } catch (e) {}
+      setDiagnostics(null);
       return;
     }
 
     setLoading(true);
     try {
+      const isAdminUser = user?.role === 'ADMIN';
       const [devicesRes, buildsRes, diagRes, statsRes] = await Promise.all([
         api.getDevices().catch(() => ({ devices: [] })),
         api.getBuilds().catch(() => ({ builds: [] })),
-        api.getDiagnostics().catch(() => ({ diagnostics: null })),
+        isAdminUser ? api.getDiagnostics().catch(() => ({ diagnostics: null })) : Promise.resolve({ diagnostics: null }),
         api.getSummaryStats().catch(() => ({ stats: null }))
       ]);
 
@@ -302,12 +309,31 @@ export default function App() {
         if (meRes?.user) {
           setCurrentUser(meRes.user);
           setIsAuthenticated(true);
+          if (currentTab === 'diagnostics' && meRes.user.role !== 'ADMIN') {
+            setCurrentTab('dashboard');
+            try {
+              window.history.replaceState({}, '', '/');
+            } catch (e) {}
+          }
+        } else {
+          if (currentTab === 'diagnostics') {
+            setCurrentTab('dashboard');
+            try {
+              window.history.replaceState({}, '', '/');
+            } catch (e) {}
+          }
         }
         fetchData();
       })
       .catch(() => {
         setCurrentUser(null);
         setIsAuthenticated(false);
+        if (currentTab === 'diagnostics') {
+          setCurrentTab('dashboard');
+          try {
+            window.history.replaceState({}, '', '/');
+          } catch (e) {}
+        }
         fetchData();
       });
 
@@ -384,6 +410,13 @@ export default function App() {
           setCurrentTab('dashboard');
           return;
         }
+        if ((tabFromPath === 'diagnostics' || tabFromPath === 'admin-users' || tabFromPath === 'admin-devices') && api.getCurrentUser()?.role !== 'ADMIN') {
+          setCurrentTab('dashboard');
+          try {
+            window.history.replaceState({}, '', '/');
+          } catch (e) {}
+          return;
+        }
         setCurrentTab(tabFromPath);
         if (tabFromPath === 'bug-desk') {
           const p = path.toLowerCase();
@@ -407,6 +440,13 @@ export default function App() {
 
   const handleTabChange = (newTab) => {
     if ((newTab === 'ai-documents' || newTab === 'ai-requirements' || newTab === 'ai-test-writer') && !isAiTestWriterEnabled()) {
+      return;
+    }
+    if ((newTab === 'diagnostics' || newTab === 'admin-users' || newTab === 'admin-devices') && currentUser?.role !== 'ADMIN') {
+      setCurrentTab('dashboard');
+      try {
+        window.history.replaceState({}, '', '/');
+      } catch (e) {}
       return;
     }
     setCurrentTab(newTab);
@@ -501,7 +541,7 @@ export default function App() {
       setSummaryStats(null);
 
       // Return to unauthenticated dashboard if currently on an admin-only route
-      if (currentTab === 'admin-users' || currentTab === 'admin-devices') {
+      if (currentTab === 'admin-users' || currentTab === 'admin-devices' || currentTab === 'diagnostics') {
         handleTabChange('dashboard');
       }
 
@@ -820,18 +860,27 @@ export default function App() {
 
             {currentTab === 'sop' && (
               <SopPage
-                onNavigate={setCurrentTab}
+                currentUser={currentUser}
+                onNavigate={handleTabChange}
                 onOpenPairModal={() => guardAction(() => setPairModalOpen(true))}
                 onOpenUploadModal={() => guardAction(() => setUploadModalOpen(true))}
               />
             )}
 
             {currentTab === 'diagnostics' && (
-              <DiagnosticsPage
-                diagnostics={diagnostics}
-                onRefresh={fetchData}
-                loading={loading}
-              />
+              currentUser?.role === 'ADMIN' ? (
+                <DiagnosticsPage
+                  diagnostics={diagnostics}
+                  onRefresh={fetchData}
+                  loading={loading}
+                />
+              ) : (
+                <div className="p-8 text-center text-slate-400">
+                  <ShieldAlert className="w-12 h-12 text-rose-500 mx-auto mb-3" />
+                  <h3 className="text-base font-bold text-white">Access Forbidden</h3>
+                  <p className="text-xs text-slate-400 mt-1">Administrator privileges are required to access System Diagnostics.</p>
+                </div>
+              )
             )}
 
             {currentTab === 'admin-users' && (

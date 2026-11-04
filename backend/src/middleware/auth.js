@@ -13,8 +13,6 @@ const PUBLIC_PATHS = [
   '/api/auth/forgot-password',
   '/auth/reset-password',
   '/api/auth/reset-password',
-  '/system/diagnostics',
-  '/api/system/diagnostics',
   '/system/env',
   '/api/system/env',
   '/agent/pair',
